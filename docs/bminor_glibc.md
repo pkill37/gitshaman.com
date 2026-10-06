@@ -11,6 +11,9 @@ defaultOpenIds:
   - ch2
   - ch3
   - ch4
+  - ch5
+  - ch6
+  - ch7
 ---
 
 # GNU C Library (glibc) In The Mind
@@ -36,14 +39,14 @@ fileRecommendations:
     - path: INSTALL
       description: Build and installation instructions
       type: docs
-    - path: sysdeps/x86_64/start.S
+    - path: sysdeps/aarch64/start.S
       description: Program startup — _start assembly entry point
       type: source
     - path: csu/libc-start.c:__libc_start_main
       description: __libc_start_main — sets up runtime and calls main()
       type: source
-    - path: sysdeps/unix/sysv/linux/x86_64/syscall.S
-      description: x86-64 syscall assembly wrapper
+    - path: sysdeps/unix/sysv/linux/aarch64/syscall.S
+      description: AArch64 syscall assembly wrapper
       type: source
     - path: stdio-common/vfprintf-internal.c
       description: Core printf formatting (about 1,570 lines)
@@ -74,7 +77,7 @@ glibc: vfprintf() - formatting logic
     ↓
 glibc: write() wrapper in sysdeps/unix/sysv/linux/
     ↓
-Kernel: syscall entry (arch/x86/entry/entry_64.S)
+Kernel: syscall entry (arch/arm64/kernel/entry.S)
     ↓
 Kernel: sys_write() in fs/read_write.c
     ↓
@@ -103,12 +106,12 @@ weak_alias(__libc_read, read)
 **The syscall happens through:**
 
 ```assembly
-; x86-64 syscall (sysdeps/unix/sysv/linux/x86_64/syscall.S)
-mov $0, %rax        ; syscall number for read
-mov %rdi, %rdi      ; arg1: fd (already in rdi)
-mov %rsi, %rsi      ; arg2: buf
-mov %rdx, %rdx      ; arg3: count
-syscall             ; invoke kernel
+; AArch64 syscall wrapper shape (sysdeps/unix/sysv/linux/aarch64/syscall.S)
+uxtw    x8, w0      ; syscall number moves to x8
+mov     x0, x1      ; arg1: fd
+mov     x1, x2      ; arg2: buf
+mov     x2, x3      ; arg3: count
+svc     0x0         ; enter kernel
 ret
 ```
 
@@ -131,10 +134,10 @@ size_t strlen(const char *s) {
     return p - s;
 }
 
-// Optimized x86-64 SIMD version (sysdeps/x86_64/multiarch/strlen-avx2.S):
-// - Loads 32 bytes at a time using AVX2
-// - Processes 4x faster than byte-by-byte
-// - Uses pcmpeqb to find null terminators in parallel
+// Optimized AArch64 SIMD version (sysdeps/aarch64/multiarch/strlen_asimd.S):
+// - Checks the first 32 bytes early
+// - Uses Advanced SIMD comparisons for long strings
+// - Uses cmeq/uminp-style vector tests to find NUL bytes in parallel
 ```
 
 **3. POSIX Compliance**
@@ -156,15 +159,6 @@ Native POSIX Thread Library (NPTL) is glibc's threading implementation:
 - **Thread-local storage (TLS)**: Per-thread data
 - **Async-signal-safe**: Careful signal handling in threads
 
-### Study Files (Ordered Learning Path)
-
-**Week 1-2: System Call Interface**
-
-1. `sysdeps/unix/sysv/linux/syscalls.list` - List of all syscalls
-2. `sysdeps/unix/syscall-template.S` - Template for syscall wrappers
-3. `sysdeps/unix/sysv/linux/x86_64/syscall.S` - x86-64 syscall implementation
-4. `sysdeps/unix/sysv/linux/read.c` - Example: read() wrapper
-
 **Practical Exercise:**
 
 ```bash
@@ -172,20 +166,6 @@ Native POSIX Thread Library (NPTL) is glibc's threading implementation:
 grep -r "open" sysdeps/unix/sysv/linux/syscalls.list
 # Study: sysdeps/unix/sysv/linux/open.c
 ```
-
-**Week 3-4: Standard Library Basics**
-
-1. `string/strlen.c` - Generic strlen
-2. `string/strcpy.c` - Generic strcpy
-3. `string/memcpy.c` - Generic memcpy
-4. `sysdeps/x86_64/multiarch/strlen-avx2.S` - Optimized strlen
-
-**Week 5-6: I/O and Buffering**
-
-1. `libio/libio.h` - I/O library structures
-2. `libio/fileops.c` - File operations
-3. `stdio-common/vfprintf-internal.c` - Printf formatting core (about 1,570 lines)
-4. `libio/iofread.c` - fread() implementation
 
 **Practical Exercise:**
 
@@ -195,13 +175,6 @@ setbuf(stdout, NULL);  // Disable buffering
 printf("Test\n");      // Immediately writes (no buffer)
 ```
 
-**Month 2: Memory Management**
-
-1. `malloc/malloc.c` - Main allocator (about 6,000 lines)
-2. `malloc/arena.c` - Per-thread arenas
-3. `malloc/malloc.h` - Internal structures (chunk format)
-4. Study malloc implementation in detail (see Chapter 3)
-
 ---
 id: ch2
 title: Chapter 2 — System Call Interface
@@ -210,8 +183,8 @@ fileRecommendations:
     - path: sysdeps/unix/sysv/linux/syscalls.list
       description: List of all Linux syscall wrappers
       type: source
-    - path: sysdeps/unix/sysv/linux/x86_64/syscall.S
-      description: x86-64 syscall assembly implementation
+    - path: sysdeps/unix/sysv/linux/aarch64/syscall.S
+      description: AArch64 syscall assembly implementation
       type: source
     - path: sysdeps/unix/syscall-template.S
       description: Template for generated syscall wrappers
@@ -228,12 +201,6 @@ glibc provides the interface between user programs and the Linux kernel through 
 - **Direct syscalls**: Functions that directly invoke kernel syscalls
 - **Cancellation points**: Functions that can be interrupted
 - **Error handling**: Converting errno to appropriate error codes
-
-### Study Files
-
-- `sysdeps/unix/sysv/linux/x86_64/syscall.S` - System call assembly wrappers
-- `sysdeps/unix/syscall-template.S` - System call template
-- `sysdeps/unix/sysv/linux/x86_64/` - x86-64 specific syscalls
 
 ---
 id: ch3
@@ -575,31 +542,6 @@ Fast per-thread caching layer (added in glibc 2.26):
 - Typical: 5-10% for mixed workloads
 - Worst case: 50%+ with heavy fragmentation
 
-### Study Files (Critical Reading Order)
-
-**Week 1: Core Structures**
-
-1. `malloc/malloc.c` - Chunk structure definition (around lines 1000-1100)
-2. `malloc/malloc.c` - Bin definitions (around lines 1400-1600)
-3. `malloc/malloc-internal.h` - Internal macros and structures
-
-**Week 2: Allocation Logic**
-
-1. `malloc/malloc.c` - `_int_malloc()` main allocation (around lines 3000-3500)
-2. `malloc/malloc.c` - Fastbin allocation (around lines 1800-2000)
-3. `malloc/malloc.c` - Small bin allocation (around lines 2100-2300)
-
-**Week 3: Deallocation**
-
-1. `malloc/malloc.c` - `_int_free()` main deallocation (around lines 4000-4500)
-2. `malloc/malloc.c` - Chunk consolidation (around lines 4600-4800)
-
-**Week 4: Advanced Features**
-
-1. `malloc/arena.c` - Multi-arena management
-2. `malloc/malloc.c` - `malloc_consolidate()` (around lines 5000-5500)
-3. `malloc/hooks.c` - Hook mechanism
-
 **Practical Exercises:**
 
 ```bash
@@ -625,17 +567,17 @@ fileRecommendations:
     - path: string/strlen.c:__strlen
       description: Generic (portable) strlen implementation
       type: source
-    - path: sysdeps/x86_64/multiarch/strlen-avx2.S
-      description: AVX2-optimized strlen — processes 32 bytes per cycle
+    - path: sysdeps/aarch64/multiarch/strlen_asimd.S
+      description: AArch64 Advanced SIMD strlen implementation
       type: source
-    - path: sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S#L255
-      description: AVX memcpy/memmove for unaligned buffers (includes memmove-vec-unaligned-erms.S)
+    - path: sysdeps/aarch64/multiarch/memcpy_sve.S
+      description: SVE memcpy implementation for AArch64 systems with SVE
       type: source
-    - path: sysdeps/x86_64/multiarch/ifunc-impl-list.c:__libc_ifunc_impl_list
-      description: IFUNC dispatch table — maps CPU features to implementations
+    - path: sysdeps/aarch64/multiarch/ifunc-impl-list.c:__libc_ifunc_impl_list
+      description: AArch64 IFUNC dispatch table — maps CPU features to implementations
       type: source
-    - path: sysdeps/x86_64/multiarch/memset-avx2-unaligned-erms.S
-      description: AVX2 memset using ERMS (Enhanced REP MOVSB)
+    - path: sysdeps/aarch64/multiarch/memset_zva64.S
+      description: AArch64 memset using DC ZVA for 64-byte zeroing blocks
       type: source
 ---
 
@@ -643,28 +585,24 @@ glibc provides architecture-optimized implementations of the C standard string a
 
 
 ```chapter-graph
-sysdeps/x86_64/multiarch/ifunc-impl-list.c -> sysdeps/x86_64/multiarch/strlen-avx2.S : IFUNC selects AVX2 impl
-sysdeps/x86_64/multiarch/ifunc-impl-list.c -> string/strlen.c : IFUNC selects generic fallback
-sysdeps/x86_64/multiarch/strlen-avx2.S -> sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S : same vectorization strategy
+sysdeps/aarch64/multiarch/ifunc-impl-list.c -> sysdeps/aarch64/multiarch/strlen_asimd.S : IFUNC selects Advanced SIMD impl
+sysdeps/aarch64/multiarch/ifunc-impl-list.c -> string/strlen.c : IFUNC selects generic fallback
+sysdeps/aarch64/multiarch/memcpy_sve.S -> sysdeps/aarch64/multiarch/memset_zva64.S : AArch64 feature paths specialize memory operations
 string/strlen.c -> string/strcpy.c : generic pattern shared across string functions
 ```
 
 ### The IFUNC Dispatch Mechanism
 
-glibc uses GNU IFUNC (Indirect Function) to select the best implementation at program startup. The linker sets up an indirect function that the dynamic linker resolves to the optimal variant after checking `cpuid`.
+glibc uses GNU IFUNC (Indirect Function) to select the best implementation at program startup. The linker sets up an indirect function that the dynamic linker resolves to the optimal variant after checking AArch64 feature state such as SVE, MOPS, MTE, BTI, and DC ZVA size.
 
 ```c
-// sysdeps/x86_64/multiarch/ifunc-impl-list.c (simplified)
-// This table maps CPU feature flags to implementations:
-IFUNC_IMPL (array, caller, strlen,
-    IFUNC_IMPL_ADD (array, i, strlen,
-                    CPU_FEATURE_USABLE (AVX2),
-                    __strlen_avx2)
-    IFUNC_IMPL_ADD (array, i, strlen,
-                    CPU_FEATURE_USABLE (SSE4_2),
-                    __strlen_sse42)
+// sysdeps/aarch64/multiarch/ifunc-impl-list.c (simplified)
+// This table maps AArch64 feature state to implementations:
+IFUNC_IMPL (i, name, strlen,
+    IFUNC_IMPL_ADD (array, i, strlen, !mte,
+                    __strlen_asimd)
     IFUNC_IMPL_ADD (array, i, strlen, 1,
-                    __strlen_sse2)  // baseline, always available
+                    __strlen_generic)
 )
 ```
 
@@ -685,64 +623,62 @@ size_t strlen(const char *str) {
 
 In practice, [string/strlen.c](string/strlen.c) uses word-at-a-time tricks to check 8 bytes simultaneously without SIMD.
 
-**AVX2 (`sysdeps/x86_64/multiarch/strlen-avx2.S`) — 32 bytes per iteration:**
+**Advanced SIMD (`sysdeps/aarch64/multiarch/strlen_asimd.S`) — 32 bytes per loop:**
 
-```nasm
-; Core loop in strlen-avx2.S
-; ymm0 = 32 zero bytes for comparison
-vpxor       %ymm0, %ymm0, %ymm0
+```asm
+// Core idea in strlen_asimd.S
+// dataq1/dataq2 hold 32 loaded bytes.
+// cmeq marks zero bytes, then a reduced mask finds the first NUL.
 
 .loop:
-    vmovdqu     (%rdi), %ymm1          ; load 32 bytes
-    vpcmpeqb    %ymm1, %ymm0, %ymm2   ; compare each byte to 0
-    vpmovmskb   %ymm2, %eax            ; bitmask of zero bytes
-    test        %eax, %eax
-    jnz         .found_null            ; null byte found
-    add         $32, %rdi
-    jmp         .loop
+    ldp     q1, q2, [x1, 32]!      // load 32 bytes
+    uminp   v0.16b, v1.16b, v2.16b // reduce byte lanes
+    cmeq    v0.8b, v0.8b, 0        // compare with NUL
+    fmov    x3, d0                 // move mask to GPR
+    cbz     x3, .loop              // continue when no NUL appears
 ```
 
-This processes 32 bytes per iteration vs. 1 for the naive version — about a 32x throughput improvement for long strings.
+This checks 32 bytes per loop and keeps short-string exits fast, while avoiding unsafe unaligned page crossings.
 
 ### Deep Dive: memcpy Implementations
 
-memcpy has even more variants because its optimal strategy depends on size:
+memcpy has more variants because its optimal strategy depends on size and available AArch64 extensions:
 
-- **Small copies** (< 16 bytes): Avoid loop overhead, use direct register moves
-- **Medium copies** (16–256 bytes): SSE2/AVX registers
-- **Large copies** (> 256 bytes): Non-temporal stores to bypass cache (`movntdq`)
+- **Small copies**: Avoid loop overhead, use direct scalar loads/stores
+- **General copies**: Use Advanced SIMD or tuned core-specific implementations
+- **SVE copies**: Use scalable vector registers where available
+- **MOPS copies**: Use architectural memory operation instructions when available
 
-```nasm
-; Excerpt from memmove-vec-unaligned-erms.S — large copy path
-; Uses NT stores to avoid cache pollution for large buffers
-vmovdqu     (%rsi), %ymm0          ; load 32 bytes from src
-vmovntdq    %ymm0, (%rdi)          ; non-temporal store to dst
-vmovdqu     32(%rsi), %ymm1
-vmovntdq    %ymm1, 32(%rdi)
-; ... unrolled 4x = 128 bytes per iteration
+```asm
+// Excerpt shape from AArch64 memcpy paths
+// Copy vectors from source to destination, with overlap handled by memmove.
+ldp     q0, q1, [x1], 32      // load 32 bytes from src
+stp     q0, q1, [x0], 32      // store 32 bytes to dst
+ldp     q2, q3, [x1], 32
+stp     q2, q3, [x0], 32
 ```
 
 Key files:
-- [sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S](sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S) — AVX unaligned memcpy/memmove implementation with overlap handling
+- [sysdeps/aarch64/multiarch/memcpy.c](sysdeps/aarch64/multiarch/memcpy.c) — IFUNC resolver for memcpy variants
+- [sysdeps/aarch64/multiarch/memcpy_sve.S](sysdeps/aarch64/multiarch/memcpy_sve.S) — SVE copy path
+- [sysdeps/aarch64/multiarch/memmove.c](sysdeps/aarch64/multiarch/memmove.c) — IFUNC resolver for overlap-safe moves
 
-### ERMS: Enhanced REP MOVSB/STOSB
+### DC ZVA and MOPS: AArch64 Memory Operations
 
-Modern x86 CPUs (since Ivy Bridge) have hardware-accelerated `rep movsb` / `rep stosb` that can outperform even AVX2 for certain sizes. glibc uses this in the ERMS variants:
+AArch64 systems expose memory-operation features through the hardware capability state. glibc uses IFUNC selection to choose paths such as DC ZVA zeroing, SVE copy loops, or MOPS implementations when the CPU reports support.
 
-```nasm
-; From memset-avx2-unaligned-erms.S — ERMS path
-; For medium sizes, rep stosb is often fastest
-mov     %rdi, %rcx       ; count
-mov     %rdx, %rdi       ; destination
-mov     %rsi, %rax       ; fill byte (broadcast)
-rep stosb                 ; hardware-optimized fill
+```asm
+// memset_zva64.S zeroing shape
+// DC ZVA zeros a whole cache block selected by the implementation.
+dc      zva, x0          // zero block at destination address
+add     x0, x0, 64       // advance by the selected ZVA block size
 ```
 
-### Study Order
+### Trace Order
 
-1. Start with [sysdeps/x86_64/multiarch/ifunc-impl-list.c](sysdeps/x86_64/multiarch/ifunc-impl-list.c) — understand the dispatch table
+1. Start with [sysdeps/aarch64/multiarch/ifunc-impl-list.c](sysdeps/aarch64/multiarch/ifunc-impl-list.c) — understand the dispatch table
 2. Read [string/strlen.c](string/strlen.c) — the portable baseline
-3. Study [sysdeps/x86_64/multiarch/strlen-avx2.S](sysdeps/x86_64/multiarch/strlen-avx2.S) — the AVX2 fast path
+3. Study [sysdeps/aarch64/multiarch/strlen_asimd.S](sysdeps/aarch64/multiarch/strlen_asimd.S) — the Advanced SIMD fast path
 4. Then apply the same pattern to memcpy, memset, strcmp
 
 **Practical exercise:**
@@ -755,3 +691,176 @@ perf stat ./test
 # Verify which implementation is selected at runtime
 objdump -d ./test | grep strlen  # follow PLT entry
 ```
+
+---
+id: ch5
+title: Chapter 5 — Dynamic Linker and ELF Startup
+fileRecommendations:
+  readingOrder:
+    - path: elf/rtld.c:_dl_start
+      description: Runtime loader entry point for dynamic executables
+      type: source
+    - path: elf/dl-load.c:_dl_map_object
+      description: Maps shared objects into the process
+      type: source
+    - path: elf/dl-reloc.c:_dl_relocate_object
+      description: Applies relocations before user code runs
+      type: source
+    - path: elf/dl-lookup.c:_dl_lookup_symbol_x
+      description: Symbol lookup across loaded objects and scopes
+      type: source
+    - path: sysdeps/aarch64/dl-machine.h
+      description: AArch64 relocation and PLT/GOT machine hooks
+      type: source
+---
+
+The dynamic linker is the first glibc component a dynamically linked program executes. For AArch64, it maps shared libraries, resolves relocations, prepares thread-local storage, and transfers control to the program entry point with the ABI state the application expects.
+
+### Loader Pipeline
+
+The loader pipeline is compact in concept and dense in implementation:
+
+1. `_dl_start` receives control from the kernel's ELF interpreter path.
+2. `_dl_map_object` maps the main executable dependencies and their segments.
+3. `_dl_lookup_symbol_x` resolves names across loader scopes.
+4. `_dl_relocate_object` writes relocated addresses into GOT, data, and TLS slots.
+5. The loader calls initialization routines and jumps to the program startup path.
+
+On AArch64, the machine-specific layer handles relocation forms such as `R_AARCH64_RELATIVE`, jump-slot relocation, and TLS descriptors. Keep the generic loader files and the AArch64 machine header open together: the generic code explains when relocation happens; the machine hook explains how each relocation writes process state.
+
+```c
+// Mental model for a relocation pass.
+for (reloc in object->relocations) {
+    symbol = resolve_symbol(reloc);
+    value = compute_aarch64_relocation(symbol, reloc.addend);
+    write_location(reloc.target, value);
+}
+```
+
+### PLT, GOT, and Lazy Binding
+
+The Procedure Linkage Table and Global Offset Table let code call symbols whose final address is known only after loading. With lazy binding enabled, the first call to an external function enters the resolver; later calls jump directly through the patched GOT entry.
+
+Use this trace:
+
+```bash
+LD_DEBUG=libs,reloc,bindings ./your_program
+readelf -a ./your_program | less
+objdump -dr ./your_program | less
+```
+
+Focus on how `DT_NEEDED` entries become mapped objects, how relocation sections drive writes, and how the AArch64 PLT sequence loads target addresses through the GOT.
+
+---
+id: ch6
+title: Chapter 6 — Threads, Futexes, and TLS
+fileRecommendations:
+  readingOrder:
+    - path: nptl/pthread_create.c:__pthread_create_2_1
+      description: pthread creation path and startup handoff
+      type: source
+    - path: nptl/pthread_mutex_lock.c:___pthread_mutex_lock
+      description: Mutex fast path and futex fallback
+      type: source
+    - path: nptl/pthread_mutex_unlock.c:___pthread_mutex_unlock
+      description: Mutex release and waiter wakeup path
+      type: source
+    - path: sysdeps/nptl/futex-internal.h
+      description: Internal futex operations used by NPTL
+      type: source
+    - path: sysdeps/aarch64/nptl/tls.h
+      description: AArch64 thread pointer and TLS layout hooks
+      type: source
+---
+
+glibc's Native POSIX Thread Library maps POSIX threads onto Linux tasks. The fast paths stay in user space; the slow paths use futex system calls so the kernel only participates when a thread must block or wake another thread.
+
+### Thread Creation
+
+`pthread_create` allocates a stack, initializes thread descriptors, prepares TLS, and asks the kernel to create a task. The child begins in a glibc start routine, installs its thread pointer, runs user code, and reports termination state for `pthread_join`.
+
+```c
+pthread_t thread;
+pthread_create(&thread, NULL, worker, arg);
+pthread_join(thread, NULL);
+```
+
+Trace this with:
+
+```bash
+strace -f -e clone,clone3,set_tid_address,futex ./threaded-program
+```
+
+The important design point is separation: POSIX semantics live in NPTL, while blocking and wakeup use the Linux futex primitive.
+
+### Mutex Fast Path
+
+A contended mutex is expensive; an uncontended mutex must be cheap. glibc tries an atomic user-space transition first. Only contention enters futex wait or wake.
+
+```c
+// Conceptual mutex lock shape.
+if (atomic_compare_exchange(&mutex->__data.__lock, 0, locked))
+    return 0;
+
+return futex_wait_until_available(mutex);
+```
+
+On AArch64, atomics and memory ordering are part of the story. Read the NPTL mutex files with the AArch64 TLS header nearby to connect locks, thread descriptors, cancellation state, and the thread pointer model.
+
+---
+id: ch7
+title: Chapter 7 — stdio, Buffers, and printf
+fileRecommendations:
+  readingOrder:
+    - path: libio/libio.h
+      description: FILE object structures and flags
+      type: source
+    - path: libio/fileops.c
+      description: File-backed stream operations
+      type: source
+    - path: libio/iofwrite.c:_IO_fwrite
+      description: fwrite implementation and buffering path
+      type: source
+    - path: stdio-common/printf.c:__printf
+      description: Public printf wrapper
+      type: source
+    - path: stdio-common/vfprintf-internal.c:__vfprintf_internal
+      description: Core formatted-output engine
+      type: source
+---
+
+stdio turns small user operations into efficient kernel I/O. The central object is `FILE`: it tracks buffer pointers, flags, file descriptor state, locks, and a table of operations. Most `printf` calls do not enter the kernel directly; they format into a stream buffer, then flush when policy requires it.
+
+### FILE as a State Machine
+
+A stream has read and write regions, error state, EOF state, and buffering mode. The same public API works for terminals, pipes, regular files, memory streams, and custom cookie streams because libio dispatches through operation tables.
+
+```c
+printf("value=%d\n", value);
+// printf -> __vfprintf_internal -> stream writes -> _IO_file_xsputn -> write syscall when flushed
+```
+
+Line buffering, full buffering, and unbuffered mode explain surprising flush behavior:
+
+```c
+setvbuf(stdout, NULL, _IONBF, 0);  // unbuffered
+setvbuf(stdout, NULL, _IOLBF, 0);  // line buffered
+setvbuf(stdout, NULL, _IOFBF, 0);  // fully buffered
+```
+
+### printf Parsing
+
+`__vfprintf_internal` is large because it does more than string concatenation. It parses flags, width, precision, length modifiers, locale-sensitive formatting, positional arguments, floating-point conversions, integer bases, padding, and stream locking.
+
+Use this trace order:
+
+1. Start at `stdio-common/printf.c` to see the wrapper.
+2. Step into `stdio-common/vfprintf-internal.c` for parsing and formatting.
+3. Follow writes into `libio/fileops.c` and then the system-call layer.
+
+```bash
+ltrace -e printf,fwrite ./program
+strace -e write ./program
+```
+
+The difference between those two traces is the point: libc calls are semantic operations; system calls are the final bytes crossing into the kernel.

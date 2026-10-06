@@ -2080,10 +2080,23 @@ body {
 :where([data-markdown-preview], [data-guide-markdown]) h4,
 :where([data-markdown-preview], [data-guide-markdown]) h5,
 :where([data-markdown-preview], [data-guide-markdown]) h6 {
-  color: var(--vscode-editor-foreground, #d4d4d4);
+  color: var(--vscode-text-primary, var(--vscode-editor-foreground, #d4d4d4));
   font-weight: 700;
   line-height: 1.25;
   margin: 1.6em 0 0.6em;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h1,
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h2,
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h3,
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h4,
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h5,
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) h6 {
+  color: color-mix(
+    in srgb,
+    var(--vscode-text-primary, #29232e) 88%,
+    var(--repo-accent, #287f78) 12%
+  );
 }
 
 :where([data-markdown-preview], [data-guide-markdown]) h1 {
@@ -2270,6 +2283,74 @@ body {
   background: transparent;
   border: 0;
   padding: 0;
+}
+
+:where([data-markdown-preview], [data-guide-markdown]) .code-token-comment {
+  color: #898292;
+  font-style: italic;
+}
+
+:where([data-markdown-preview], [data-guide-markdown]) .code-token-keyword {
+  color: #c4a7e7;
+  font-weight: 650;
+}
+
+:where([data-markdown-preview], [data-guide-markdown]) .code-token-string {
+  color: #95d6a4;
+}
+
+:where([data-markdown-preview], [data-guide-markdown]) .code-token-number {
+  color: #efc66f;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) code {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vscode-bg-tertiary, #e8deca) 82%, white 18%),
+    color-mix(in srgb, var(--vscode-bg-secondary, #f1eadb) 86%, white 14%)
+  );
+  border-color: color-mix(in srgb, var(--vscode-border, #d2c4aa) 86%, #29232e 14%);
+  color: var(--vscode-text-primary, #29232e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) pre {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vscode-bg-secondary, #f1eadb) 92%, white 8%),
+    color-mix(in srgb, var(--vscode-bg-tertiary, #e8deca) 76%, white 24%)
+  );
+  border-color: color-mix(in srgb, var(--vscode-border, #d2c4aa) 82%, #29232e 18%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 1px 2px rgba(41, 35, 46, 0.08);
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) pre code {
+  color: var(--vscode-text-primary, #29232e);
+  background: transparent;
+  box-shadow: none;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) .mermaid {
+  background: color-mix(in srgb, var(--vscode-bg-secondary, #f1eadb) 90%, white 10%);
+  border-color: color-mix(in srgb, var(--vscode-border, #d2c4aa) 82%, #29232e 18%);
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) .code-token-comment {
+  color: #786e7b;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) .code-token-keyword {
+  color: #6f42c1;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) .code-token-string {
+  color: #1f7a3f;
+}
+
+.vscode-theme-light :where([data-markdown-preview], [data-guide-markdown]) .code-token-number {
+  color: #9b6b1e;
 }
 
 :where([data-markdown-preview], [data-guide-markdown]) .mermaid {

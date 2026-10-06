@@ -182,9 +182,8 @@ The indexed query helper surface lives mostly in `src/lib/code-index.ts`:
 
 NPM tooling keeps the local corpus and indexes aligned:
 
-- `npm run corpus:sync` downloads curated repositories and writes SQLite indexes with semantic
-  enrichment where toolchains are available.
-- `npm run corpus:sync:fast` skips semantic enrichment for quick local refreshes.
+- `npm run corpus:sync` downloads curated repositories and writes SQLite indexes, skipping semantic
+  enrichment for quick local refreshes.
 - `npm run corpus:prepare-compilation-databases` prepares missing compilation databases in cached
   snapshots. Semantic indexing also prepares them automatically. Generated commands cover C, C++, and
   Objective-C source files and carry an explicit source-only marker; their capabilities are `partial`

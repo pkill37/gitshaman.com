@@ -154,36 +154,6 @@ Backend phases:
 - **Register Allocation**: Assign virtual registers to physical registers
 - **Code Emission**: Generate object file
 
-### Study Files and Architecture
-
-**Essential Files to Study (In Order):**
-
-**Week 1-2: IR Fundamentals**
-
-1. [llvm/include/llvm/IR/Type.h](llvm/include/llvm/IR/Type.h) - Type system
-2. [llvm/include/llvm/IR/Value.h](llvm/include/llvm/IR/Value.h) - Base class for all values
-3. [llvm/include/llvm/IR/Instruction.h](llvm/include/llvm/IR/Instruction.h) - Instructions
-4. [llvm/include/llvm/IR/BasicBlock.h](llvm/include/llvm/IR/BasicBlock.h) - Basic blocks
-5. [llvm/include/llvm/IR/Function.h](llvm/include/llvm/IR/Function.h) - Functions
-
-**Week 3-4: Core IR Implementation**
-
-1. [llvm/lib/IR/Type.cpp](llvm/lib/IR/Type.cpp) - Type implementation
-2. [llvm/lib/IR/Instructions.cpp](llvm/lib/IR/Instructions.cpp) - Instruction details
-3. [llvm/lib/IR/Verifier.cpp](llvm/lib/IR/Verifier.cpp) - IR validation (learn IR rules!)
-
-**Month 2: Analysis**
-
-1. [llvm/include/llvm/Analysis/CFG.h](llvm/include/llvm/Analysis/CFG.h) - Control flow graph
-2. [llvm/lib/Analysis/ScalarEvolution.cpp](llvm/lib/Analysis/ScalarEvolution.cpp) - Loop analysis
-3. [llvm/lib/Analysis/MemorySSA.cpp](llvm/lib/Analysis/MemorySSA.cpp) - Memory dependencies
-
-**Month 3: Transformations**
-
-1. [llvm/lib/Transforms/Scalar/DCE.cpp](llvm/lib/Transforms/Scalar/DCE.cpp) - Dead code elimination
-2. [llvm/lib/Transforms/Scalar/SCCP.cpp](llvm/lib/Transforms/Scalar/SCCP.cpp) - Constant propagation
-3. [llvm/lib/Transforms/Utils/Mem2Reg.cpp](llvm/lib/Transforms/Utils/Mem2Reg.cpp) - Promote allocas to registers
-
 ---
 id: ch2
 title: Chapter 2 — LLVM IR and Code Generation
@@ -322,22 +292,6 @@ Key CodeGen files:
 - [clang/lib/CodeGen/CodeGenModule.cpp](clang/lib/CodeGen/CodeGenModule.cpp) - Module-level IR generation
 - [clang/lib/CodeGen/CodeGenFunction.cpp](clang/lib/CodeGen/CodeGenFunction.cpp) - Function-level IR generation
 - [clang/lib/CodeGen/CGExpr.cpp](clang/lib/CodeGen/CGExpr.cpp) - Expression code generation
-
-### Study Files for IR and CodeGen
-
-**IR Core ([llvm/lib/IR/](llvm/lib/IR/)):**
-
-- [llvm/lib/IR/Type.cpp](llvm/lib/IR/Type.cpp) (about 860 lines) - Type system implementation
-- [llvm/lib/IR/Value.cpp](llvm/lib/IR/Value.cpp) (about 1,300 lines) - Base value class
-- [llvm/lib/IR/Instructions.cpp](llvm/lib/IR/Instructions.cpp) (about 4,000 lines) - All instruction types
-- [llvm/lib/IR/BasicBlock.cpp](llvm/lib/IR/BasicBlock.cpp) (about 1,200 lines) - Basic block implementation
-- [llvm/lib/IR/Verifier.cpp](llvm/lib/IR/Verifier.cpp) (about 7,200 lines) - IR validity checking
-
-**Target-Specific ([llvm/lib/Target/X86/](llvm/lib/Target/X86/)):**
-
-- [llvm/lib/Target/X86/X86ISelLowering.cpp](llvm/lib/Target/X86/X86ISelLowering.cpp) (about 50,000 lines!) - Lower IR to x86
-- [llvm/lib/Target/X86/X86InstrInfo.td](llvm/lib/Target/X86/X86InstrInfo.td) - x86 instruction descriptions (TableGen)
-- [llvm/lib/Target/X86/X86RegisterInfo.td](llvm/lib/Target/X86/X86RegisterInfo.td) - x86 register descriptions
 
 ---
 id: ch3

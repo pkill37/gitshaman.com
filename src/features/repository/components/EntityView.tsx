@@ -195,11 +195,7 @@ function EntityCard({ scored, onOpenFile, color, folderLabel }: EntityCardProps)
         borderRadius: 7,
         overflow: 'hidden',
         cursor: 'pointer',
-        boxShadow: isHero
-          ? `0 0 20px ${color}20, 0 4px 20px rgba(0,0,0,0.5)`
-          : isMajor
-            ? `0 2px 10px rgba(0,0,0,0.4)`
-            : `0 1px 5px rgba(0,0,0,0.3)`,
+        boxShadow: 'none',
         opacity: tier === 'minor' ? 0.72 : 1,
         transition: 'opacity 0.15s, box-shadow 0.15s, border-color 0.15s',
         display: 'flex',
@@ -210,18 +206,14 @@ function EntityCard({ scored, onOpenFile, color, folderLabel }: EntityCardProps)
         const el = e.currentTarget as HTMLElement;
         el.style.opacity = '1';
         el.style.borderColor = color;
-        el.style.boxShadow = `0 0 18px ${color}50, 0 6px 24px rgba(0,0,0,0.6)`;
+        el.style.boxShadow = 'none';
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLElement;
         el.style.opacity = tier === 'minor' ? '0.72' : '1';
         el.style.border = `1px solid ${color}33`;
         el.style.borderTop = `${borderTopWidth}px solid ${color}`;
-        el.style.boxShadow = isHero
-          ? `0 0 20px ${color}20, 0 4px 20px rgba(0,0,0,0.5)`
-          : isMajor
-            ? `0 2px 10px rgba(0,0,0,0.4)`
-            : `0 1px 5px rgba(0,0,0,0.3)`;
+        el.style.boxShadow = 'none';
       }}
     >
       {/* Header */}

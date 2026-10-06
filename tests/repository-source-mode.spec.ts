@@ -4,6 +4,8 @@ import {
   routeCorpusRepository,
   type RoutedCorpusRequests,
 } from './helpers/corpus-routing';
+import { readDebugLogs, resetDebugLogs } from './helpers/debug-logs';
+import { openGuideFile } from './helpers/page-actions';
 
 const OWNER = 'littlekernel';
 const REPO = 'lk';
@@ -31,30 +33,6 @@ const R2_FILE_CONTENT = `#include <lk/main.h>
 void r2_entity_marker(void) {
 }
 `;
-
-async function resetDebugLogs(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    window.__explorarDebugLogs = [];
-  });
-}
-
-async function readDebugLogs(page: Page) {
-  return page.evaluate(() => window.__explorarDebugLogs ?? []);
-}
-
-async function openGuideFile(page: Page, path: string): Promise<void> {
-  const segments = path.split('/');
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const directoryPath = segments.slice(0, index + 1).join('/');
-    const directoryItem = page.locator(`[data-file-path="${directoryPath}"]`);
-    await expect(directoryItem).toBeVisible();
-    await directoryItem.click();
-  }
-
-  const fileItem = page.locator(`[data-file-path="${path}"]`);
-  await expect(fileItem).toBeVisible();
-  await fileItem.click();
-}
 
 async function expectFileFetchFromSource(
   page: Page,

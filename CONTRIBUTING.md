@@ -29,7 +29,7 @@ Guide prose should read like a calm field manual. Prefer direct verbs such as "o
 `npm run lint:guide-prose` enforces these rules plus `write-good` checks for wordiness, adverbs,
 weasel words, repeated words, and cliches. All findings fail the command; no environment variable
 opts out. The check runs in `guides:validate`, `lint` (including pre-commit), and production builds.
-`npm run test:lint` runs its regression tests.
+`npm test` runs its regression tests before Playwright.
 
 The linter reads rendered paragraphs, headings, lists, blockquotes, and table cells across `docs/`,
 including nested directories. Emphasis, link labels, and wrapped lines remain subject to the rules.

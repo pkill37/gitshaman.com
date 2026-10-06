@@ -6,6 +6,7 @@ import { GuideSection, FileRecommendation } from '@/lib/project-guides';
 import { createFileRecommendationsComponent } from '@/lib/project-guides';
 import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import { debugLog } from '@/lib/browser-debug';
+import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
 import {
   decodeHtmlEntities,
   escapeHtml,
@@ -44,8 +45,16 @@ type OpenFileInTab = (
   repoTarget?: { owner: string; repo: string }
 ) => void;
 
-function createMarkdownRenderer(symbolScopePaths: string[]) {
+function createMarkdownRenderer(
+  symbolScopePaths: string[],
+  options?: { linkRepoReferences?: boolean }
+) {
   const renderer = new marked.Renderer();
+  const linkRepoReferences = options?.linkRepoReferences ?? true;
+
+  renderer.code = function ({ text, lang }: Tokens.Code) {
+    return renderHighlightedCodeBlock(text, lang);
+  };
 
   renderer.link = function ({ href, title, tokens }: Tokens.Link) {
     const safeHref = href?.trim() || '#';
@@ -66,6 +75,9 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
     });
 
     if (navigationTarget?.kind === 'repo-file') {
+      if (!linkRepoReferences) {
+        return linkText;
+      }
       return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
     }
 
@@ -84,6 +96,10 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
           decodedCode.trim()
         )}" data-symbol-scope="${escapeHtml(symbolScopePaths.join('|||'))}">${codeHtml}</a>`;
       }
+      return codeHtml;
+    }
+
+    if (!linkRepoReferences) {
       return codeHtml;
     }
 
@@ -322,6 +338,53 @@ function extractNarrativePaths(sectionContent: string, sectionMeta: SectionFront
   return paths;
 }
 
+function collectNarrativeFileRecommendations(sectionContent: string): FileRecommendation[] {
+  const recommendations: FileRecommendation[] = [];
+  const seen = new Set<string>();
+
+  const pushRecommendation = (path: string, description?: string) => {
+    const target = parseRepoNavigationTarget(path, undefined, { title: description });
+    if (!target || seen.has(target.path)) return;
+    seen.add(target.path);
+    recommendations.push({
+      path,
+      description: description?.trim() || target.path,
+      type: target.path.endsWith('/') ? 'directory' : 'source',
+    });
+  };
+
+  const markdownLinkRe = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = markdownLinkRe.exec(sectionContent)) !== null) {
+    pushRecommendation(match[2], match[1]);
+  }
+
+  const codeSpanRe = /`([^`\n]+)`/g;
+  while ((match = codeSpanRe.exec(sectionContent)) !== null) {
+    pushRecommendation(match[1]);
+  }
+
+  return recommendations;
+}
+
+function mergeRecommendations(
+  explicit: FileRecommendation[] = [],
+  discovered: FileRecommendation[] = []
+): FileRecommendation[] {
+  const merged: FileRecommendation[] = [];
+  const seen = new Set<string>();
+
+  for (const item of [...explicit, ...discovered]) {
+    const target = parseRepoNavigationTarget(item.path, undefined, { title: item.description });
+    const key = target?.path ?? item.path;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
 function looksLikeSectionFrontmatter(frontmatter: string): boolean {
   if (!frontmatter.trim()) return false;
 
@@ -469,6 +532,25 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
       const { graph, cleanContent: contentWithoutGraph } = extractChapterGraph(sectionContent);
       sectionContent = contentWithoutGraph;
       const narrativePaths = extractNarrativePaths(sectionContent, sectionMeta);
+      const narrativeRecommendations = collectNarrativeFileRecommendations(sectionContent);
+      const hasReadingOrder = (sectionMeta.fileRecommendations?.readingOrder?.length ?? 0) > 0;
+      const readingOrderRecommendations = hasReadingOrder
+        ? mergeRecommendations(
+            sectionMeta.fileRecommendations?.readingOrder ?? [],
+            narrativeRecommendations
+          )
+        : [];
+      const sourceRecommendations = hasReadingOrder
+        ? (sectionMeta.fileRecommendations?.source ?? [])
+        : mergeRecommendations(
+            sectionMeta.fileRecommendations?.source ?? [],
+            narrativeRecommendations
+          );
+      const hasRecommendationBoxes =
+        readingOrderRecommendations.length > 0 ||
+        (sectionMeta.fileRecommendations?.docs?.length ?? 0) > 0 ||
+        sourceRecommendations.length > 0 ||
+        (sectionMeta.fileRecommendations?.directories?.length ?? 0) > 0;
 
       // Convert markdown to HTML (only if content exists)
       let reactContent: React.ReactNode = null;
@@ -574,16 +656,12 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
           >
             {reactContent}
           </div>
-          {sectionMeta.fileRecommendations &&
-            (sectionMeta.fileRecommendations.readingOrder ||
-              sectionMeta.fileRecommendations.docs ||
-              sectionMeta.fileRecommendations.source ||
-              sectionMeta.fileRecommendations.directories) &&
+          {hasRecommendationBoxes &&
             createFileRecommendationsComponent(
-              sectionMeta.fileRecommendations.readingOrder || [],
-              sectionMeta.fileRecommendations.docs || [],
-              sectionMeta.fileRecommendations.source || [],
-              sectionMeta.fileRecommendations.directories || [],
+              readingOrderRecommendations,
+              sectionMeta.fileRecommendations?.docs || [],
+              sourceRecommendations,
+              sectionMeta.fileRecommendations?.directories || [],
               openFileInTab
             )}
         </div>

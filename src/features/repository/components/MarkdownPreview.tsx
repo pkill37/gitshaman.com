@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { marked, type Tokens } from 'marked';
+import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
 import {
   decodeHtmlEntities,
   escapeHtml,
@@ -46,8 +47,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         return `<div class="mermaid" data-mermaid-diagram>${escapeHtml(text)}</div>`;
       }
 
-      const classAttr = language ? ` class="language-${escapeHtml(language)}"` : '';
-      return `<pre><code${classAttr}>${escapeHtml(text.replace(/\n$/, ''))}\n</code></pre>`;
+      return renderHighlightedCodeBlock(text, language);
     };
 
     renderer.link = function ({ href, title, tokens }: Tokens.Link) {

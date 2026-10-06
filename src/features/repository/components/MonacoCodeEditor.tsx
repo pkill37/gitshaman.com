@@ -34,6 +34,91 @@ type OpenFileFn = (
   searchScope?: string[]
 ) => void;
 
+const MONACO_DARK_THEME = 'gitshaman-dark';
+const MONACO_LIGHT_THEME = 'gitshaman-light';
+
+type MonacoThemeApi = {
+  editor?: {
+    defineTheme?: (name: string, data: Record<string, unknown>) => void;
+    setTheme?: (name: string) => void;
+  };
+};
+
+function getMonacoThemeName(editorTheme: 'vs-dark' | 'vs'): string {
+  return editorTheme === 'vs' ? MONACO_LIGHT_THEME : MONACO_DARK_THEME;
+}
+
+function configureMonacoThemes(monaco: MonacoThemeApi): void {
+  const defineTheme = monaco.editor?.defineTheme;
+  if (!defineTheme) return;
+
+  defineTheme(MONACO_DARK_THEME, {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '', foreground: 'eee8dc', background: '17151c' },
+      { token: 'comment', foreground: '898292', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'c4a7e7' },
+      { token: 'string', foreground: '95d6a4' },
+      { token: 'number', foreground: 'efc66f' },
+      { token: 'type', foreground: '63d8c9' },
+      { token: 'function', foreground: '8ecbff' },
+      { token: 'variable', foreground: 'eee8dc' },
+    ],
+    colors: {
+      'editor.background': '#17151c',
+      'editor.foreground': '#eee8dc',
+      'editorLineNumber.foreground': '#777180',
+      'editorLineNumber.activeForeground': '#eee8dc',
+      'editorCursor.foreground': '#63d8c9',
+      'editor.selectionBackground': '#39415a',
+      'editor.inactiveSelectionBackground': '#2b2436',
+      'editor.lineHighlightBackground': '#211c2b',
+      'editorGutter.background': '#17151c',
+      'minimap.background': '#17151c',
+      'scrollbarSlider.background': '#3c314780',
+      'scrollbarSlider.hoverBackground': '#3c3147b0',
+      'editorWidget.background': '#211c2b',
+      'editorWidget.foreground': '#eee8dc',
+      'editorSuggestWidget.background': '#211c2b',
+      'editorSuggestWidget.foreground': '#eee8dc',
+    },
+  });
+
+  defineTheme(MONACO_LIGHT_THEME, {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: '', foreground: '29232e', background: 'fbf7ed' },
+      { token: 'comment', foreground: '786e7b', fontStyle: 'italic' },
+      { token: 'keyword', foreground: '6f42c1' },
+      { token: 'string', foreground: '1f7a3f' },
+      { token: 'number', foreground: '9b6b1e' },
+      { token: 'type', foreground: '287f78' },
+      { token: 'function', foreground: '0b63a8' },
+      { token: 'variable', foreground: '29232e' },
+    ],
+    colors: {
+      'editor.background': '#fbf7ed',
+      'editor.foreground': '#29232e',
+      'editorLineNumber.foreground': '#8d8290',
+      'editorLineNumber.activeForeground': '#29232e',
+      'editorCursor.foreground': '#287f78',
+      'editor.selectionBackground': '#c6e4df',
+      'editor.inactiveSelectionBackground': '#e8deca',
+      'editor.lineHighlightBackground': '#f1eadb',
+      'editorGutter.background': '#fbf7ed',
+      'minimap.background': '#fbf7ed',
+      'scrollbarSlider.background': '#d5c7ad80',
+      'scrollbarSlider.hoverBackground': '#d5c7adb0',
+      'editorWidget.background': '#f1eadb',
+      'editorWidget.foreground': '#29232e',
+      'editorSuggestWidget.background': '#f1eadb',
+      'editorSuggestWidget.foreground': '#29232e',
+    },
+  });
+}
+
 const INDEXABLE_SOURCE_EXTENSIONS = new Set([
   'c',
   'cc',
@@ -2040,6 +2125,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       // Configure Monaco Editor to use local workers
       configureMonacoWorkers();
+      configureMonacoThemes(monaco as MonacoThemeApi);
+      const activeMonacoTheme = getMonacoThemeName(editorTheme);
 
       // Configure editor options
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2053,7 +2140,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         wordWrap: 'off',
         readOnly: true, // Read-only for now since we're just viewing
         automaticLayout: true,
-        theme: editorTheme,
+        theme: activeMonacoTheme,
         renderWhitespace: 'selection',
         showFoldingControls: 'always',
         folding: true,
@@ -2070,9 +2157,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         },
       });
 
-      (monaco as { editor?: { setTheme?: (theme: string) => void } }).editor?.setTheme?.(
-        editorTheme
-      );
+      (monaco as MonacoThemeApi).editor?.setTheme?.(activeMonacoTheme);
 
       // Track cursor position changes for status bar
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2206,8 +2291,10 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   useEffect(() => {
-    const monaco = monacoRef.current as { editor?: { setTheme?: (theme: string) => void } } | null;
-    monaco?.editor?.setTheme?.(editorTheme);
+    const monaco = monacoRef.current as MonacoThemeApi | null;
+    if (!monaco) return;
+    configureMonacoThemes(monaco);
+    monaco.editor?.setTheme?.(getMonacoThemeName(editorTheme));
   }, [editorTheme]);
 
   useEffect(() => {
@@ -2793,7 +2880,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           width="100%"
           language={language}
           value={content}
-          theme={editorTheme}
+          theme={getMonacoThemeName(editorTheme)}
           saveViewState={false}
           onMount={handleEditorDidMount}
           options={{
