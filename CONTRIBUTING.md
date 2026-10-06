@@ -114,7 +114,6 @@ Supported navigation syntax includes:
 - `path/to/file.c:123` to open near a line
 - `path/to/file.c:symbol_name` to search for a symbol
 - `path/to/doc.rst#heading` to preserve a documentation anchor
-- `man:futex(2)` or `futex(2)` to open a manual page when available
 
 Chapter diagrams use `chapter-graph` fenced blocks. Every edge must use
 `source -> target : label`.

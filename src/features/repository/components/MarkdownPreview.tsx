@@ -6,7 +6,6 @@ import {
   decodeHtmlEntities,
   escapeHtml,
   getExternalRepoIconHtml,
-  getManualPageLinkAttributes,
   getRepoLinkAttributes,
   hasUnsafeScheme,
   isExternalHref,
@@ -26,7 +25,6 @@ interface MarkdownPreviewProps {
     searchScope?: string[],
     repoTarget?: { owner: string; repo: string }
   ) => void;
-  onOpenManPage?: (name: string, section: string) => void;
 }
 
 const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
@@ -34,7 +32,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   filePath,
   isLoading,
   onOpenFile,
-  onOpenManPage,
 }) => {
   const articleRef = useRef<HTMLElement | null>(null);
 
@@ -73,9 +70,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         linkText,
         title: title ?? undefined,
       });
-      if (navigationTarget?.kind === 'man-page') {
-        return `<a href="#" ${getManualPageLinkAttributes(navigationTarget)}${titleAttr}>${linkText}</a>`;
-      }
       if (navigationTarget?.kind === 'repo-file') {
         return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
       }
@@ -86,11 +80,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     renderer.codespan = ({ text: code }: Tokens.Codespan) => {
       const decodedCode = decodeHtmlEntities(code);
-      const navigationTarget = parseMarkdownNavigationTarget(decodedCode, filePath);
-      if (navigationTarget?.kind === 'man-page') {
-        return `<a href="#" class="inline-code-link" ${getManualPageLinkAttributes(navigationTarget)}><code>${escapeHtml(decodedCode)}</code></a>`;
-      }
-
       const repoTarget = parseRepoNavigationTarget(decodedCode, filePath);
       const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
       if (!repoTarget) {
@@ -201,18 +190,8 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
           dangerouslySetInnerHTML={{ __html: html }}
           onClick={(event) => {
             const target = event.target as HTMLElement;
-            const anchor = target.closest(
-              'a[data-repo-path], img[data-repo-path], a[data-man-page-name]'
-            );
+            const anchor = target.closest('a[data-repo-path], img[data-repo-path]');
             if (!anchor) {
-              return;
-            }
-
-            const manPageName = anchor.getAttribute('data-man-page-name');
-            const manPageSection = anchor.getAttribute('data-man-page-section');
-            if (manPageName && manPageSection && onOpenManPage) {
-              event.preventDefault();
-              onOpenManPage(manPageName, manPageSection);
               return;
             }
 

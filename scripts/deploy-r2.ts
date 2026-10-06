@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Deploy the generated corpus and man pages to Cloudflare R2. */
+/** Deploy the generated corpus to Cloudflare R2. */
 
 import { createHash } from 'crypto';
 import { spawn, spawnSync } from 'child_process';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 
 import { loadDeployEnv } from './deploy-env';
 import { getCorpusBuildSignature, type CorpusBuildTreeNode } from './corpus-build-signature';
-import { CORPUS_REPOS_DIR, MAN_PAGES_DIR } from './static-asset-paths';
+import { CORPUS_REPOS_DIR } from './static-asset-paths';
 import { CURATED_REPOS } from '../src/lib/curated-repos';
 import { runPhase } from './tqdm';
 
@@ -32,9 +32,7 @@ const R2_SYNC_COMPARISON_ARGS = ['--size-only'] as const;
 
 export type DeploymentArtifactCounts = {
   corpusFiles: number;
-  manPageFiles: number;
   corpusBytes: number;
-  manPageBytes: number;
 };
 export type CanonicalDeploymentPayload = {
   schemaVersion: number;
@@ -45,7 +43,6 @@ export type CanonicalDeploymentPayload = {
     revision: string;
     buildSignature: string;
   }>;
-  manPageManifestSignature: string;
 };
 export type DeploymentManifest = CanonicalDeploymentPayload & {
   deploymentSignature: string;
@@ -200,15 +197,6 @@ export function buildBulkCorpusSyncArgs(repoDir: string, bucketName: string): st
     ...R2_SYNC_COMPARISON_ARGS,
   ];
 }
-export function buildManPagesBucketPrefix(bucketName: string): string {
-  return `s3://${bucketName}/man-pages/`;
-}
-export function buildManPagesManifestKey(): string {
-  return 'man-pages/linux/man-pages-6.18/manifest.json';
-}
-export function buildManPagesSyncArgs(dir: string, prefix: string): string[] {
-  return ['s3', 'sync', `${dir}/`, prefix, '--no-progress', ...R2_SYNC_COMPARISON_ARGS];
-}
 export function buildDeploymentManifestKey(): string {
   return DEPLOYMENT_MANIFEST_KEY;
 }
@@ -228,7 +216,6 @@ export function buildCanonicalDeploymentPayload(
     revision: string;
     buildSignature: string;
   }>,
-  manPageManifestSignature: string,
   schemaVersion = DEPLOYMENT_MANIFEST_SCHEMA_VERSION
 ): CanonicalDeploymentPayload {
   return {
@@ -236,7 +223,6 @@ export function buildCanonicalDeploymentPayload(
     repositories: [...repositories]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((repo) => ({ ...repo })),
-    manPageManifestSignature,
   };
 }
 export function computeDeploymentSignature(payload: CanonicalDeploymentPayload): string {
@@ -329,26 +315,11 @@ function localRepoSignature(repo: Repo): string {
     fail(`Invalid or missing repository manifest: ${manifestPath}`);
   }
 }
-function manPageSignature(): string {
-  const manifestPath = path.join(
-    MAN_PAGES_DIR,
-    buildManPagesManifestKey().replace(/^man-pages\//, '')
-  );
-  ensureDir(MAN_PAGES_DIR, 'man pages');
-  try {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
-    delete manifest.generatedAt;
-    return sha256(stableJson(manifest));
-  } catch {
-    fail(`Invalid or missing man-page manifest: ${manifestPath}`);
-  }
-}
 function validateLocalArtifacts(): {
   payload: CanonicalDeploymentPayload;
   counts: DeploymentArtifactCounts;
 } {
   ensureDir(CORPUS_REPOS_DIR, 'corpus repos');
-  ensureDir(MAN_PAGES_DIR, 'man pages');
   const repositories = CURATED_REPOS.map((repo) => {
     const dir = path.join(CORPUS_REPOS_DIR, repo.owner, repo.repo, repo.revision);
     ensureDir(dir, `${repo.owner}/${repo.repo}@${repo.revision}`);
@@ -363,14 +334,12 @@ function validateLocalArtifacts(): {
       buildSignature: localRepoSignature(repo),
     };
   });
-  const payload = buildCanonicalDeploymentPayload(repositories, manPageSignature());
+  const payload = buildCanonicalDeploymentPayload(repositories);
   return {
     payload,
     counts: {
       corpusFiles: countFiles(CORPUS_REPOS_DIR),
-      manPageFiles: countFiles(MAN_PAGES_DIR),
       corpusBytes: directorySizeBytes(CORPUS_REPOS_DIR),
-      manPageBytes: directorySizeBytes(MAN_PAGES_DIR),
     },
   };
 }
@@ -385,10 +354,7 @@ async function readRemoteDeploymentManifest(env: DeployEnv): Promise<DeploymentM
   }
 }
 async function verifyArtifacts(env: DeployEnv): Promise<void> {
-  const keys = [
-    ...CURATED_REPOS.flatMap(buildRepoRequiredArtifactKeys),
-    buildManPagesManifestKey(),
-  ];
+  const keys = CURATED_REPOS.flatMap(buildRepoRequiredArtifactKeys);
   const missing: string[] = [];
   await withConcurrency(
     keys.map((key) => async () => {
@@ -432,12 +398,6 @@ export async function runAwsSync(env: DeployEnv): Promise<void> {
     [
       () =>
         syncPhase(buildBulkCorpusSyncArgs(CORPUS_REPOS_DIR, env.bucketName), env, '📦 Sync corpus'),
-      () =>
-        syncPhase(
-          buildManPagesSyncArgs(MAN_PAGES_DIR, buildManPagesBucketPrefix(env.bucketName)),
-          env,
-          '📚 Sync Linux man pages'
-        ),
     ],
     readPositiveIntEnv('R2_SYNC_CONCURRENCY', DEFAULT_R2_SYNC_CONCURRENCY)
   );

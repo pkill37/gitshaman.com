@@ -10,7 +10,6 @@ import {
   decodeHtmlEntities,
   escapeHtml,
   getExternalRepoIconHtml,
-  getManualPageLinkAttributes,
   getRepoLinkAttributes,
   hasUnsafeScheme,
   isExternalHref,
@@ -45,8 +44,6 @@ type OpenFileInTab = (
   repoTarget?: { owner: string; repo: string }
 ) => void;
 
-type OpenManPageInTab = (name: string, section: string) => void;
-
 function createMarkdownRenderer(symbolScopePaths: string[]) {
   const renderer = new marked.Renderer();
 
@@ -68,10 +65,6 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
       title: title ?? undefined,
     });
 
-    if (navigationTarget?.kind === 'man-page') {
-      return `<a href="#" ${getManualPageLinkAttributes(navigationTarget)}${titleAttr}>${linkText}</a>`;
-    }
-
     if (navigationTarget?.kind === 'repo-file') {
       return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
     }
@@ -82,11 +75,6 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
 
   renderer.codespan = function ({ text: code }: Tokens.Codespan) {
     const decodedCode = decodeHtmlEntities(code);
-    const navigationTarget = parseMarkdownNavigationTarget(decodedCode);
-    if (navigationTarget?.kind === 'man-page') {
-      return `<a href="#" class="inline-code-link" ${getManualPageLinkAttributes(navigationTarget)}><code>${escapeHtml(decodedCode)}</code></a>`;
-    }
-
     const repoTarget = parseRepoNavigationTarget(decodedCode);
     const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
 
@@ -426,11 +414,7 @@ function parseSectionFrontmatter(yaml: string): SectionFrontmatter {
 /**
  * Parse guide markdown file and return GuideSection array
  */
-export function parseGuideMarkdown(
-  markdown: string,
-  openFileInTab: OpenFileInTab,
-  openManPageInTab?: OpenManPageInTab
-): GuideSection[] {
+export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTab): GuideSection[] {
   // Validate inputs
   if (!markdown || markdown.trim().length === 0) {
     throw new Error('Empty markdown content provided');
@@ -514,8 +498,6 @@ export function parseGuideMarkdown(
               const repoPath = anchor.getAttribute('data-repo-path');
               const repoOwner = anchor.getAttribute('data-repo-owner') || undefined;
               const repoName = anchor.getAttribute('data-repo-name') || undefined;
-              const manPageName = anchor.getAttribute('data-man-page-name');
-              const manPageSection = anchor.getAttribute('data-man-page-section');
               const searchPattern = anchor.getAttribute('data-search-pattern') || undefined;
               const scrollToLineAttr = anchor.getAttribute('data-scroll-to-line');
               const scrollToLine = scrollToLineAttr ? parseInt(scrollToLineAttr, 10) : undefined;
@@ -523,12 +505,6 @@ export function parseGuideMarkdown(
               const symbolScope = symbolScopeAttr
                 ? symbolScopeAttr.split('|||').filter(Boolean)
                 : undefined;
-
-              if (manPageName && manPageSection && openManPageInTab) {
-                e.preventDefault();
-                openManPageInTab(manPageName, manPageSection);
-                return;
-              }
 
               if (repoPath) {
                 e.preventDefault();

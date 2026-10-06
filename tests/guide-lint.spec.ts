@@ -20,11 +20,7 @@ import {
   validateChapterGraph,
   validateGuideMarkdown,
 } from '../scripts/validate-guides';
-import {
-  getExternalRepoIconHtml,
-  parseMarkdownNavigationTarget,
-  parseRepoNavigationTarget,
-} from '../src/lib/markdown-navigation';
+import { getExternalRepoIconHtml, parseRepoNavigationTarget } from '../src/lib/markdown-navigation';
 import { resolveCorpusPathFromKnownFiles } from '../src/lib/repo-static';
 
 function makeTempDir(prefix: string): string {
@@ -83,24 +79,6 @@ function resolveInlineRef(repoRoot: string, ref: string): string | null {
 }
 
 test.describe('guide reference linting', () => {
-  test('parses explicit and implicit man-page guide links', () => {
-    expect(parseMarkdownNavigationTarget('man:futex(2)')).toEqual({
-      kind: 'man-page',
-      name: 'futex',
-      section: '2',
-    });
-    expect(parseMarkdownNavigationTarget('sigreturn(2)')).toEqual({
-      kind: 'man-page',
-      name: 'sigreturn',
-      section: '2',
-    });
-    expect(parseMarkdownNavigationTarget('not_a_real_page(2)')).toEqual({
-      kind: 'man-page',
-      name: 'not_a_real_page',
-      section: '2',
-    });
-  });
-
   test('parses curated cross-repo guide links', () => {
     expect(
       parseRepoNavigationTarget(

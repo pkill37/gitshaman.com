@@ -44,10 +44,6 @@ const TabBar: React.FC<TabBarProps> = ({
   }, []);
 
   const getFileIcon = (tab: EditorTab): string => {
-    if (tab.kind === 'man-page') {
-      return '📚';
-    }
-
     const path = tab.path;
     const extension = path.split('.').pop()?.toLowerCase();
     switch (extension) {

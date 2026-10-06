@@ -4,7 +4,6 @@ import { notFound, useRouter } from 'next/navigation';
 import FileTree from './FileTree';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
-import ManualPagePreview from './ManualPagePreview';
 import GuidePanel from './GuidePanel';
 import RepositoryRightPanel from './RepositoryRightPanel';
 import SemanticGraphTab from './SemanticGraphTab';
@@ -44,7 +43,6 @@ import {
 } from '@/lib/code-index';
 import { debugLog } from '@/lib/browser-debug';
 import { downloadDirectoryContents } from '@/lib/github-archive';
-import { buildManualPageTabPath, getManPageLabel } from '@/lib/man-pages';
 import '@/app/vscode.css';
 
 // Helper functions for safe localStorage operations
@@ -199,12 +197,6 @@ export type InitialFileTarget =
   | {
       kind: 'directory';
       path: string;
-      navigationNonce?: number;
-    }
-  | {
-      kind: 'man-page';
-      name: string;
-      section: string;
       navigationNonce?: number;
     }
   | null;
@@ -1155,39 +1147,6 @@ export default function RepositoryWorkspaceExplorer({
     [owner, repo, router, tabs, resolveSymbolNavigationLine, workspaceFilePaths]
   );
 
-  const openManPageInTab = useCallback(
-    (name: string, section: string) => {
-      const normalizedName = name.trim();
-      const normalizedSection = section.trim();
-      const tabPath = buildManualPageTabPath(normalizedName, normalizedSection);
-      const existing = tabs.find((t) => t.kind === 'man-page' && t.path === tabPath);
-
-      if (existing) {
-        setActiveTabId(existing.id);
-        setTabs((prev) => prev.map((t) => ({ ...t, isActive: t.id === existing.id })));
-        return;
-      }
-
-      const newTab: EditorTab = {
-        id: generateTabId(tabPath),
-        title: getManPageLabel(normalizedName, normalizedSection),
-        path: tabPath,
-        kind: 'man-page',
-        manPage: {
-          name: normalizedName,
-          section: normalizedSection,
-        },
-        isActive: true,
-        isDirty: false,
-        isLoading: false,
-      };
-
-      setTabs((prev) => [...prev.map((t) => ({ ...t, isActive: false })), newTab]);
-      setActiveTabId(newTab.id);
-    },
-    [tabs]
-  );
-
   const guideOpenFileInTab = useCallback(
     (
       filePath: string,
@@ -1219,20 +1178,20 @@ export default function RepositoryWorkspaceExplorer({
     if (guideId) {
       try {
         // eslint-disable-next-line react-hooks/refs -- guide callbacks are invoked from user actions, not during render.
-        return loadGuideFromMarkdown(guideId, guideOpenFileInTab, openManPageInTab);
+        return loadGuideFromMarkdown(guideId, guideOpenFileInTab);
       } catch (error) {
         console.error(`Failed to load guide ${guideId}:`, error);
       }
     }
 
     return createGenericGuide(projectConfig.owner, projectConfig.repo);
-  }, [projectConfig, owner, repo, guideOpenFileInTab, openManPageInTab]);
+  }, [projectConfig, owner, repo, guideOpenFileInTab]);
 
   const onTabSelect = (tabId: string) => {
     setActiveTabId(tabId);
     setTabs((prev) => prev.map((t) => ({ ...t, isActive: t.id === tabId })));
     const t = tabs.find((x) => x.id === tabId);
-    if (t) setSelectedFile(t.kind === 'man-page' ? '' : t.path);
+    if (t) setSelectedFile(t.path);
   };
 
   const toggleMarkdownPreview = useCallback(() => {
@@ -1261,7 +1220,7 @@ export default function RepositoryWorkspaceExplorer({
           const newIdx = Math.max(0, idx - 1);
           const nextActive = nextTabs[newIdx] || null;
           setActiveTabId(nextActive ? nextActive.id : null);
-          setSelectedFile(nextActive && nextActive.kind !== 'man-page' ? nextActive.path : '');
+          setSelectedFile(nextActive ? nextActive.path : '');
         }
         return nextTabs;
       });
@@ -1531,25 +1490,6 @@ export default function RepositoryWorkspaceExplorer({
       }, 0);
       return;
     }
-    const isManualPageTarget =
-      typeof initialFile === 'object' &&
-      !Array.isArray(initialFile) &&
-      initialFile.kind === 'man-page';
-
-    if (isManualPageTarget) {
-      const key = `man:${initialFile.name}(${initialFile.section})|||${initialFile.navigationNonce || ''}`;
-      if (key === lastOpenedInitialFileRef.current) return;
-      debugLog('[explorar:open-file] initial-file-trigger', {
-        key,
-        initialFile,
-        isTreeStructureReady,
-      });
-      lastOpenedInitialFileRef.current = key;
-      setTimeout(() => {
-        openManPageInTab(initialFile.name, initialFile.section);
-      }, 0);
-      return;
-    }
 
     const repoInitialFile = initialFile;
     if (
@@ -1598,7 +1538,7 @@ export default function RepositoryWorkspaceExplorer({
         }
       })();
     }, 0);
-  }, [initialFile, isHydrated, isTreeStructureReady, openFileInTab, openManPageInTab]);
+  }, [initialFile, isHydrated, isTreeStructureReady, openFileInTab]);
 
   // Repository error
   if (repoError) {
@@ -1749,31 +1689,22 @@ export default function RepositoryWorkspaceExplorer({
             />
             {activeTab ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                {activeTab.kind === 'man-page' && activeTab.manPage ? (
-                  <ManualPagePreview
-                    name={activeTab.manPage.name}
-                    section={activeTab.manPage.section}
-                    sourceMode={fileSourceMode}
-                  />
-                ) : (
-                  <CodeEditorContainer
-                    key={fileSourceMode}
-                    filePath={activeTab.path}
-                    onContentLoad={onEditorContentLoad}
-                    onOpenFile={openFileInTab}
-                    onOpenManPage={openManPageInTab}
-                    fetchFile={fetchFileFromSelectedSource}
-                    workspaceFilePaths={workspaceFilePaths}
-                    workspaceId={`${fileSourceMode}:${repoLabel}@${selectedVersion}`}
-                    codeIndex={workspaceSearchIndex}
-                    markdownViewMode={activeTab.viewMode}
-                    onToggleMarkdownPreview={toggleMarkdownPreview}
-                    scrollToLine={activeTab.scrollToLine}
-                    searchPattern={activeTab.searchPattern}
-                    navigationNonce={activeTab.navigationNonce}
-                    editorTheme={editorTheme}
-                  />
-                )}
+                <CodeEditorContainer
+                  key={fileSourceMode}
+                  filePath={activeTab.path}
+                  onContentLoad={onEditorContentLoad}
+                  onOpenFile={openFileInTab}
+                  fetchFile={fetchFileFromSelectedSource}
+                  workspaceFilePaths={workspaceFilePaths}
+                  workspaceId={`${fileSourceMode}:${repoLabel}@${selectedVersion}`}
+                  codeIndex={workspaceSearchIndex}
+                  markdownViewMode={activeTab.viewMode}
+                  onToggleMarkdownPreview={toggleMarkdownPreview}
+                  scrollToLine={activeTab.scrollToLine}
+                  searchPattern={activeTab.searchPattern}
+                  navigationNonce={activeTab.navigationNonce}
+                  editorTheme={editorTheme}
+                />
               </div>
             ) : (
               <div className="vscode-empty-state">

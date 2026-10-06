@@ -4,12 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import {
-  CORPUS_REPOS_DIR,
-  MAN_PAGES_DIR,
-  PUBLIC_MAN_PAGES_DIR,
-  PUBLIC_REPOS_DIR,
-} from './static-asset-paths';
+import { CORPUS_REPOS_DIR, PUBLIC_REPOS_DIR } from './static-asset-paths';
 
 const SQLITE_WASM_SOURCE_DIR = path.join(process.cwd(), 'node_modules', 'sql.js', 'dist');
 const SQLITE_WASM_TARGET_DIR = path.join(process.cwd(), 'public', 'sqljs');
@@ -133,12 +128,10 @@ export function preparePublicAssets(argv: string[] = process.argv.slice(2)): voi
 
   if (modes.has('dev')) {
     ensurePublicSymlink(CORPUS_REPOS_DIR, PUBLIC_REPOS_DIR);
-    ensurePublicSymlink(MAN_PAGES_DIR, PUBLIC_MAN_PAGES_DIR);
   }
 
   if (modes.has('shell')) {
     removePublicCorpusTarget(PUBLIC_REPOS_DIR);
-    removePublicCorpusTarget(PUBLIC_MAN_PAGES_DIR);
     prepareSqlJsRuntime();
   } else if (modes.has('sqljs')) {
     prepareSqlJsRuntime();

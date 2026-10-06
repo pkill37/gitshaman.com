@@ -86,8 +86,9 @@ test.describe('Static bug reporting', () => {
     await reportButton.click();
 
     const issue = await readGeneratedIssue(page);
+    const sanitizedUrl = new URL(BUG_REPORT_ROUTE, page.url()).toString();
 
-    expect(issue.body).toContain('- URL: http://localhost:8000/linux-kernel');
+    expect(issue.body).toContain(`- URL: ${sanitizedUrl}`);
     expect(issue.body).not.toContain('access_token=secret-token');
     expect(issue.body).not.toContain('private-fragment');
   });

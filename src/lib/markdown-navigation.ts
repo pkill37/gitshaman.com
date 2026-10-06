@@ -1,11 +1,4 @@
-import {
-  getManualPageLinkAttributes,
-  parseManPageReference,
-  type ManPageTarget,
-} from './man-pages';
 import { getCuratedRepoAccent, isCuratedRepo } from './curated-repos';
-
-export { getManualPageLinkAttributes };
 
 export interface RepoNavigationTarget {
   path: string;
@@ -15,8 +8,7 @@ export interface RepoNavigationTarget {
   scrollToLine?: number;
 }
 
-export type MarkdownNavigationTarget =
-  ({ kind: 'repo-file' } & RepoNavigationTarget) | ManPageTarget;
+export type MarkdownNavigationTarget = { kind: 'repo-file' } & RepoNavigationTarget;
 
 interface ParseRepoNavigationTargetOptions {
   linkText?: string;
@@ -248,16 +240,6 @@ export function parseMarkdownNavigationTarget(
   currentFilePath?: string,
   options: ParseRepoNavigationTargetOptions = {}
 ): MarkdownNavigationTarget | null {
-  const trimmed = rawValue.trim();
-  if (/^man:/i.test(trimmed)) {
-    return parseManPageReference(trimmed);
-  }
-
-  const manTarget = parseManPageReference(trimmed);
-  if (manTarget) {
-    return manTarget;
-  }
-
   const repoTarget = parseRepoNavigationTarget(rawValue, currentFilePath, options);
   return repoTarget ? { kind: 'repo-file', ...repoTarget } : null;
 }

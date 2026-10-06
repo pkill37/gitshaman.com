@@ -181,16 +181,6 @@ export default function RepositoryExplorerClient({
     [navigateToRepoTarget]
   );
 
-  const handleEnterManPage = useCallback((name: string, section: string) => {
-    setInitialFile({
-      kind: 'man-page',
-      name,
-      section,
-      navigationNonce: createNavigationNonce(),
-    });
-    setMode('editor');
-  }, []);
-
   const handleOpenFileInCurrentMode = useCallback(
     (
       fileId: string,
@@ -273,13 +263,13 @@ export default function RepositoryExplorerClient({
   const guideSections = useMemo(() => {
     if (guideContent) {
       try {
-        return parseGuideMarkdown(guideContent, handleEnterFile, handleEnterManPage);
+        return parseGuideMarkdown(guideContent, handleEnterFile);
       } catch {
         // fall through to generic
       }
     }
     return createGenericGuide(owner, repo);
-  }, [guideContent, owner, repo, handleEnterFile, handleEnterManPage]);
+  }, [guideContent, owner, repo, handleEnterFile]);
 
   const defaultOpenIds = useMemo(
     () =>

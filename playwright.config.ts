@@ -24,6 +24,8 @@ function shouldStartWebServer(): boolean {
 }
 
 const useProductionExport = process.env.PERFORMANCE_BUILD === '1';
+const testPort = process.env.PLAYWRIGHT_PORT || '38080';
+const baseURL = process.env.BASE_URL || `http://localhost:${testPort}`;
 
 /**
  * Playwright configuration for testing the static web app
@@ -37,7 +39,7 @@ export default defineConfig({
   reporter: [['html', { outputFolder: 'out/playwright-report' }]],
   outputDir: 'out/test-results',
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:8000',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -51,10 +53,10 @@ export default defineConfig({
     ? {
         webServer: {
           command: useProductionExport
-            ? 'serve out -p 8000'
-            : 'tsx scripts/prepare-public-assets.ts --sqljs && next dev --turbopack --port 8000',
-          url: process.env.BASE_URL || 'http://localhost:8000',
-          reuseExistingServer: !process.env.CI,
+            ? `serve out -p ${testPort}`
+            : `tsx scripts/prepare-public-assets.ts --sqljs && next dev --turbopack --port ${testPort}`,
+          url: baseURL,
+          reuseExistingServer: false,
           timeout: 120000,
         },
       }

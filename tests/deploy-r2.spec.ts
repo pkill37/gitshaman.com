@@ -12,9 +12,6 @@ import {
   buildBulkCorpusSyncArgs,
   buildCanonicalDeploymentPayload,
   computeDeploymentSignature,
-  buildManPagesBucketPrefix,
-  buildManPagesManifestKey,
-  buildManPagesSyncArgs,
 } from '../scripts/deploy-r2';
 
 test.describe('R2 deploy', () => {
@@ -53,22 +50,6 @@ test.describe('R2 deploy', () => {
     expect(args).not.toContain('--delete');
   });
 
-  test('builds man-page object keys and sync args', () => {
-    expect(buildManPagesBucketPrefix('explorar-repos')).toBe('s3://explorar-repos/man-pages/');
-    expect(buildManPagesManifestKey()).toBe('man-pages/linux/man-pages-6.18/manifest.json');
-
-    const args = buildManPagesSyncArgs('/tmp/explorar-man-pages', 's3://explorar-repos/man-pages/');
-    expect(args).toEqual([
-      's3',
-      'sync',
-      '/tmp/explorar-man-pages/',
-      's3://explorar-repos/man-pages/',
-      '--no-progress',
-      '--size-only',
-    ]);
-    expect(args).not.toContain('--delete');
-  });
-
   test('builds one non-destructive bulk corpus sync', () => {
     expect(buildBulkCorpusSyncArgs('/tmp/repos', 'explorar-repos')).toEqual([
       's3',
@@ -95,21 +76,18 @@ test.describe('R2 deploy', () => {
       revision: 'two',
       buildSignature: 'build-b',
     };
-    const payload = buildCanonicalDeploymentPayload([repoA, repoB], 'man-a');
+    const payload = buildCanonicalDeploymentPayload([repoA, repoB]);
     expect(computeDeploymentSignature(payload)).toBe(
-      computeDeploymentSignature(buildCanonicalDeploymentPayload([repoB, repoA], 'man-a'))
+      computeDeploymentSignature(buildCanonicalDeploymentPayload([repoB, repoA]))
     );
     expect(
       computeDeploymentSignature(
-        buildCanonicalDeploymentPayload([{ ...repoA, revision: 'changed' }, repoB], 'man-a')
+        buildCanonicalDeploymentPayload([{ ...repoA, revision: 'changed' }, repoB])
       )
     ).not.toBe(computeDeploymentSignature(payload));
-    expect(
-      computeDeploymentSignature(buildCanonicalDeploymentPayload([repoA, repoB], 'man-b'))
-    ).not.toBe(computeDeploymentSignature(payload));
-    expect(
-      computeDeploymentSignature(buildCanonicalDeploymentPayload([repoA, repoB], 'man-a', 2))
-    ).not.toBe(computeDeploymentSignature(payload));
+    expect(computeDeploymentSignature(buildCanonicalDeploymentPayload([repoA, repoB], 2))).not.toBe(
+      computeDeploymentSignature(payload)
+    );
   });
 
   test('corpus build signatures change when the generated tree changes', () => {

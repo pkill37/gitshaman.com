@@ -19,9 +19,9 @@ npm run dev      # starts at localhost:3000
 Guide contributions are markdown-centered: edit or add files in `docs/`, start new guides from
 `docs/_template.md`, and see `CONTRIBUTING.md` for the full workflow.
 
-Cloudflare Pages builds set `CF_PAGES=1`, so `npm run build` skips the expensive corpus and
-man-page generation phases and exports only the static shell. The shell loads repositories, indexes,
-and manual pages from the configured public R2 origin. Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to force a
+Cloudflare Pages builds set `CF_PAGES=1`, so `npm run build` skips the expensive corpus
+generation phase and exports only the static shell. The shell loads repositories and indexes
+from the configured public R2 origin. Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to force a
 full local corpus build. Local corpus indexing requires Node.js 22.22.2 or newer because it loads the
 native `better-sqlite3` index builder.
 

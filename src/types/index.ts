@@ -14,11 +14,7 @@ export interface EditorTab {
   id: string;
   title: string;
   path: string;
-  kind?: 'repo-file' | 'man-page';
-  manPage?: {
-    name: string;
-    section: string;
-  };
+  kind?: 'repo-file';
   isActive: boolean;
   isDirty: boolean;
   viewMode?: 'source' | 'preview';
