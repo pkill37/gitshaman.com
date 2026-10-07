@@ -59,10 +59,7 @@ const TSX_COMMAND = fs.existsSync(path.join(process.cwd(), 'node_modules', '.bin
   ? path.join(process.cwd(), 'node_modules', '.bin', 'tsx')
   : 'tsx';
 
-const DEFAULT_DOWNLOAD_CONCURRENCY = Math.min(
-  8,
-  Math.max(4, Math.floor(os.availableParallelism() * 0.75))
-);
+const DEFAULT_DOWNLOAD_CONCURRENCY = 6;
 const DEFAULT_CODE_INDEX_CONCURRENCY = Math.min(4, Math.max(1, os.availableParallelism() - 1));
 const DEFAULT_GIT_RETRY_ATTEMPTS = 3;
 const DEFAULT_GIT_RETRY_BASE_DELAY_MS = 2_000;
@@ -276,6 +273,14 @@ function fmtDuration(ms: number): string {
     return `${minutes}m${String(seconds).padStart(2, '0')}s`;
   }
   return `${seconds}s`;
+}
+
+function fmtCount(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+function fmtRepo(config: Pick<CuratedRepoConfig, 'owner' | 'repo' | 'revision'>): string {
+  return `${config.owner}/${config.repo}@${config.revision}`;
 }
 
 function summarizeCodeIndexStats(repos: RepoCodeIndexStats[]): CodeIndexRunStats {
@@ -499,6 +504,7 @@ async function gitCloneShallow(
     removePartialCheckout();
 
     if (isCommitSha(revision)) {
+      logger.warn(`   Fetching pinned commit ${revision.slice(0, 12)} from ${repoUrl}`);
       fs.mkdirSync(repoDir, { recursive: true });
       await runCommand('git', ['init'], repoDir);
       await runCommand('git', ['remote', 'add', 'origin', repoUrl], repoDir);
@@ -544,6 +550,7 @@ async function gitCloneShallow(
       repoDir,
     ];
 
+    logger.warn(`   Running git clone for ${owner}/${repo}@${revision}`);
     await runCommand('git', cloneArgs);
 
     // Capture SHA before deleting .git — used for future staleness checks.
@@ -684,6 +691,22 @@ function buildFileTree(dirPath: string, basePath: string = ''): FileNode[] {
   return nodes;
 }
 
+function countFileTree(nodes: FileNode[]): { files: number; directories: number } {
+  let files = 0;
+  let directories = 0;
+  for (const node of nodes) {
+    if (node.type === 'directory') {
+      directories++;
+      const childCounts = countFileTree(node.children ?? []);
+      files += childCounts.files;
+      directories += childCounts.directories;
+    } else {
+      files++;
+    }
+  }
+  return { files, directories };
+}
+
 function toManifestNode(node: FileNode): ManifestNode {
   const result: ManifestNode = { name: node.name, type: node.type === 'directory' ? 'd' : 'f' };
   if (node.children) {
@@ -727,6 +750,7 @@ async function prepareRepo(
   options: { reindex?: boolean } = {}
 ): Promise<PreparedRepo | null> {
   const { owner, repo, revision } = config;
+  const startedAt = Date.now();
   const repoDir = path.join(REPOS_DIR, owner, repo, revision);
   logger.log(`\nRepo ${owner}/${repo}@${revision}`);
 
@@ -735,8 +759,15 @@ async function prepareRepo(
   }
 
   const corpusState = inspectRepoCorpusState(repoDir, config);
+  logger.log(
+    `   Corpus state: source=${corpusState.sourceCurrent ? 'current' : 'stale/missing'}, index=${
+      corpusState.indexCurrent ? 'current' : 'stale/missing'
+    }${options.reindex ? ', reindex requested' : ''}`
+  );
   if (corpusState.sourceCurrent && corpusState.indexCurrent && !options.reindex) {
-    logger.log(`skip: ${owner}/${repo}@${revision} pinned build matches`);
+    logger.log(
+      `skip: ${owner}/${repo}@${revision} pinned build matches (${fmtDuration(Date.now() - startedAt)})`
+    );
     return null;
   }
 
@@ -758,16 +789,23 @@ async function prepareRepo(
     const sha = await gitCloneShallow(config, repoDir, depth, logger);
     logger.log(`   Clone complete${sha ? ` (${sha.slice(0, 8)})` : ''}`);
 
+    logger.log(`   Pruning unsupported binary assets...`);
     const { removed } = pruneNonTextFiles(repoDir);
-    if (removed > 0) logger.log(`   Pruned ${removed} binary files`);
+    logger.log(`   Pruned ${fmtCount(removed)} binary file(s)`);
 
     logger.log(`   Building file tree...`);
     const tree = buildFileTree(repoDir);
+    const treeCounts = countFileTree(tree);
+    logger.log(
+      `   File tree built: ${fmtCount(treeCounts.files)} files, ${fmtCount(treeCounts.directories)} directories, ${fmtCount(
+        tree.length
+      )} root entries`
+    );
     const buildSignature = getCorpusBuildSignature(config, tree);
+    logger.log(`   Build signature: ${buildSignature.slice(0, 12)}…`);
     createManifest(repoDir, tree, buildSignature, logger);
-    logger.log(`   Tree: ${tree.length} root entries`);
 
-    logger.log(`ready: ${owner}/${repo}@${revision}`);
+    logger.log(`ready: ${owner}/${repo}@${revision} (${fmtDuration(Date.now() - startedAt)})`);
     return { config, repoDir };
   } catch (error) {
     if (fs.existsSync(repoDir)) {
@@ -856,21 +894,47 @@ async function main() {
   }
 
   let completedRepos = 0;
+  let startedRepos = 0;
+  let changedRepos = 0;
+  let skippedRepos = 0;
+  let failedRepos = 0;
   const preparedRepos: PreparedRepo[] = [];
   const downloadTasks = finalRepos.map((repo) => async () => {
     const logger = createRepoLogger();
+    const repoLabel = fmtRepo(repo);
+    const startedAt = Date.now();
+    const started = ++startedRepos;
+    console.log(
+      `   [download ${started}/${finalRepos.length}] start ${repoLabel} (active ${
+        startedRepos - completedRepos
+      }/${getDownloadConcurrency()})`
+    );
     try {
-      logger.log(`\nStarting ${repo.owner}/${repo.repo}@${repo.revision}`);
+      logger.log(`\nStarting ${repoLabel}`);
       const prepared = await prepareRepo(repo, opts.depth, logger, { reindex: opts.reindex });
       if (prepared) {
         preparedRepos.push(prepared);
+        changedRepos++;
+        logger.log(`   Download result: source prepared for indexing`);
+      } else {
+        skippedRepos++;
+        logger.log(`   Download result: skipped/current`);
       }
-    } catch {
+    } catch (error) {
+      failedRepos++;
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`   Download result: failed (${message})`);
       // Error already logged inside the repo transcript; continue with remaining repos.
     } finally {
       logger.flush();
       completedRepos++;
-      console.log(`   Download progress: ${completedRepos}/${finalRepos.length} repos processed`);
+      console.log(
+        `   [download ${completedRepos}/${finalRepos.length}] done ${repoLabel} in ${fmtDuration(
+          Date.now() - startedAt
+        )} (prepared ${changedRepos}, skipped ${skippedRepos}, failed ${failedRepos}, active ${
+          startedRepos - completedRepos
+        })`
+      );
     }
   });
 
@@ -882,18 +946,37 @@ async function main() {
     `${finalRepos.length} repos @ download concurrency ${getDownloadConcurrency()}`
   );
 
+  console.log(
+    `   Download summary: ${changedRepos} prepared, ${skippedRepos} skipped/current, ${failedRepos} failed`
+  );
+
   let indexedRepos = 0;
+  let startedIndexRepos = 0;
   const indexTasks = preparedRepos.map((prepared) => async () => {
     const logger = createRepoLogger();
+    const repoLabel = fmtRepo(prepared.config);
+    const startedAt = Date.now();
+    const started = ++startedIndexRepos;
+    console.log(`   [index ${started}/${preparedRepos.length}] start ${repoLabel}`);
     try {
+      logger.log(`\nIndexing ${repoLabel}`);
       const stats = await indexPreparedRepo(prepared, logger);
       codeIndexStats.push(stats);
+      logger.log(
+        `   Index result: ${fmtCount(stats.fileCount)} files, ${fmtCount(stats.symbolCount)} symbols, ${fmtCount(
+          stats.edgeCount
+        )} edges, ${fmtDuration(stats.durationMs)}`
+      );
     } catch {
       // Error is already captured in the repository transcript.
     } finally {
       logger.flush();
       indexedRepos++;
-      console.log(`   Index progress: ${indexedRepos}/${preparedRepos.length} repos processed`);
+      console.log(
+        `   [index ${indexedRepos}/${preparedRepos.length}] done ${repoLabel} in ${fmtDuration(
+          Date.now() - startedAt
+        )}`
+      );
     }
   });
 

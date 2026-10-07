@@ -720,6 +720,47 @@
   height: 100% !important;
 }
 
+/*
+ * Monaco's folding controls normally render via the Codicon icon font. In the
+ * Next/Turbopack dev bundle that font can fail to attach before Monaco paints,
+ * leaving raw private-use unicode glyphs in the line-number gutter. Draw the
+ * fold chevrons with CSS instead so the range collapse control is stable even
+ * when the icon font is unavailable.
+ */
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed {
+  color: var(--vscode-text-secondary) !important;
+  font-family: inherit !important;
+  font-size: 0 !important;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  box-sizing: border-box;
+  display: block;
+  width: 0;
+  height: 0;
+  content: '' !important;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before {
+  border-top: 5px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+}
+
 /* Ensure Monaco editor wrapper fills available space */
 .vscode-editor > div {
   flex: 1;

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "predev": "tsx scripts/prepare-public-assets.ts --sqljs",
+    "predev": "tsx scripts/prepare-public-assets.ts --dev --sqljs",
     "dev": "next dev --turbopack --port 3000",
     "build": "tsx scripts/build.ts",
     "start": "serve -l 3000 out -c",

@@ -54,7 +54,7 @@ export default defineConfig({
         webServer: {
           command: useProductionExport
             ? `serve out -p ${testPort}`
-            : `tsx scripts/prepare-public-assets.ts --sqljs && next dev --turbopack --port ${testPort}`,
+            : `tsx scripts/prepare-public-assets.ts --dev --sqljs && next dev --turbopack --port ${testPort}`,
           url: baseURL,
           reuseExistingServer: false,
           timeout: 120000,

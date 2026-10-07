@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
 import './globals.css';
 import { getSiteUrl, SITE_NAME, SOURCE_REPOSITORY_URL } from '@/lib/site';
 

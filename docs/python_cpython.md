@@ -115,7 +115,7 @@ fileRecommendations:
     - path: Include/object.h:PyObject_HEAD
       description: PyObject and PyTypeObject definitions
       type: source
-    - path: Parser/tokenizer.c
+    - path: Parser/lexer/lexer.c
       description: Lexical analysis — source to tokens
       type: source
     - path: Grammar/python.gram
@@ -125,7 +125,7 @@ fileRecommendations:
 
 
 ```chapter-graph
-Parser/tokenizer.c -> Parser/parser.c : tokens → AST
+Parser/lexer/lexer.c -> Parser/parser.c : tokens → AST
 Grammar/python.gram -> Parser/parser.c : pegen generates parser
 Parser/parser.c -> Python/ast.c : parse tree → AST
 Python/ast.c -> Python/compile.c : AST → bytecode
@@ -151,7 +151,7 @@ The CPython source code is organized into clear directories, each serving a spec
 CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from `Grammar/python.gram`, and the interpreter instruction cases are generated from `Python/bytecodes.c`.
 
 Key files in the pipeline:
-- [Parser/tokenizer.c](Parser/tokenizer.c) — Tokenizes Python source code
+- [Parser/lexer/lexer.c](Parser/lexer/lexer.c) — Core lexer that turns Python source into tokens
 - [Grammar/python.gram](Grammar/python.gram) — Grammar consumed by pegen
 - [Parser/parser.c](Parser/parser.c) — Generated parser for tokens and grammar rules
 - [Python/ast.c](Python/ast.c) — AST manipulation and validation

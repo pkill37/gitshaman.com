@@ -25,7 +25,7 @@ npx playwright test tests/quality.spec.ts
 
 `playwright.config.ts` starts the app automatically when a browser-backed spec needs it:
 
-- default: `tsx scripts/prepare-public-assets.ts --sqljs && next dev --turbopack --port 38080`
+- default: `tsx scripts/prepare-public-assets.ts --dev --sqljs && next dev --turbopack --port 38080`
 - performance: `serve out -p 38080` when `PERFORMANCE_BUILD=1`
 
 Override the target with `BASE_URL` or `PLAYWRIGHT_PORT`.
