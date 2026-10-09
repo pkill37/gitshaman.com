@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
 import './globals.css';
-import { getSiteUrl, SITE_NAME, SOURCE_REPOSITORY_URL } from '@/lib/site';
+import { getSiteUrl, SITE_NAME } from '@/lib/site';
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
@@ -14,7 +14,7 @@ const siteName = SITE_NAME;
 const brandName = 'GitShaman';
 const defaultTitle = 'GitShaman: Semantic Code Intelligence';
 const defaultDescription =
-  'Explore large codebases with indexed symbols, references, dependency graphs, and curated guides—semantic code intelligence for developers and agents.';
+  'Explore large codebases with indexed files, symbols, references, dependency views, and curated guides for developers and agents.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -146,17 +146,6 @@ export default function RootLayout({
     },
   };
 
-  const organizationSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: brandName,
-    alternateName: siteName,
-    url: siteUrl,
-    description: defaultDescription,
-    logo: `${siteUrl}/icon0.svg`,
-    sameAs: [SOURCE_REPOSITORY_URL],
-  };
-
   const serializeJsonLd = (value: object) => JSON.stringify(value).replace(/</g, '\\u003c');
 
   return (
@@ -174,13 +163,6 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(webSiteSchema),
-          }}
-        />
-        <script
-          id="organization-schema"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: serializeJsonLd(organizationSchema),
           }}
         />
         {children}

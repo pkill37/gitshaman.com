@@ -1,7 +1,7 @@
 {
   "name": "GitShaman",
   "short_name": "GitShaman",
-  "description": "Semantic code intelligence for exploring large repositories through indexed symbols, references, dependency graphs, and curated guides.",
+  "description": "Explore large repositories through indexed files, symbols, references, dependency views, and curated guides.",
   "start_url": "/",
   "scope": "/",
   "categories": ["developer tools", "education", "productivity"],

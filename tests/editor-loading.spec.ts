@@ -79,12 +79,16 @@ test.describe('Editor Loading', () => {
 
       // Next observes native history changes as same-page client navigation.
       await page.evaluate(() => window.history.pushState(null, '', '/'));
-      await expect(page.getByRole('heading', { name: /Open a portal to any repo/i })).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: /Meet git.*Understand code faster/i })
+      ).toBeVisible();
       await expect(page.getByRole('code').getByText('int url_target = 42;')).toHaveCount(0);
       await page.goBack();
       await expect(page.getByRole('code').getByText('int url_target = 42;')).toBeVisible();
       await page.goForward();
-      await expect(page.getByRole('heading', { name: /Open a portal to any repo/i })).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: /Meet git.*Understand code faster/i })
+      ).toBeVisible();
     });
   }
 

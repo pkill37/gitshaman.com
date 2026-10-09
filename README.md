@@ -25,7 +25,7 @@ from the configured public R2 origin. Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to forc
 full local corpus build. Local corpus indexing requires Node.js 22.22.2 or newer because it loads the
 native `better-sqlite3` index builder.
 
-Online you can visit **[https://gitshaman.com](https://gitshaman.com)** for free. For the niche URL-hacking workflow, replace `github.com` with `gitshaman.com` in a repository URL.
+Online you can visit **[https://gitshaman.com](https://gitshaman.com)** for free. To use the URL-hacking workflow, replace `github.com` with `gitshaman.com` in a repository URL.
 
 ## Semantic Editor Implementation
 

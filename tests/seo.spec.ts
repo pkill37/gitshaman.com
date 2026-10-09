@@ -24,8 +24,8 @@ test.describe('SEO Checks', () => {
     // Check for meta description
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     expect(description).toBeTruthy();
-    expect(description).toContain('indexed symbols');
-    expect(description).toContain('semantic code intelligence');
+    expect(description).toContain('indexed files');
+    expect(description).toContain('curated guides');
     expect(description?.length).toBeGreaterThan(50);
     expect(description?.length).toBeLessThan(160);
 
@@ -72,7 +72,7 @@ test.describe('SEO Checks', () => {
     const page = await context.newPage();
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    for (const name of ['VSCode Editor + LSP', 'Code Indexing', 'Semantic Enrichment']) {
+    for (const name of ['VS Code Editor + LSP', 'Code Indexing', 'Semantic Enrichment']) {
       await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
     }
     await expect(page.getByRole('main')).toContainText('language-aware navigation');
@@ -159,7 +159,7 @@ test.describe('SEO Checks', () => {
     const webApp = parsed.find((schema) => schema['@type'] === 'WebApplication');
 
     expect(webApp).toBeTruthy();
-    expect(webApp?.description).toContain('semantic code intelligence');
+    expect(webApp?.description).toContain('indexed files');
     expect(JSON.stringify(webApp)).not.toContain('LSP/MCP-grounded');
   });
 

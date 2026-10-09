@@ -556,62 +556,56 @@ body {
   0%,
   34% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
-  42%,
+  46%,
   100% {
     opacity: 0;
-    transform: translateY(-0.5rem);
-  }
-}
-
-@keyframes url-host-two {
-  0%,
-  50% {
-    opacity: 0;
-    transform: translateY(0.5rem);
-  }
-  58%,
-  86% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateY(-0.5rem);
+    transform: translateY(-0.22rem) scale(0.98);
   }
 }
 
 @keyframes url-host-replacement {
   0%,
-  30% {
+  42% {
     opacity: 0;
-    transform: translateY(0.45rem);
+    transform: translateY(0.35rem) scale(0.98);
+    filter: drop-shadow(0 0 0 rgba(34, 197, 94, 0));
   }
-  40%,
-  48% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  54%,
-  82% {
-    opacity: 0;
-    transform: translateY(0.45rem);
-  }
-  92%,
+  56%,
   100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.72))
+      drop-shadow(0 0 22px rgba(99, 216, 201, 0.34));
+  }
+}
+
+@keyframes url-host-correct-glow {
+  0%,
+  48% {
+    box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+  }
+  58%,
+  82% {
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.75),
+      0 0 16px rgba(34, 197, 94, 0.42),
+      0 0 28px rgba(99, 216, 201, 0.22);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.42),
+      0 0 12px rgba(34, 197, 94, 0.3);
   }
 }
 
 @keyframes url-host-strike {
   0%,
-  18% {
+  24% {
     transform: scaleX(0);
   }
-  30%,
+  36%,
   100% {
     transform: scaleX(1);
   }
@@ -787,7 +781,7 @@ body {
 .shaman-logo-hack {
   display: flex;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
   line-height: 1;
   white-space: nowrap;
 }
@@ -799,15 +793,14 @@ body {
 
 .shaman-logo-hack-hosts {
   position: relative;
-  display: inline-grid;
-  flex: 0 0 8.25rem;
+  display: inline-flex;
+  flex: 0 0 8.15rem;
   color: var(--vscode-text-primary, #f8f3e7);
 }
 
 .shaman-logo-hack-old-host,
 .shaman-logo-hack-new-host {
   position: relative;
-  grid-area: 1 / 1;
   width: max-content;
 }
 
@@ -830,27 +823,27 @@ body {
 }
 
 .shaman-logo-hack-old-host:first-child {
-  animation: url-host-one 5.8s ease-in-out infinite;
+  animation: url-host-one 4.8s ease-in-out infinite;
 }
 
 .shaman-logo-hack-old-host:first-child::after {
-  animation: url-host-strike 5.8s ease-in-out infinite;
-}
-
-.shaman-logo-hack-old-host:nth-child(2) {
-  animation: url-host-two 5.8s ease-in-out infinite;
-}
-
-.shaman-logo-hack-old-host:nth-child(2)::after {
-  animation: url-host-strike 5.8s ease-in-out 3s infinite;
+  animation: url-host-strike 4.8s ease-in-out infinite;
 }
 
 .shaman-logo-hack-new-host {
+  position: absolute;
+  top: -0.32rem;
+  left: -0.3rem;
+  padding: 0.32rem 0.42rem;
+  border-radius: 0.42rem;
   opacity: 0;
+  color: #dcfce7;
   text-shadow:
-    0 0 14px rgba(242, 196, 109, 0.28),
-    0 0 20px rgba(86, 214, 201, 0.16);
-  animation: url-host-replacement 5.8s ease-in-out infinite;
+    0 0 14px rgba(34, 197, 94, 0.36),
+    0 0 20px rgba(86, 214, 201, 0.2);
+  animation:
+    url-host-replacement 4.8s ease-in-out infinite,
+    url-host-correct-glow 4.8s ease-in-out infinite;
 }
 
 .shaman-brandbar-context {
@@ -944,18 +937,83 @@ body {
 }
 
 .shaman-url-panel {
+  position: relative;
   border: 0;
-  background:
-    linear-gradient(135deg, rgba(17, 16, 23, 0.76), rgba(17, 16, 23, 0.56)),
-    linear-gradient(100deg, #ffdf7e, #ff8fb8, #a78bfa, #63d8c9, #b9f97d, #ffdf7e);
-  background-size:
-    100% 100%,
-    240% 100%;
+  overflow: hidden;
+  background: rgba(17, 16, 23, 0.18);
   box-shadow:
     0 22px 70px rgba(99, 216, 201, 0.13),
     0 16px 46px rgba(239, 143, 184, 0.1),
     0 0 0 1px rgba(255, 255, 255, 0.16) inset;
-  animation: rainbow-button-flow 12s ease-in-out infinite;
+  isolation: isolate;
+}
+
+.shaman-url-panel::before,
+.shaman-url-panel::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: '';
+}
+
+.shaman-url-panel::before {
+  inset: -10%;
+  background:
+    radial-gradient(circle at 20% 14%, rgba(99, 216, 201, 0.5), transparent 34%),
+    radial-gradient(circle at 82% 24%, rgba(255, 143, 184, 0.5), transparent 32%),
+    radial-gradient(circle at 54% 90%, rgba(185, 249, 125, 0.5), transparent 34%),
+    linear-gradient(135deg, rgba(17, 16, 23, 0.58), rgba(17, 16, 23, 0.96));
+  opacity: 0.4;
+  transform: translate3d(0, 0, 0) scale(1.03);
+  animation: shaman-panel-ambient-drift 18s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.shaman-url-panel::after {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 223, 126, 0.2),
+    rgba(255, 143, 184, 0.16),
+    rgba(167, 139, 250, 0.15),
+    rgba(99, 216, 201, 0.18),
+    rgba(185, 249, 125, 0.12),
+    rgba(255, 223, 126, 0.2)
+  );
+  background-size: 240% 100%;
+  opacity: 0.28;
+  transform: translate3d(0, 0, 0) scale(1.02);
+  mix-blend-mode: screen;
+  animation: shaman-panel-sheen 20s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@keyframes shaman-panel-ambient-drift {
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translate3d(-1.5%, -1%, 0) scale(1.03);
+  }
+  45% {
+    opacity: 0.72;
+    transform: translate3d(1.5%, 1%, 0) scale(1.06);
+  }
+  72% {
+    opacity: 0.46;
+    transform: translate3d(0.5%, -1.5%, 0) scale(1.04);
+  }
+}
+
+@keyframes shaman-panel-sheen {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: translate3d(-2%, 0, 0) scale(1.02);
+  }
+  50% {
+    opacity: 0.42;
+    transform: translate3d(2%, 0, 0) scale(1.035);
+  }
 }
 
 .shaman-panel-label {
@@ -998,6 +1056,10 @@ body {
     transform 180ms ease;
 }
 
+.shaman-compact-portal:active {
+  transform: translateY(0) scale(0.98);
+}
+
 .shaman-compact-portal:hover {
   border-color: rgba(99, 216, 201, 0.46);
   background: rgba(37, 32, 46, 0.8);
@@ -1025,6 +1087,14 @@ body {
 
 .shaman-url-input-shell {
   display: flex;
+  transition:
+    filter 220ms ease,
+    transform 220ms ease;
+}
+
+.shaman-url-input-shell--opening {
+  filter: drop-shadow(0 0 18px rgba(99, 216, 201, 0.22));
+  transform: translateY(-1px);
 }
 
 .shaman-url-placeholder {
@@ -1033,7 +1103,8 @@ body {
   top: 50%;
   left: 1rem;
   z-index: 20;
-  max-width: calc(100% - 2rem);
+  right: 1rem;
+  max-width: none;
   overflow: hidden;
   color: #c9c1d4;
   font-size: 1rem;
@@ -1047,21 +1118,35 @@ body {
 }
 
 .shaman-url-placeholder .shaman-logo-hack-hosts {
-  flex: 0 0 8.25rem;
+  flex: 0 0 8.15rem;
 }
 
 .shaman-logo-hack-path {
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
   overflow: hidden;
   color: #666171;
   font-weight: 500;
-  text-overflow: ellipsis;
 }
 
 .shaman-url-input {
   border: 1px solid rgba(167, 139, 250, 0.28);
   background: rgba(10, 9, 15, 0.72);
   color: #f8f3e7;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease,
+    color 160ms ease;
+}
+
+.shaman-url-input-shell--opening .shaman-url-input {
+  border-color: rgba(99, 216, 201, 0.72);
+  background: rgba(10, 24, 24, 0.8);
+  box-shadow:
+    0 0 0 3px rgba(99, 216, 201, 0.12),
+    0 0 28px rgba(99, 216, 201, 0.16),
+    0 0 52px rgba(34, 197, 94, 0.1);
 }
 
 .shaman-url-input::placeholder {
@@ -1082,19 +1167,85 @@ body {
   background: linear-gradient(100deg, #ffdf7e, #ff8fb8, #a78bfa, #63d8c9, #b9f97d, #ffdf7e);
   background-size: 240% 100%;
   color: var(--shaman-ink);
+  cursor: pointer;
   box-shadow:
-    0 10px 28px rgba(99, 216, 201, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+    0 12px 28px rgba(17, 16, 23, 0.36),
+    0 8px 22px rgba(99, 216, 201, 0.2),
+    0 -2px 0 rgba(17, 16, 23, 0.2) inset,
+    0 2px 0 rgba(255, 255, 255, 0.42) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.28) inset;
   animation: rainbow-button-flow 8s ease-in-out infinite;
+  transition:
+    box-shadow 180ms ease,
+    filter 180ms ease,
+    transform 180ms ease;
+}
+
+.shaman-url-button--icon {
+  display: inline-grid;
+  min-width: 3.65rem;
+  place-items: center;
+}
+
+.shaman-url-button-arrow {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1;
+  transform: translateY(-1px);
+  transition: transform 180ms ease;
+}
+
+.shaman-url-button-spinner {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(17, 16, 23, 0.24);
+  border-top-color: var(--shaman-ink);
+  border-radius: 999px;
+  animation: shaman-button-spinner 720ms linear infinite;
 }
 
 .shaman-url-button:hover {
   box-shadow:
-    0 14px 34px rgba(239, 198, 111, 0.2),
+    0 16px 34px rgba(17, 16, 23, 0.42),
+    0 14px 34px rgba(239, 198, 111, 0.24),
     0 0 24px rgba(99, 216, 201, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.32) inset;
-  transform: translateY(-1px);
+    0 -2px 0 rgba(17, 16, 23, 0.18) inset,
+    0 2px 0 rgba(255, 255, 255, 0.52) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.42) inset;
+  transform: translateY(-2px) scale(1.03);
   filter: saturate(1.08) brightness(1.04);
+}
+
+.shaman-url-button:hover .shaman-url-button-arrow {
+  transform: translateY(-3px);
+}
+
+.shaman-url-button:active {
+  box-shadow:
+    0 7px 16px rgba(17, 16, 23, 0.34),
+    0 4px 14px rgba(99, 216, 201, 0.16),
+    0 2px 5px rgba(17, 16, 23, 0.24) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+  transform: translateY(0) scale(0.98);
+}
+
+.shaman-url-button:focus-visible {
+  outline: 2px solid rgba(248, 243, 231, 0.92);
+  outline-offset: 3px;
+}
+
+.shaman-url-button:disabled {
+  cursor: wait;
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+@keyframes shaman-button-spinner {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .shaman-loading-screen {
@@ -1355,6 +1506,9 @@ body {
   .shaman-wordmark-sha::after,
   .shaman-url-panel,
   .shaman-url-button,
+  .shaman-url-button-spinner,
+  .shaman-url-panel::before,
+  .shaman-url-panel::after,
   .code-background::before,
   .code-background::after,
   .circuit-trace {
@@ -1365,10 +1519,6 @@ body {
     opacity: 1;
   }
 
-  .shaman-logo-hack-old-host:nth-child(2) {
-    opacity: 0;
-  }
-
   .shaman-logo-hack-old-host:first-child::after {
     transform: scaleX(1);
   }
@@ -1376,6 +1526,9 @@ body {
   .shaman-logo-hack-new-host {
     opacity: 1;
     transform: translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.42),
+      0 0 12px rgba(34, 197, 94, 0.3);
   }
 }
 

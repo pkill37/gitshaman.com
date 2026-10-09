@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'GitShaman semantic code intelligence for large repositories';
+export const alt = 'GitShaman source browser for large repositories';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 export const dynamic = 'force-static';
@@ -27,7 +27,7 @@ export default function OpenGraphImage() {
         git<span style={{ color: '#efc66f' }}>sha</span>man.com
       </div>
       <div style={{ color: '#aaa4b3', display: 'flex', fontSize: 36, marginTop: 30 }}>
-        Open a portal to any repo. Understand the code faster.
+        Open a portal to a GitHub repo. Understand the code faster.
       </div>
     </div>,
     size
