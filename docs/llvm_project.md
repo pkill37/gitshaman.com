@@ -170,7 +170,7 @@ fileRecommendations:
       type: source
     - path: llvm/lib/CodeGen/SelectionDAG/
       description: Instruction selection via SelectionDAG
-      type: source
+      type: directory
     - path: llvm/lib/Target/X86/X86ISelLowering.cpp
       description: x86 IR lowering (about 50,000 lines!)
       type: source
@@ -288,11 +288,6 @@ recursive_case:
 
 **4. CodeGen** ([clang/lib/CodeGen/](clang/lib/CodeGen/)): AST → LLVM IR
 
-Key CodeGen files:
-- [clang/lib/CodeGen/CodeGenModule.cpp](clang/lib/CodeGen/CodeGenModule.cpp) - Module-level IR generation
-- [clang/lib/CodeGen/CodeGenFunction.cpp](clang/lib/CodeGen/CodeGenFunction.cpp) - Function-level IR generation
-- [clang/lib/CodeGen/CGExpr.cpp](clang/lib/CodeGen/CGExpr.cpp) - Expression code generation
-
 ---
 id: ch3
 title: Chapter 3 — Clang Frontend
@@ -362,12 +357,6 @@ Dump any C file's AST with:
 clang -Xclang -ast-dump -fsyntax-only file.c
 ```
 
-Key AST header files:
-- [clang/include/clang/AST/Decl.h](clang/include/clang/AST/Decl.h) — Declaration nodes
-- [clang/include/clang/AST/Expr.h](clang/include/clang/AST/Expr.h) — Expression nodes
-- [clang/include/clang/AST/Stmt.h](clang/include/clang/AST/Stmt.h) — Statement nodes
-- [clang/include/clang/AST/Type.h](clang/include/clang/AST/Type.h) — Type representations
-
 ### Parsing: From Tokens to AST
 
 The Clang parser is a hand-written recursive descent parser. Each grammar rule maps to a `ParseXxx()` method in the `Parser` class.
@@ -390,11 +379,6 @@ class Parser {
 ```
 
 The parser calls Sema actions as it builds the tree — type checking happens simultaneously with parsing, not in a separate pass.
-
-Key parser files:
-- [clang/lib/Parse/ParseDecl.cpp](clang/lib/Parse/ParseDecl.cpp) — Declaration parsing
-- [clang/lib/Parse/ParseExpr.cpp](clang/lib/Parse/ParseExpr.cpp) — Expression parsing
-- [clang/lib/Parse/ParseStmt.cpp](clang/lib/Parse/ParseStmt.cpp) — Statement parsing
 
 ### Semantic Analysis: Type Checking and Validation
 
@@ -422,11 +406,6 @@ ExprResult Sema::ActOnBinaryOp(Scope *S, SourceLocation OpLoc,
 }
 ```
 
-Key Sema files:
-- [clang/lib/Sema/SemaDecl.cpp](clang/lib/Sema/SemaDecl.cpp) — Declaration semantics
-- [clang/lib/Sema/SemaExpr.cpp](clang/lib/Sema/SemaExpr.cpp) — Expression type checking
-- [clang/lib/Sema/SemaOverload.cpp](clang/lib/Sema/SemaOverload.cpp) — C++ overload resolution
-
 ### IR Generation: AST to LLVM IR
 
 CodeGen traverses the typed AST and emits LLVM IR using `IRBuilder`. Each AST node type has a corresponding `EmitXxx()` method.
@@ -446,13 +425,6 @@ llvm::Value *CodeGenFunction::EmitBinaryOp(const BinaryOperator *E) {
     }
 }
 ```
-
-Key CodeGen files:
-- [clang/lib/CodeGen/CodeGenModule.cpp](clang/lib/CodeGen/CodeGenModule.cpp) — Module-level IR (globals, functions)
-- [clang/lib/CodeGen/CodeGenFunction.cpp](clang/lib/CodeGen/CodeGenFunction.cpp) — Per-function IR generation
-- [clang/lib/CodeGen/CGExpr.cpp](clang/lib/CodeGen/CGExpr.cpp) — Expression code generation
-- [clang/lib/CodeGen/CGStmt.cpp](clang/lib/CodeGen/CGStmt.cpp) — Statement code generation
-- [clang/lib/CodeGen/CGCall.cpp](clang/lib/CodeGen/CGCall.cpp) — Function call lowering
 
 ---
 id: ch4
@@ -476,7 +448,7 @@ fileRecommendations:
       type: source
     - path: llvm/lib/Transforms/InstCombine/
       description: Instruction combining (about 50,000 lines of peepholes)
-      type: source
+      type: directory
     - path: llvm/include/llvm/IR/PassManager.h#L42
       description: New Pass Manager infrastructure
       type: source
@@ -533,18 +505,11 @@ llvm::PassPluginLibraryInfo getPluginInfo() {
 }
 ```
 
-Key infrastructure files:
-- [llvm/include/llvm/IR/PassManager.h](llvm/include/llvm/IR/PassManager.h) — Pass manager interfaces
-- [llvm/include/llvm/Passes/PassBuilder.h](llvm/include/llvm/Passes/PassBuilder.h) — Pipeline construction
-- [llvm/include/llvm/IR/InstVisitor.h](llvm/include/llvm/IR/InstVisitor.h) — Visitor pattern for IR traversal
-
 ### Key Scalar Optimization Passes
 
 **1. Dead Code Elimination (DCE)**
 
 Removes instructions whose results are never used. The simplest transform pass—great for learning the pass framework.
-
-File: [llvm/lib/Transforms/Scalar/DCE.cpp](llvm/lib/Transforms/Scalar/DCE.cpp)
 
 ```cpp
 // DCE core logic (simplified)
@@ -574,8 +539,6 @@ bool eliminateDeadCode(Function &F) {
 
 Propagates constant values through the IR, eliminating conditional branches when the condition is known at compile time.
 
-File: [llvm/lib/Transforms/Scalar/SCCP.cpp](llvm/lib/Transforms/Scalar/SCCP.cpp)
-
 ```llvm
 ; Before SCCP
 %x = add i32 5, 3     ; constant: always 8
@@ -589,8 +552,6 @@ br label %true         ; branch folded — %x = 8, 8 < 10 always true
 **3. Mem2Reg: The Most Important Pass**
 
 Promotes `alloca` (stack) variables to SSA virtual registers. This is the pass that creates PHI nodes and is the foundation for most other optimizations.
-
-File: [llvm/lib/Transforms/Utils/Mem2Reg.cpp](llvm/lib/Transforms/Utils/Mem2Reg.cpp)
 
 ```llvm
 ; Before Mem2Reg (alloca pattern from Clang CodeGen)
@@ -606,8 +567,6 @@ store i32 5, i32* %x
 **4. InstCombine: Peephole Optimizations**
 
 A large collection (about 50,000 lines) of algebraic simplifications and canonicalizations.
-
-Directory: [llvm/lib/Transforms/InstCombine/](llvm/lib/Transforms/InstCombine/)
 
 Examples of what InstCombine does:
 

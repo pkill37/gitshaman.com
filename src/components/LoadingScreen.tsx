@@ -22,9 +22,6 @@ export default function LoadingScreen({
               </div>
 
               <div>
-                <p className="shaman-loading-kicker mb-3 text-xs font-bold uppercase tracking-[0.32em]">
-                  Portal Transit
-                </p>
                 <h1 className="shaman-landing-title mb-3 text-3xl sm:text-4xl">{title}</h1>
                 <p className="text-sm leading-6 text-[#aaa4b3]">{description}</p>
               </div>

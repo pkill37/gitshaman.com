@@ -10,13 +10,13 @@ import RepositoryWorkspaceExplorer, {
 import GuidePanel from './components/GuidePanel';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
 import StatusBar from './components/StatusBar';
-import LoadingScreen from '@/components/LoadingScreen';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
 import { parseGuideMarkdown } from '@/features/guides/parser';
 import { debugLog } from '@/lib/browser-debug';
 import { useRepository } from '@/contexts/RepositoryContext';
 import { getCuratedRepoAccent, getCuratedRepoPath } from '@/lib/curated-repos';
 import type { GitHubUrlTarget } from '@/lib/github-url';
+import { resolveRepositoryNavigation } from '@/lib/github-url';
 import {
   getDefaultCuratedRepoSourceMode,
   hasConfiguredR2BucketBaseUrl,
@@ -64,25 +64,40 @@ export default function RepositoryExplorerClient({
   directTarget,
   guideContent,
   guideDefaultOpenIds,
-  loadingTitle,
-  loadingDescription,
+  loadingTitle: _loadingTitle,
+  loadingDescription: _loadingDescription,
 }: RepositoryExplorerClientProps) {
   const projectConfig = getProjectConfig(owner, repo);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
+  const browserTarget = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return resolveRepositoryNavigation(window.location.pathname, queryString, window.location.hash);
+  }, [queryString]);
+  const effectiveDirectTarget = directTarget ?? browserTarget ?? undefined;
   // Curated routes always use their seeded revision. Arbitrary routes keep
   // the explicit URL ref and resolve a default branch only when absent.
   const requestedBranch = projectConfig
     ? undefined
-    : searchParams.get('ref') || directTarget?.branch;
+    : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch } = useRepository();
-  const [isMounted, setIsMounted] = useState(false);
   const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
-  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(() =>
-    getDefaultCuratedRepoSourceMode()
-  );
+  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
+    let nextSourceMode = getDefaultCuratedRepoSourceMode();
+    try {
+      if (typeof window !== 'undefined') {
+        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
+        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
+          nextSourceMode = savedSourceMode;
+        }
+      }
+    } catch {
+      // Keep the environment default.
+    }
+    return normalizeCuratedRepoSourceMode(nextSourceMode);
+  });
   const [workspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
     try {
       if (typeof window === 'undefined') return 'dark';
@@ -95,7 +110,34 @@ export default function RepositoryExplorerClient({
     }
     return 'dark';
   });
-  const [initialFile, setInitialFile] = useState<InitialFileTarget | null>(null);
+  const [initialFile, setInitialFile] = useState<InitialFileTarget | null>(() => {
+    const requestedDirectory = searchParams.get('dir')?.trim();
+    const requestedFile = searchParams.get('file')?.trim();
+    const filePath = requestedFile || effectiveDirectTarget?.filePath;
+    const directoryPath =
+      requestedDirectory ||
+      (effectiveDirectTarget?.targetType === 'directory'
+        ? effectiveDirectTarget.filePath
+        : undefined) ||
+      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
+    if (directoryPath) {
+      return {
+        kind: 'directory',
+        path: directoryPath,
+        navigationNonce: createNavigationNonce(),
+      };
+    }
+    if (!filePath) return null;
+    const lineValue = searchParams.get('line');
+    const parsedLine = lineValue ? parseInt(lineValue, 10) : Number.NaN;
+    return {
+      path: filePath,
+      exactPath: true,
+      searchPattern: searchParams.get('search') || undefined,
+      scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
+      navigationNonce: createNavigationNonce(),
+    };
+  });
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [isGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
     try {
@@ -112,6 +154,19 @@ export default function RepositoryExplorerClient({
   const [showShareMenu, setShowShareMenu] = useState(false);
   // Keep EntityView mounted once first activated to preserve per-chapter cache
   const [entitiesMounted, setEntitiesMounted] = useState(false);
+  const urlInitialFile = useMemo<InitialFileTarget | null>(() => {
+    const requestedFile = searchParams.get('file')?.trim() || effectiveDirectTarget?.filePath;
+    if (!requestedFile) return null;
+    const lineValue = searchParams.get('line');
+    const parsedLine = lineValue ? parseInt(lineValue, 10) : Number.NaN;
+    return {
+      path: requestedFile,
+      exactPath: true,
+      searchPattern: searchParams.get('search') || undefined,
+      scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
+      navigationNonce: createNavigationNonce(),
+    };
+  }, [effectiveDirectTarget?.filePath, effectiveDirectTarget?.line, searchParams]);
 
   const navigateToRepoTarget = useCallback(
     (
@@ -218,10 +273,12 @@ export default function RepositoryExplorerClient({
   useEffect(() => {
     const requestedDirectory = searchParams.get('dir')?.trim();
     const requestedFile = searchParams.get('file')?.trim();
-    const filePath = requestedFile || directTarget?.filePath;
+    const filePath = requestedFile || effectiveDirectTarget?.filePath;
     const directoryPath =
       requestedDirectory ||
-      (directTarget?.targetType === 'directory' ? directTarget.filePath : undefined) ||
+      (effectiveDirectTarget?.targetType === 'directory'
+        ? effectiveDirectTarget.filePath
+        : undefined) ||
       (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
     if (directoryPath) {
       const timeoutId = window.setTimeout(() => {
@@ -244,7 +301,7 @@ export default function RepositoryExplorerClient({
         path: filePath,
         exactPath: true,
         searchPattern: searchParams.get('search') || undefined,
-        scrollToLine: Number.isFinite(parsedLine) ? parsedLine : directTarget?.line,
+        scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
         navigationNonce: createNavigationNonce(),
       });
       setMode('editor');
@@ -252,9 +309,9 @@ export default function RepositoryExplorerClient({
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    directTarget?.filePath,
-    directTarget?.line,
-    directTarget?.targetType,
+    effectiveDirectTarget?.filePath,
+    effectiveDirectTarget?.line,
+    effectiveDirectTarget?.targetType,
     queryString,
     searchParams,
   ]);
@@ -314,17 +371,13 @@ export default function RepositoryExplorerClient({
   }, []);
 
   const handleSourceModeChange = useCallback((sourceMode: CuratedRepoSourceMode) => {
-    setFileSourceMode(normalizeCuratedRepoSourceMode(sourceMode));
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setIsMounted(true);
-    }, 1500);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+    const normalizedSourceMode = normalizeCuratedRepoSourceMode(sourceMode);
+    setFileSourceMode(normalizedSourceMode);
+    try {
+      localStorage.setItem(CORPUS_SOURCE_MODE_STORAGE_KEY, normalizedSourceMode);
+    } catch {
+      // Ignore storage failures.
+    }
   }, []);
 
   useEffect(() => {
@@ -424,13 +477,9 @@ export default function RepositoryExplorerClient({
     };
   }, []);
 
-  if (!isMounted) {
-    return <LoadingScreen title={loadingTitle} description={loadingDescription} />;
-  }
-
   return (
     <main
-      className={`vscode-theme-${workspaceTheme}`}
+      className={`vscode-theme-${workspaceTheme} shaman-workspace-enter`}
       suppressHydrationWarning
       style={
         {
@@ -463,6 +512,23 @@ export default function RepositoryExplorerClient({
       >
         {owner}/{repo} Explorer
       </h1>
+      {_loadingDescription && (
+        <p
+          style={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: 'hidden',
+            clip: 'rect(0,0,0,0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+          }}
+        >
+          {_loadingDescription}
+        </p>
+      )}
       <header className="shaman-brandbar">
         <div className="shaman-brandbar-primary">
           <Link className="shaman-wordmark" href="/" aria-label="gitshaman.com home">
@@ -616,7 +682,7 @@ export default function RepositoryExplorerClient({
               owner={owner}
               repo={repo}
               branch={requestedBranch}
-              initialFile={initialFile}
+              initialFile={initialFile ?? urlInitialFile}
               hideGuidePanel
               layoutMode={
                 mode === 'search'

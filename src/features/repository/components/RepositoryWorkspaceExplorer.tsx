@@ -43,6 +43,7 @@ import {
 } from '@/lib/code-index';
 import { debugLog } from '@/lib/browser-debug';
 import { downloadDirectoryContents } from '@/lib/github-archive';
+import { resolveRepositoryNavigation } from '@/lib/github-url';
 import '@/app/vscode.css';
 
 // Helper functions for safe localStorage operations
@@ -284,10 +285,22 @@ export default function RepositoryWorkspaceExplorer({
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(400);
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const [tabsRestored, setTabsRestored] = useState<boolean>(false);
 
-  const [localFileSourceMode, setLocalFileSourceMode] = useState<CuratedRepoSourceMode>(() =>
-    getDefaultCuratedRepoSourceMode()
-  );
+  const [localFileSourceMode, setLocalFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
+    let nextSourceMode = getDefaultCuratedRepoSourceMode();
+    try {
+      if (typeof window !== 'undefined') {
+        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
+        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
+          nextSourceMode = savedSourceMode;
+        }
+      }
+    } catch {
+      // Keep the environment default.
+    }
+    return normalizeCuratedRepoSourceMode(nextSourceMode);
+  });
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
 
@@ -684,17 +697,24 @@ export default function RepositoryWorkspaceExplorer({
 
   // Load repository-specific tabs when repository changes
   useEffect(() => {
+    const scheduledTimers: number[] = [];
+    const scheduleStateUpdate = (callback: () => void) => {
+      scheduledTimers.push(window.setTimeout(callback, 0));
+    };
+
+    scheduleStateUpdate(() => setTabsRestored(false));
+
     if (!isHydrated || !repoIdentifier) {
       // Clear tabs if no repository is set
       if (!repoIdentifier) {
-        // Use setTimeout to avoid synchronous setState in effect
-        setTimeout(() => {
+        scheduleStateUpdate(() => {
           setTabs([]);
           setActiveTabId(null);
           setSelectedFile('');
-        }, 0);
+          setTabsRestored(true);
+        });
       }
-      return;
+      return () => scheduledTimers.forEach((timer) => window.clearTimeout(timer));
     }
 
     // Load tabs for this specific repository
@@ -711,26 +731,41 @@ export default function RepositoryWorkspaceExplorer({
     const savedTabs = normalizeStoredTabs(loadFromLocalStorage(tabsKey, []) as EditorTab[]);
     const savedActiveTabId = loadFromLocalStorage(activeTabKey, null) as string | null;
     const savedSelectedFile = loadFromLocalStorage(selectedFileKey, '') as string;
+    const hasExplicitInitialFile =
+      Boolean(initialFile) ||
+      (() => {
+        if (typeof window === 'undefined') return false;
+        const urlTarget = resolveRepositoryNavigation(
+          window.location.pathname,
+          window.location.search.slice(1),
+          window.location.hash
+        );
+        return Boolean(
+          urlTarget && urlTarget.owner === owner && urlTarget.repo === repo && urlTarget.filePath
+        );
+      })();
 
-    // Use setTimeout to avoid synchronous setState in effect
-    setTimeout(() => {
+    scheduleStateUpdate(() => {
       if (savedTabs.length > 0) {
         setTabs(savedTabs);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setTabs([]);
       }
       if (savedActiveTabId) {
         setActiveTabId(savedActiveTabId);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setActiveTabId(null);
       }
       if (savedSelectedFile) {
         setSelectedFile(savedSelectedFile);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setSelectedFile('');
       }
-    }, 0);
-  }, [repoIdentifier, isHydrated]);
+      setTabsRestored(true);
+    });
+
+    return () => scheduledTimers.forEach((timer) => window.clearTimeout(timer));
+  }, [repoIdentifier, isHydrated, initialFile, owner, repo]);
 
   // Save state to localStorage (only after hydration)
   useEffect(() => {
@@ -1476,22 +1511,39 @@ export default function RepositoryWorkspaceExplorer({
   // not block the editor from opening and fetching a file.
   useEffect(() => {
     // Restore persisted tabs before opening a URL target so restoration cannot erase it.
-    if (!initialFile || !isHydrated) return;
+    if (!tabsRestored) return;
+    let repoInitialFile = initialFile;
+    if (!repoInitialFile && typeof window !== 'undefined') {
+      const urlTarget = resolveRepositoryNavigation(
+        window.location.pathname,
+        window.location.search.slice(1),
+        window.location.hash
+      );
+      if (urlTarget && urlTarget.owner === owner && urlTarget.repo === repo && urlTarget.filePath) {
+        repoInitialFile = {
+          path: urlTarget.filePath,
+          exactPath: true,
+          scrollToLine: urlTarget.line,
+          navigationNonce: Date.now(),
+        };
+      }
+    }
+    if (!repoInitialFile) return;
     const isDirectoryTarget =
-      typeof initialFile === 'object' &&
-      !Array.isArray(initialFile) &&
-      initialFile.kind === 'directory';
+      typeof repoInitialFile === 'object' &&
+      !Array.isArray(repoInitialFile) &&
+      repoInitialFile.kind === 'directory';
     if (isDirectoryTarget) {
-      const key = `directory:${initialFile.path}|||${initialFile.navigationNonce || ''}`;
+      const directoryTarget = repoInitialFile as Extract<InitialFileTarget, { kind: 'directory' }>;
+      const key = `directory:${directoryTarget.path}|||${directoryTarget.navigationNonce || ''}`;
       if (key === lastOpenedInitialFileRef.current) return;
       lastOpenedInitialFileRef.current = key;
       setTimeout(() => {
-        setDirectoryExpandRequest({ path: initialFile.path, id: Date.now() });
+        setDirectoryExpandRequest({ path: directoryTarget.path, id: Date.now() });
       }, 0);
       return;
     }
 
-    const repoInitialFile = initialFile;
     if (
       typeof repoInitialFile === 'object' &&
       !Array.isArray(repoInitialFile) &&
@@ -1538,7 +1590,7 @@ export default function RepositoryWorkspaceExplorer({
         }
       })();
     }, 0);
-  }, [initialFile, isHydrated, isTreeStructureReady, openFileInTab]);
+  }, [initialFile, tabsRestored, isTreeStructureReady, openFileInTab, owner, repo]);
 
   // Repository error
   if (repoError) {

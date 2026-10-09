@@ -46,16 +46,16 @@ fileRecommendations:
       description: Unix bootstrap entry point for building Go from source
       type: source
     - path: src/cmd/
-      description: Toolchain commands, including go, compile, asm, link, vet, and dist
+      description: Contains toolchain commands, including go, compile, asm, link, vet, and dist.
       type: directory
     - path: src/runtime/
-      description: Runtime support for execution, scheduling, memory, and OS bindings
+      description: Contains runtime support for execution, scheduling, memory, and OS bindings.
       type: directory
     - path: src/go/
-      description: Public parser, AST, token, doc, and type-checking packages
+      description: Contains public parser, AST, token, doc, and type-checking packages.
       type: directory
     - path: test/
-      description: Language, compiler, runtime, and regression tests
+      description: Contains language, compiler, runtime, and regression tests.
       type: directory
 ---
 
@@ -77,13 +77,6 @@ src/cmd/compile/internal/gc/main.go -> src/runtime/proc.go : emits code that dep
 src/make.bash -> src/cmd/dist/build.go : bootstraps toolchain build
 ```
 
-### First Files To Open
-
-Start with [src/cmd/go/main.go](src/cmd/go/main.go) to see how the user-facing command is wired, then
-open [src/cmd/compile/README.md](src/cmd/compile/README.md) before reading compiler packages. For the
-runtime, [src/runtime/runtime2.go](src/runtime/runtime2.go) gives you the core data structures that
-the rest of `runtime` manipulates.
-
 ---
 id: ch2
 title: Chapter 2 - Compiler Pipeline
@@ -96,25 +89,25 @@ fileRecommendations:
       description: Compiler driver and top-level phase orchestration
       type: source
     - path: src/cmd/compile/internal/syntax/
-      description: Lexer, parser, and syntax tree
+      description: Contains lexer, parser, and syntax tree.
       type: directory
     - path: src/cmd/compile/internal/types2/
-      description: Compiler type checker
+      description: Contains compiler type checker.
       type: directory
     - path: src/cmd/compile/internal/noder/
-      description: Unified IR, export data, and conversion into compiler IR
+      description: Contains unified IR, export data, and conversion into compiler IR.
       type: directory
     - path: src/cmd/compile/internal/ir/
-      description: Compiler IR node definitions
+      description: Contains compiler IR node definitions.
       type: directory
     - path: src/cmd/compile/internal/ssa/README.md
       description: SSA backend introduction
       type: docs
     - path: src/cmd/compile/internal/ssagen/
-      description: Converts compiler IR into SSA
+      description: Converts compiler IR into SSA.
       type: directory
     - path: src/cmd/internal/obj/
-      description: Machine code object generation shared by toolchain commands
+      description: Contains machine code object generation shared by toolchain commands.
       type: directory
 ---
 
@@ -253,22 +246,22 @@ fileRecommendations:
       description: go command entry point
       type: source
     - path: src/cmd/go/internal/base/
-      description: Shared command registration and invocation support
+      description: Contains shared command registration and invocation support.
       type: directory
     - path: src/cmd/go/internal/work/build.go
       description: go build command and build flag behavior
       type: source
     - path: src/cmd/go/internal/load/
-      description: Package loading and import graph construction
+      description: Contains package loading and import graph construction.
       type: directory
     - path: src/cmd/go/internal/modload/init.go
       description: Module-mode initialization and module root discovery
       type: source
     - path: src/cmd/go/internal/modfetch/
-      description: Module download and proxy/cache behavior
+      description: Contains module download and proxy/cache behavior.
       type: directory
     - path: src/cmd/go/internal/cache/
-      description: Build cache support
+      description: Contains build cache support.
       type: directory
 ---
 
@@ -297,25 +290,25 @@ title: Chapter 6 - Standard Library And Analysis Packages
 fileRecommendations:
   readingOrder:
     - path: src/go/parser/
-      description: Public parser used by tools
+      description: Contains public parser used by tools.
       type: directory
     - path: src/go/ast/
-      description: Public syntax tree representation
+      description: Contains public syntax tree representation.
       type: directory
     - path: src/go/types/
-      description: Public type checker used by analysis tools
+      description: Contains public type checker used by analysis tools.
       type: directory
     - path: src/fmt/
-      description: Formatting package with reflection-heavy value printing
+      description: Contains formatting package with reflection-heavy value printing.
       type: directory
     - path: src/net/http/
-      description: HTTP client and server implementation
+      description: Contains HTTP client and server implementation.
       type: directory
     - path: src/sync/
-      description: Synchronization primitives and runtime-linked behavior
+      description: Contains synchronization primitives and runtime-linked behavior.
       type: directory
     - path: src/internal/
-      description: Shared implementation packages hidden from external imports
+      description: Contains shared implementation packages hidden from external imports.
       type: directory
 ---
 

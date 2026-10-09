@@ -127,7 +127,7 @@ fileRecommendations:
 
 Capabilities are the center of seL4's security model. The kernel does not ask "who are you?" in a global identity sense. It asks "what authority does this capability grant, and where can it be copied or derived?"
 
-`src/kernel/cspace.c` and the `src/object/` tree are where that model becomes concrete. `src/object/cnode.c`, `src/object/untyped.c`, and `src/object/objecttype.c` define how the kernel stores, creates, and dispatches objects; `src/object/tcb.c`, `src/object/endpoint.c`, and `src/object/notification.c` provide the objects that most user-level systems actually build on.
+The model becomes concrete when capability lookup, object creation, and object dispatch meet. Read those pieces as one authority path rather than as independent subsystems.
 
 The important idea is that object creation is not free-form. Untyped memory is retyped into concrete kernel objects, which means authority and memory allocation are tied together from the start.
 
@@ -158,7 +158,7 @@ fileRecommendations:
 
 seL4's ABI is intentionally generated rather than hand-maintained in a single header. That is how the project keeps the kernel implementation, the C bindings, and the manual consistent.
 
-`libsel4/include/api/syscall.xml` is the source of truth. The generator under `libsel4/tools/` emits the syscall stubs and headers under `libsel4/include/sel4/`, while `include/api/syscall.h` reflects the kernel-side declaration set. This is the layer where the kernel stops being abstract and becomes something user code can call.
+The syscall schema is the source of truth. This generated layer is where the kernel stops being abstract and becomes something user code can call.
 
 If the capability model is seL4's security story, the generated ABI is its usability story. It gives userland a stable, typed interface without making the kernel hand-write the same contract in separate places.
 

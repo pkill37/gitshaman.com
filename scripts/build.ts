@@ -185,8 +185,8 @@ async function main(): Promise<void> {
   await runConcurrentGroup(3, 6, 'Guide validation', [
     {
       name: 'Lint guide prose',
-      command: 'node',
-      args: ['scripts/lint-guide-prose.mjs'],
+      command: 'tsx',
+      args: ['scripts/lint-guide-prose.ts'],
     },
     {
       name: 'Validate guide frontmatter',

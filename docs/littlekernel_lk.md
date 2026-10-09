@@ -142,19 +142,7 @@ fileRecommendations:
       type: source
 ---
 
-LK's directory layout is the main way the kernel separates responsibilities. Each layer has a defined scope.
-
-`arch/` owns CPU semantics: interrupt entry, exception handling, context switching, atomics, barriers, and MMU enablement. It may assume CPU behavior but not board wiring.
-
-`platform/` owns SoC and board-family bring-up: timers, interrupt controllers, UART selection, memory layout, clocks, and boot-time display. Platform code on MediaTek SoCs lives under the platform/mt* subtree and handles hardware as specific as RGB565 framebuffer allocation for the Mali GPU display driver. It may assume interrupt controller and UART choices, but not product policy.
-
-`target/` names concrete deployment environments: the exact board that chooses one platform, one architecture path, and a particular hardware profile. `project/` composes features into a finished image.
-
-`app/` is the product surface. The decision between shipping `mt_boot`, `aboot`, or `shell` happens here. On production devices, the boot app reads the boot mode determined during platform init and acts on it — loading the right partition, running fastboot if requested, or driving the boot menu.
-
-`dev/` holds reusable hardware-facing support shared across platforms: Block I/O drivers, FAT32 and ext2 filesystem support (used when mounting partitions), and other hardware abstractions that sit above raw architecture details.
-
-When reading LK, the key question for any piece of code is: **"Is this behavior fundamental to the kernel, the CPU, a board family, or a shipped product?"** The directory tree often answers it.
+LK separates responsibilities by layer: CPU semantics, SoC bring-up, concrete targets, product-facing boot behavior, and reusable device support. When reading any piece of code, ask: **"Is this behavior fundamental to the kernel, the CPU, a board family, or a shipped product?"** The chapter files and directories answer that question without turning the prose into a second file map.
 
 ---
 id: ch4

@@ -489,7 +489,7 @@ export default function GuidePanel({
                   alignItems: 'center',
                   gap: 4,
                   padding: '3px 6px',
-                  color: 'var(--vscode-text-secondary)',
+                  color: 'inherit',
                   fontSize: 10,
                   lineHeight: 1.2,
                   whiteSpace: 'nowrap',

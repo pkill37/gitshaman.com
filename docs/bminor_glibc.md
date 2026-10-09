@@ -35,7 +35,7 @@ fileRecommendations:
   readingOrder:
     - path: manual/
       description: glibc manual source
-      type: docs
+      type: directory
     - path: INSTALL
       description: Build and installation instructions
       type: docs
@@ -657,11 +657,6 @@ stp     q0, q1, [x0], 32      // store 32 bytes to dst
 ldp     q2, q3, [x1], 32
 stp     q2, q3, [x0], 32
 ```
-
-Key files:
-- [sysdeps/aarch64/multiarch/memcpy.c](sysdeps/aarch64/multiarch/memcpy.c) — IFUNC resolver for memcpy variants
-- [sysdeps/aarch64/multiarch/memcpy_sve.S](sysdeps/aarch64/multiarch/memcpy_sve.S) — SVE copy path
-- [sysdeps/aarch64/multiarch/memmove.c](sysdeps/aarch64/multiarch/memmove.c) — IFUNC resolver for overlap-safe moves
 
 ### DC ZVA and MOPS: AArch64 Memory Operations
 

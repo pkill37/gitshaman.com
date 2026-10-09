@@ -155,7 +155,9 @@ export function createFileRecommendationsComponent(
               style={{ '--guide-rec-accent': group.accent } as CSSProperties}
             >
               <div className="guide-recommendation-header">
-                <div className="guide-recommendation-title">{group.title}</div>
+                <div className="guide-recommendation-heading">
+                  <div className="guide-recommendation-title">{group.title}</div>
+                </div>
                 <div className="guide-recommendation-count">{group.items.length}</div>
               </div>
               <div className="guide-recommendation-list">

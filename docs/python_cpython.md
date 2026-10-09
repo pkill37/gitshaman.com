@@ -39,10 +39,10 @@ fileRecommendations:
   readingOrder:
     - path: Doc/c-api/
       description: Python C API reference
-      type: docs
+      type: directory
     - path: Doc/extending/
       description: Extending Python with C
-      type: docs
+      type: directory
     - path: Doc/glossary.rst
       description: GIL and core term definitions
       type: docs
@@ -72,7 +72,7 @@ CPython is both a compiler and an interpreter. It compiles Python source code to
 
 In Python, everything is an object—integers, functions, classes, modules, even types themselves. This uniform object model simplifies the language design and enables powerful features like introspection, dynamic typing, and metaprogramming. Understanding this principle reveals how CPython manages memory, implements polymorphism, and provides a consistent interface across all language constructs.
 
-Key files: [Include/object.h](Include/object.h) defines `PyObject`, and [Objects/typeobject.c](Objects/typeobject.c) implements the type system.
+[Include/object.h](Include/object.h) defines `PyObject`, and [Objects/typeobject.c](Objects/typeobject.c) implements the type system.
 
 ### The Global Interpreter Lock (GIL): Concurrency in CPython
 
@@ -93,7 +93,7 @@ fileRecommendations:
   readingOrder:
     - path: Doc/
       description: Official Python documentation source
-      type: docs
+      type: directory
     - path: Doc/c-api/veryhigh.rst#the-very-high-level-layer
       description: High-level compilation API
       type: docs
@@ -135,27 +135,9 @@ Python/generated_cases.c.h -> Python/ceval.c : bytecode execution cases
 Python/frame.c -> Python/ceval.c : execution context
 ```
 
-### A Walk Through the CPython Source: Understanding Its Organization
-
-The CPython source code is organized into clear directories, each serving a specific purpose. The main areas are: `Python/` (core interpreter), `Objects/` (object implementations), `Include/` (headers), `Parser/` (lexing and parsing), `Modules/` (C extension modules), and `Lib/` (pure Python stdlib).
-
-**Key File Statistics:**
-
-- Total C code: about 500,000 lines
-- Core interpreter ([Python/](Python/)): about 100,000 lines
-- Object implementations ([Objects/](Objects/)): about 150,000 lines
-- Standard library ([Lib/](Lib/)): about 500,000+ lines of Python
-
 ### The Compilation Pipeline: From Source to Bytecode
 
 CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from `Grammar/python.gram`, and the interpreter instruction cases are generated from `Python/bytecodes.c`.
-
-Key files in the pipeline:
-- [Parser/lexer/lexer.c](Parser/lexer/lexer.c) — Core lexer that turns Python source into tokens
-- [Grammar/python.gram](Grammar/python.gram) — Grammar consumed by pegen
-- [Parser/parser.c](Parser/parser.c) — Generated parser for tokens and grammar rules
-- [Python/ast.c](Python/ast.c) — AST manipulation and validation
-- [Python/compile.c](Python/compile.c) — Compiles AST to bytecode
 
 ### The Execution Model: Bytecode to Results
 
@@ -211,19 +193,9 @@ Modules/gcmodule.c -> Include/internal/pycore_gc.h : cyclic GC tracks PyObject
 
 All Python objects in CPython are represented by structures that begin with `PyObject` (or `PyObject_HEAD`). This common header contains the object's type pointer and reference count. This design enables polymorphism: any function that accepts a `PyObject*` can work with any Python object, and the type system determines the correct behavior at runtime.
 
-Key files:
-- [Objects/object.c](Objects/object.c) — Base object implementation
-- [Include/object.h](Include/object.h) — Object structure definitions
-- [Objects/typeobject.c](Objects/typeobject.c) — Type object implementation
-
 ### Type Objects: Defining Behavior
 
 In Python, types are themselves objects. The `PyTypeObject` structure defines how objects of a particular type behave: what methods they support, how they're created, how they're compared, and how they're represented as strings. Understanding type objects reveals how Python's dynamic typing and method resolution work.
-
-Key files:
-- [Objects/typeobject.c](Objects/typeobject.c) — Type object implementation (about 10,600 lines)
-- [Include/cpython/object.h](Include/cpython/object.h) — Type object structure internals
-- [Objects/abstract.c](Objects/abstract.c) — Abstract object protocol
 
 See [Doc/c-api/typeobj.rst](Doc/c-api/typeobj.rst) for the full type object slot reference.
 
@@ -236,10 +208,6 @@ The macros `Py_INCREF` and `Py_DECREF` in [Objects/object.c](Objects/object.c) a
 ### Garbage Collection: Handling Cycles
 
 While reference counting handles most memory management, it cannot detect or break circular references. CPython includes a cyclic garbage collector that periodically scans for unreachable cycles and collects them. Understanding the garbage collector reveals how CPython handles complex object graphs and why some objects may survive until a later collection.
-
-Key files:
-- [Modules/gcmodule.c](Modules/gcmodule.c) — Garbage collector implementation
-- [Include/internal/pycore_gc.h](Include/internal/pycore_gc.h) — GC internal definitions
 
 ---
 id: ch4
@@ -290,33 +258,17 @@ Objects/unicodeobject.c -> Objects/dictobject.c : str keys are interned
 
 Python integers have arbitrary precision, meaning they can represent numbers of any size limited only by available memory. CPython implements this using a variable-length representation that allocates more memory as numbers grow larger. Understanding integer implementation reveals how Python achieves both performance for small numbers and correctness for large ones.
 
-Key files:
-- [Objects/longobject.c](Objects/longobject.c) — Integer implementation
-- [Include/cpython/longintrepr.h](Include/cpython/longintrepr.h) — Integer representation
-
 ### Strings: Unicode and Immutability
 
 Python strings are immutable sequences of Unicode code points. CPython uses distinct internal representations to optimize for different string characteristics (ASCII, compact Unicode, or legacy strings). Understanding string implementation reveals how Python handles text encoding, string interning, and memory efficiency.
-
-Key files:
-- [Objects/unicodeobject.c](Objects/unicodeobject.c) — Unicode string implementation (about 15,000 lines)
-- [Include/unicodeobject.h](Include/unicodeobject.h) — Unicode object definitions
 
 ### Lists: Dynamic Arrays
 
 Python lists are implemented as dynamic arrays (like C++'s `std::vector`). They maintain a contiguous block of pointers to objects, automatically resizing when capacity is exceeded. Understanding list implementation reveals how Python achieves O(1) indexing while supporting dynamic growth.
 
-Key files:
-- [Objects/listobject.c](Objects/listobject.c) — List implementation
-- [Include/listobject.h](Include/listobject.h) — List object definitions
-
 ### Dictionaries: Hash Tables
 
 Python dictionaries are implemented as hash tables with open addressing. They use a clever probing strategy and maintain insertion order (as of Python 3.7). Understanding dictionary implementation reveals how Python achieves average O(1) lookups while maintaining predictable iteration order.
-
-Key files:
-- [Objects/dictobject.c](Objects/dictobject.c) — Dictionary implementation (about 5,850 lines)
-- [Include/dictobject.h](Include/dictobject.h) — Dictionary object definitions
 
 ---
 id: ch5
@@ -370,19 +322,9 @@ Include/opcode_ids.h -> Lib/dis.py : disassembler decodes generated opcode IDs
 
 The heart of CPython is the frame executor in [Python/ceval.c](Python/ceval.c), centered on `_PyEval_EvalFrameDefault`. In 3.14, most instruction behavior is written in [Python/bytecodes.c](Python/bytecodes.c) and generated into [Python/generated_cases.c.h](Python/generated_cases.c.h). The loop manipulates stack references, checks eval-breaker events, specializes hot instructions, and supports tier-two executor paths.
 
-Key files:
-- [Python/ceval.c](Python/ceval.c) — Frame execution and eval-loop control
-- [Python/bytecodes.c](Python/bytecodes.c) — Instruction definitions and specialization families
-- [Python/generated_cases.c.h](Python/generated_cases.c.h) — Generated cases consumed by `ceval.c`
-- [Include/opcode_ids.h](Include/opcode_ids.h) — Generated opcode identifiers
-
 ### Frames: Execution Context
 
 Each function call creates a new execution frame that contains local variables, the value stack, and execution state. Frames are linked together to form a call stack, enabling function calls, returns, and exception propagation. Understanding frames reveals how Python manages execution context and enables features like generators and coroutines.
-
-Key files:
-- [Python/frame.c](Python/frame.c) — Frame object implementation
-- [Include/frameobject.h](Include/frameobject.h) — Frame object definitions
 
 ### Bytecode Instructions: The Language of the VM
 
@@ -417,7 +359,7 @@ fileRecommendations:
       type: source
     - path: Lib/importlib/
       description: Import library Python implementation
-      type: source
+      type: directory
 ---
 
 
@@ -432,19 +374,11 @@ Python/ceval.c -> Python/import.c : calls PyImport_ImportModuleLevelObject
 
 Python's import system finds, loads, and initializes modules. It searches through a list of paths (sys.path), caches loaded modules, and handles both built-in modules (written in C) and Python modules. Understanding the import system reveals how Python organizes code and enables dynamic program structure.
 
-Key files:
-- [Python/import.c](Python/import.c) — Import system implementation
-- [Lib/importlib/](Lib/importlib/) — Import library (Python implementation)
-
 Importing an extension or shared library also crosses repository boundaries: glibc's [`_dl_start`](repo:bminor/glibc/elf/rtld.c:_dl_start) begins dynamic-linker startup, and Linux's [`load_elf_binary`](repo:torvalds/linux/fs/exec.c:load_elf_binary) maps executable segments before control reaches user space. Pure Python imports still travel through bytecode such as `IMPORT_NAME` and the `importlib` bootstrap code.
 
 ### Module Objects: Namespaces as Objects
 
 In Python, modules are objects that serve as namespaces for code organization. Module objects contain a dictionary of their attributes and maintain metadata about their location and loading. Understanding module objects reveals how Python's namespace system works and how code is organized and accessed.
-
-Key files:
-- [Objects/moduleobject.c](Objects/moduleobject.c) — Module object implementation
-- [Include/moduleobject.h](Include/moduleobject.h) — Module object definitions
 
 ---
 id: ch7
@@ -482,18 +416,9 @@ Python/ceval.c -> Python/errors.c : RAISE_VARARGS opcode calls PyErr_SetObject
 
 Python's exception system provides a structured way to handle errors and propagate them through the call stack. Exceptions are objects that can be raised, caught, and inspected. CPython implements exceptions using a combination of bytecode instructions and C-level error flag checking for efficient propagation.
 
-Key files:
-- [Python/errors.c](Python/errors.c) — Exception handling machinery
-- [Objects/exceptions.c](Objects/exceptions.c) — Built-in exception types
-- [Include/pyerrors.h](Include/pyerrors.h) — Exception declarations
-
 ### Tracebacks: Understanding Errors
 
 When an exception is raised, Python builds a traceback object that records the call stack at the point of the error. This traceback provides detailed information about where the error occurred and how execution reached that point. Understanding tracebacks reveals how Python provides helpful error messages and debugging information.
-
-Key files:
-- [Python/traceback.c](Python/traceback.c) — Traceback implementation
-- [Include/traceback.h](Include/traceback.h) — Traceback definitions
 
 ---
 id: ch8
@@ -508,10 +433,10 @@ fileRecommendations:
       type: docs
     - path: Doc/c-api/
       description: Complete C API reference
-      type: docs
+      type: directory
     - path: Doc/extending/
       description: Extending Python with C
-      type: docs
+      type: directory
     - path: Objects/genobject.c:gen_send_ex
       description: Generator and coroutine implementation
       type: source
@@ -544,26 +469,13 @@ Include/Python.h -> Include/pyerrors.h : C API exposes exception types
 
 Python's descriptor protocol enables powerful features like properties, class methods, and static methods. Descriptors are objects that define how attribute access works for a class. Understanding descriptors reveals how Python's object-oriented features are implemented and how custom attribute-access behavior works.
 
-Key files:
-- [Objects/descrobject.c](Objects/descrobject.c) — Descriptor implementation
-- [Include/descrobject.h](Include/descrobject.h) — Descriptor definitions
-
 ### Generators and Coroutines: Pausable Execution
 
 Python generators and coroutines enable pausable execution through the use of special frame objects that can be suspended and resumed. Understanding how generators work reveals how Python implements iteration, async/await, and other advanced control flow features.
 
-Key files:
-- [Objects/genobject.c](Objects/genobject.c) — Generator and coroutine implementation
-- [Include/cpython/genobject.h](Include/cpython/genobject.h) — Generator definitions
-
 ### The C API: Extending Python
 
 CPython provides a comprehensive C API for extending Python with C code or embedding Python in C applications. Understanding the C API reveals how Python's features are implemented and how high-performance extensions connect to the runtime.
-
-Key files:
-- [Include/Python.h](Include/Python.h) — Main C API header (includes everything)
-- [Include/object.h](Include/object.h) — Object API
-- [Include/pyerrors.h](Include/pyerrors.h) — Exception API
 
 See [Doc/extending/](Doc/extending/) for the complete guide to extending Python with C.
 

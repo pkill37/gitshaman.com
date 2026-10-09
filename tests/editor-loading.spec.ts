@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { routeCorpusRepository } from './helpers/corpus-routing';
 import { expectDebugLog, resetDebugLogs } from './helpers/debug-logs';
 import { openGuideFile } from './helpers/page-actions';
@@ -19,6 +19,10 @@ const TEST_MANIFEST = {
     },
   ],
 };
+
+function storageSourceSelector(page: Page) {
+  return page.getByRole('main').getByRole('combobox', { name: 'Storage source' });
+}
 
 test.describe('Editor Loading', () => {
   test('opens root and nested files from a lazily loaded repository sidebar', async ({ page }) => {
@@ -146,7 +150,10 @@ test.describe('Editor Loading', () => {
     const response = await page.goto('/littlekernel/lk', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
-    await page.getByLabel('Storage source').selectOption('r2-bucket');
+    await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
+
+    await storageSourceSelector(page).selectOption('r2-bucket');
+    await expect(storageSourceSelector(page)).toHaveValue('r2-bucket');
     await resetDebugLogs(page);
     await openGuideFile(page, TEST_FILE_PATH);
 

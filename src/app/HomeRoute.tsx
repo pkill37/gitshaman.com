@@ -3,11 +3,14 @@
 import dynamic from 'next/dynamic';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
-import LoadingScreen from '@/components/LoadingScreen';
 import { resolveRepositoryNavigation } from '@/lib/github-url';
 
+function RepositoryAppLoadingShell() {
+  return <div className="shaman-workspace-enter shaman-workspace-boot vscode-theme-dark" />;
+}
+
 const RepositoryApp = dynamic(() => import('@/features/repository/RepositoryApp'), {
-  loading: () => <LoadingScreen />,
+  loading: () => <RepositoryAppLoadingShell />,
 });
 
 export default function HomeRoute({ landing }: { landing: ReactNode }) {

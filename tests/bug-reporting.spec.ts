@@ -28,6 +28,8 @@ async function readGeneratedIssue(page: Page) {
 }
 
 test.describe('Static bug reporting', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test('opens a GitHub issue with diagnostics, console logs, and screenshot preview', async ({
     page,
   }) => {
@@ -37,18 +39,22 @@ test.describe('Static bug reporting', () => {
     await page.waitForFunction(() => window.__explorarBugReportConsoleCaptureReady === true);
 
     await page.evaluate(() => {
-      window.__explorarBugReportConsoleLogs?.push(
-        {
-          level: 'warn',
-          message: 'bug report test warning',
-          timestamp: new Date().toISOString(),
-        },
-        {
-          level: 'error',
-          message: 'bug report test error',
-          timestamp: new Date().toISOString(),
-        }
-      );
+      console.debug = () => undefined;
+      if (window.__explorarBugReportConsoleLogs) {
+        window.__explorarBugReportConsoleLogs.length = 0;
+        window.__explorarBugReportConsoleLogs.push(
+          {
+            level: 'warn',
+            message: 'bug report test warning',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            level: 'error',
+            message: 'bug report test error',
+            timestamp: new Date().toISOString(),
+          }
+        );
+      }
     });
 
     await reportButton.click();

@@ -340,13 +340,13 @@ fileRecommendations:
   readingOrder:
     - path: osfmk/kern/
       description: Mach kernel core — scheduler, IPC, VM
-      type: docs
+      type: directory
     - path: bsd/kern/
       description: BSD subsystem core — process, file, socket management
-      type: docs
+      type: directory
     - path: iokit/Kernel/
       description: I/O Kit framework implementation
-      type: docs
+      type: directory
     - path: osfmk/kern/startup.c
       description: Kernel entry — read top-to-bottom for the init sequence
       type: source
@@ -364,16 +364,7 @@ fileRecommendations:
       type: source
 ---
 
-The three directories — `osfmk/`, `bsd/`, `iokit/` — are the three minds of XNU. Each has a coherent internal structure; the cross-layer calls are the interesting part.
-
-A recommended reading path:
-
-1. `osfmk/kern/startup.c` — follow the Mach init sequence; every `xxx_init()` names a Mach subsystem
-2. `bsd/kern/bsd_init.c` — watch BSD come online on top of a running Mach kernel
-3. `osfmk/ipc/ipc_port.c` and `osfmk/ipc/mach_msg.c` — understand port rights and message delivery; IPC is the connective tissue
-4. `bsd/kern/kern_fork.c` — the best example of the dual identity: one call creates both a Mach task and a BSD proc
-5. `osfmk/vm/vm_fault.c` — traces from hardware exception through VM lookup, pager call, PTE install, and code signing validation
-6. `iokit/Kernel/IOService.cpp` — read `matchPassive()`, `probeCandidates()`, and `startCandidate()` to see how driver matching works end-to-end
+The three minds of XNU each have coherent internal structure; the cross-layer calls are the interesting part.
 
 XNU differs from Linux in one fundamental respect: **IPC is a first-class kernel abstraction, not an optimization.** Where Linux uses direct function calls between kernel subsystems, XNU subsystems communicate through Mach ports. This is slower in the uncontended case but provides a hard isolation boundary: a subsystem that exposes only a port interface cannot be called in ways its author didn't expect. The security architecture depends on this — port rights are capabilities, and capabilities are the correct foundation for least-privilege design.
 

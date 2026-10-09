@@ -44,9 +44,7 @@ fileRecommendations:
 
 The FreeBSD kernel is concentrated in `sys/`, but the tree is not a standalone library. Kernel configuration, boot loaders, release scripts, and userland tools live beside it. That shape matters: FreeBSD ships as a base system, so kernel interfaces and userland consumers evolve together.
 
-Start with `sys/README.md` and then read the configuration files. `sys/conf/files` tells you which compilation units belong to the kernel, while `sys/conf/options` records tunables that conditionally expose behavior across subsystems. A platform config such as `sys/amd64/conf/GENERIC` shows how those pieces become a bootable kernel.
-
-Read `sys/conf/files` as a database, not as a makefile. Each row answers three questions: what file is produced or compiled, which option or device selects it, and whether special generation rules apply before compilation. Then open `sys/conf/options` and notice the opposite mapping: option names become generated option headers that C files include. The practical exercise is to pick one option in `sys/amd64/conf/GENERIC`, find its declaration in `sys/conf/options`, and then search for the generated header or option name in `sys/`.
+Read the configuration layer as a database, not as ordinary build glue. One side maps compilation units into kernels; the other turns option names into generated headers that C files include. The practical exercise is to pick one option in a platform config and trace how it becomes conditional kernel code.
 
 The main lesson is that a FreeBSD kernel is a configured product. The same source tree can yield a debugging kernel, a minimal appliance kernel, or the stock GENERIC kernel depending on this configuration layer.
 
@@ -106,7 +104,7 @@ FreeBSD separates process identity from runnable execution. `struct proc` holds 
 
 The ULE scheduler in `sys/kern/sched_ule.c` is the default scheduling implementation for common configurations. It turns thread state into CPU placement decisions, balancing responsiveness, affinity, interactivity, and multiprocessor load.
 
-A good reading pass starts with data ownership. In `sys/sys/proc.h`, separate fields that belong to the process from fields that belong to each thread. Then trace one lifecycle: `fork()` allocates and links process state in `sys/kern/kern_fork.c`, exit tears down relationships in `sys/kern/kern_exit.c`, and `sys/kern/kern_proc.c` exposes lookup and reporting paths used by the rest of the kernel.
+A good reading pass starts with data ownership. Separate fields that belong to the process from fields that belong to each thread, then trace one lifecycle from creation through exit and reporting.
 
 Only after that should you read scheduler policy. In `sys/kern/sched_ule.c`, ask which operations are policy decisions and which are bookkeeping needed to maintain run queues, CPU affinity, and load balancing. That distinction keeps the scheduler from looking like one mass of special cases.
 

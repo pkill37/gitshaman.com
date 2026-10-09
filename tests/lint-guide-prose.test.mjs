@@ -4,10 +4,11 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { lintMarkdown } from '../scripts/lint-guide-prose.mjs';
+import { lintMarkdown } from '../scripts/lint-guide-prose.ts';
 
 const lint = (markdown) => lintMarkdown('fixture.md', markdown);
-const script = resolve('scripts/lint-guide-prose.mjs');
+const script = resolve('scripts/lint-guide-prose.ts');
+const tsx = resolve('node_modules/tsx/dist/cli.mjs');
 
 for (const phrase of [
   'You can inspect the file.',
@@ -165,7 +166,7 @@ function runFixture(t, files, env = {}) {
     mkdirSync(resolve(path, '..'), { recursive: true });
     writeFileSync(path, markdown);
   }
-  return spawnSync(process.execPath, [script], {
+  return spawnSync(process.execPath, [tsx, script], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, ...env },
@@ -203,12 +204,12 @@ test('guide validation and the build include prose linting', () => {
   assert.match(scripts.lint, /&& npm run lint:guide-prose &&/);
   assert.match(
     readFileSync('scripts/build.ts', 'utf8'),
-    /args: \['scripts\/lint-guide-prose.mjs'\]/
+    /args: \['scripts\/lint-guide-prose.ts'\]/
   );
 });
 
 test('checked-in guide corpus passes the strict CLI', () => {
-  const result = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [tsx, script], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /Validated \d+ guide files/);
 });

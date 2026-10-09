@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import CuratedRepositoryPortalLink from './CuratedRepositoryPortalLink';
+import HeroInputSection from './HeroInputSection';
 import HomeRoute from './HomeRoute';
-import RepositoryUrlForm from './RepositoryUrlForm';
 import { CURATED_REPOS, getCuratedRepoPath, type CuratedRepoConfig } from '@/lib/curated-repos';
 import { SOURCE_REPOSITORY_URL, SITE_NAME } from '@/lib/site';
 
@@ -139,37 +139,26 @@ function LandingPage() {
       <main className="relative z-10 flex flex-1 flex-col items-center px-4 pt-8 pb-10 sm:pt-10">
         <div className="mx-auto w-full max-w-5xl">
           <section className="shaman-url-panel mx-auto mb-14 max-w-3xl rounded-xl p-6 text-center sm:p-8">
-            <h1 className="shaman-landing-title mb-3 text-[min(2rem,9vw)] font-semibold tracking-tight sm:text-[2.75rem]">
-              <span className="shaman-hero-intro">
-                Meet{' '}
-                <span className="shaman-wordmark shaman-wordmark--hero">
-                  git<span className="shaman-wordmark-sha">sha</span>man
-                  <span className="shaman-wordmark-domain">.com</span>
-                </span>
-              </span>
-              <span className="shaman-landing-title-accent">Understand code faster.</span>
-            </h1>
-
-            <RepositoryUrlForm />
-
-            <div className="shaman-hero-portals mt-6 text-left">
-              <div className="mb-3 text-center text-xs uppercase tracking-[0.16em]">
-                <span className="shaman-panel-label">
-                  Curated with care for important free and open-source projects
-                </span>
-              </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {repoCategories.map((category) => (
-                  <div key={category.id} className="shaman-hero-portal-group rounded-lg p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {category.repos.map((repo) => (
-                        <CompactRepositoryPortal key={`${repo.owner}/${repo.repo}`} repo={repo} />
-                      ))}
+            <HeroInputSection>
+              <div className="shaman-hero-portals mt-6 text-left">
+                <div className="mb-3 text-center text-xs uppercase tracking-[0.16em]">
+                  <span className="shaman-panel-label">
+                    Curated with care for important free and open-source projects
+                  </span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {repoCategories.map((category) => (
+                    <div key={category.id} className="shaman-hero-portal-group rounded-lg p-3">
+                      <div className="flex flex-wrap gap-2">
+                        {category.repos.map((repo) => (
+                          <CompactRepositoryPortal key={`${repo.owner}/${repo.repo}`} repo={repo} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </HeroInputSection>
           </section>
 
           <section aria-labelledby="how-gitshaman-works" className="mx-auto mb-14 max-w-5xl">
@@ -185,7 +174,7 @@ function LandingPage() {
                 <img
                   src="/features/vscode-lsp.svg"
                   alt="VS Code editor connected to LSP diagnostics and symbols"
-                  
+
                   loading="lazy"
                   decoding="async"
                   className="shaman-feature-image mb-4 w-full rounded-lg"
@@ -201,7 +190,7 @@ function LandingPage() {
                 <img
                   src="/features/code-indexing.svg"
                   alt="Repository files flowing into a searchable code index"
-                  
+
                   loading="lazy"
                   decoding="async"
                   className="shaman-feature-image mb-4 w-full rounded-lg"
@@ -217,7 +206,7 @@ function LandingPage() {
                 <img
                   src="/features/semantic-enrichment.svg"
                   alt="Semantic graph connecting code symbols, files, and relationships"
-                  
+
                   loading="lazy"
                   decoding="async"
                   className="shaman-feature-image mb-4 w-full rounded-lg"

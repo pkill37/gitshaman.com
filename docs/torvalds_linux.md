@@ -122,15 +122,6 @@ fileRecommendations:
       type: source
 ---
 
-Six directories account for nearly all kernel behavior:
-
-- **`kernel/`** — scheduling, process creation, signal delivery, and timers. The scheduler lives under [`kernel/sched/core.c:schedule`](kernel/sched/core.c:schedule); [`kernel/fork.c:kernel_clone`](kernel/fork.c:kernel_clone) creates tasks; [`kernel/signal.c:do_send_sig_info`](kernel/signal.c:do_send_sig_info) delivers signals. CFS alone spans [`kernel/sched/fair.c:enqueue_task_fair`](kernel/sched/fair.c:enqueue_task_fair), [`kernel/sched/core.c:schedule`](kernel/sched/core.c:schedule), and [`kernel/sched/rt.c:enqueue_task_rt`](kernel/sched/rt.c:enqueue_task_rt) for real-time policies.
-- **`mm/`** — physical and virtual memory. [`mm/page_alloc.c:__alloc_pages_nodemask`](mm/page_alloc.c:__alloc_pages_nodemask) is the buddy allocator for page-granularity requests; [`mm/slub.c:kmem_cache_alloc`](mm/slub.c:kmem_cache_alloc) handles small kernel objects; [`mm/mmap.c:do_mmap`](mm/mmap.c:do_mmap) manages virtual memory areas (VMAs) and implements the `mmap(2)` syscall.
-- **`fs/`** — the Virtual Filesystem Switch, a uniform interface over all filesystems. [`fs/namei.c:path_lookupat`](fs/namei.c:path_lookupat) resolves paths to dentries; [`fs/open.c:do_sys_openat2`](fs/open.c:do_sys_openat2) and [`fs/read_write.c:vfs_read`](fs/read_write.c:vfs_read) provide file syscalls; filesystem registration is visible in the `fs/ext4/`, `fs/btrfs/`, and `fs/xfs/` subsystem areas.
-- **`net/`** — the TCP/IP stack. Socket buffers (`sk_buff`) flow through [`net/core/dev.c:__netif_receive_skb_core`](net/core/dev.c:__netif_receive_skb_core) for device handling, [`net/ipv4/tcp.c:tcp_recvmsg`](net/ipv4/tcp.c:tcp_recvmsg) for protocol behavior, and the `net/netfilter/` subsystem area for packet filtering.
-- **Drivers** — hardware abstraction through the bus registration area in [`drivers/base/core.c:bus_register`](drivers/base/core.c:bus_register) and the device-model callbacks registered with `kobject`/sysfs. This is the largest surface area in the tree, but most drivers follow the same registration and callback pattern.
-- **`arch/arm64/`** — code that cannot be written portably: syscall entry ([`arch/arm64/kernel/entry-common.c:el0t_64_sync_handler`](arch/arm64/kernel/entry-common.c:el0t_64_sync_handler)), page-fault handling ([`arch/arm64/mm/fault.c:do_mem_abort`](arch/arm64/mm/fault.c:do_mem_abort)), SMP bring-up, and KVM virtualization.
-
 Subsystems interact through narrow handoff points:
 
 - A `read(2)` syscall enters through [`arch/arm64/kernel/entry-common.c:el0t_64_sync_handler`](arch/arm64/kernel/entry-common.c:el0t_64_sync_handler).
@@ -397,17 +388,30 @@ fileRecommendations:
     - path: Documentation/kbuild/kbuild.rst#Introduction
       description: Kernel build system — Kconfig, Makefiles, modules
       type: docs
+    - path: arch/
+      description: Contains architecture entry code, exception handling, and platform-specific kernel glue.
+      type: directory
+    - path: kernel/
+      description: Contains core task, scheduler, signal, time, and synchronization code.
+      type: directory
+    - path: mm/
+      description: Contains virtual memory, page cache, allocation, reclaim, and fault handling.
+      type: directory
+    - path: fs/
+      description: Contains VFS, filesystems, path lookup, and file operation implementations.
+      type: directory
+    - path: drivers/
+      description: Contains hardware-facing device drivers and bus-specific integration code.
+      type: directory
+    - path: net/
+      description: Contains network stack protocols, sockets, packet paths, and subsystem glue.
+      type: directory
+    - path: tools/
+      description: Contains user-space tools for tracing, performance analysis, testing, and BPF work.
+      type: directory
 ---
 
 The mental model from these chapters — kernel as a reactive system, memory as tracked responsibility, execution as context-switching over shared code — makes the source tree navigable. Each subsystem now has a clear owner and a clear interface.
-
-A recommended path for reading code:
-
-1. [`init/main.c:start_kernel`](init/main.c:start_kernel) — follow `start_kernel()` top-to-bottom; every call names a subsystem
-2. [`arch/arm64/kernel/entry-common.c:el0t_64_sync_handler`](arch/arm64/kernel/entry-common.c:el0t_64_sync_handler) — trace a single syscall from `svc #0` to `eret`
-3. [`kernel/fork.c:kernel_clone`](kernel/fork.c:kernel_clone) — read `kernel_clone()` to see how a task is assembled from parts
-4. [`mm/mmap.c:do_mmap`](mm/mmap.c:do_mmap) — read `do_mmap()` to see how a VMA is created and registered
-5. [`kernel/sched/fair.c:enqueue_task_fair`](kernel/sched/fair.c:enqueue_task_fair) — read `enqueue_task_fair()` and `pick_next_task_fair()`
 
 Don't read linearly. Pick a specific path — a syscall, a page fault, an IRQ — and trace it from user space to hardware and back. Each complete trace illuminates a different cross-section of the tree.
 

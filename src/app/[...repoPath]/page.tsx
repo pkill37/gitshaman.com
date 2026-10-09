@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { notFound, permanentRedirect } from 'next/navigation';
 import RepositoryExplorerClient from '@/features/repository/RepositoryExplorerClient';
-import LoadingScreen from '@/components/LoadingScreen';
 import { getCuratedRepoRouteParams, resolveCuratedRepoRoute } from '@/lib/curated-repos';
 import { getCuratedGuideByRepo } from '@/features/guides/docs-loader';
 import { parseGitHubUrl } from '@/lib/github-url';
@@ -12,6 +11,21 @@ export const dynamicParams = false;
 
 export async function generateStaticParams() {
   return getCuratedRepoRouteParams();
+}
+
+function WorkspaceBootFallback() {
+  return <div className="shaman-workspace-enter shaman-workspace-boot vscode-theme-dark" />;
+}
+
+function NoScriptRepositorySummary({ title, description }: { title: string; description: string }) {
+  return (
+    <noscript>
+      <section style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </section>
+    </noscript>
+  );
 }
 
 interface PageProps {
@@ -30,22 +44,21 @@ export default async function RepositoryRoutePage({ params }: PageProps) {
     const directTarget = parseGitHubUrl(`https://github.com/${repoPath.join('/')}`);
     if (!directTarget) notFound();
     return (
-      <Suspense
-        fallback={
-          <LoadingScreen
-            title={`${directTarget.owner}/${directTarget.repo} source explorer`}
-            description="Loading the requested public GitHub repository."
-          />
-        }
-      >
-        <RepositoryExplorerClient
-          owner={directTarget.owner}
-          repo={directTarget.repo}
-          directTarget={directTarget}
-          loadingTitle={`${directTarget.owner}/${directTarget.repo} source explorer`}
-          loadingDescription="Loading the requested public GitHub repository."
+      <>
+        <NoScriptRepositorySummary
+          title={`${directTarget.owner}/${directTarget.repo} source explorer`}
+          description="Browse repository source code, files, and guide context with JavaScript enabled."
         />
-      </Suspense>
+        <Suspense fallback={<WorkspaceBootFallback />}>
+          <RepositoryExplorerClient
+            owner={directTarget.owner}
+            repo={directTarget.repo}
+            directTarget={directTarget}
+            loadingTitle={`${directTarget.owner}/${directTarget.repo} source explorer`}
+            loadingDescription="Loading the requested public GitHub repository."
+          />
+        </Suspense>
+      </>
     );
   }
 
@@ -56,22 +69,21 @@ export default async function RepositoryRoutePage({ params }: PageProps) {
   const guide = getCuratedGuideByRepo(resolved.config.owner, resolved.config.repo);
 
   return (
-    <Suspense
-      fallback={
-        <LoadingScreen
-          title={`${resolved.config.displayName} source explorer`}
-          description={resolved.config.seoDescription}
-        />
-      }
-    >
-      <RepositoryExplorerClient
-        owner={resolved.config.owner}
-        repo={resolved.config.repo}
-        guideContent={guide?.content}
-        guideDefaultOpenIds={guide?.metadata.defaultOpenIds}
-        loadingTitle={`${resolved.config.displayName} source explorer`}
-        loadingDescription={resolved.config.seoDescription}
+    <>
+      <NoScriptRepositorySummary
+        title={`${resolved.config.displayName} source explorer`}
+        description={`${resolved.config.seoDescription} Explore the repository's kernel architecture and source guide with JavaScript enabled.`}
       />
-    </Suspense>
+      <Suspense fallback={<WorkspaceBootFallback />}>
+        <RepositoryExplorerClient
+          owner={resolved.config.owner}
+          repo={resolved.config.repo}
+          guideContent={guide?.content}
+          guideDefaultOpenIds={guide?.metadata.defaultOpenIds}
+          loadingTitle={`${resolved.config.displayName} source explorer`}
+          loadingDescription={resolved.config.seoDescription}
+        />
+      </Suspense>
+    </>
   );
 }

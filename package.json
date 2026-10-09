@@ -27,14 +27,12 @@
     "lint:eslint": "eslint . --cache --cache-location .eslintcache --max-warnings 0",
     "lint:prettier": "prettier --config prettier.config.mjs --check .",
     "lint:markdown": "markdownlint docs/*.md --ignore docs/_template.md",
-    "lint:guide-prose": "node scripts/lint-guide-prose.mjs",
+    "lint:guide-prose": "tsx scripts/lint-guide-prose.ts",
     "fix": "npm run fix:eslint && npm run fix:prettier",
     "fix:eslint": "eslint . --fix",
     "fix:prettier": "prettier --config prettier.config.mjs --write .",
     "pretest": "node --import tsx --test tests/*.test.mjs tests/*.node.ts && tsx scripts/prepare-public-assets.ts",
-    "test": "playwright test && playwright show-report out/playwright-report",
-    "test:e2e": "playwright test",
-    "test:perf": "PERFORMANCE_BUILD=1 npm run build && playwright test tests/web-vitals.spec.ts"
+    "test": "playwright test && playwright show-report out/playwright-report"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
