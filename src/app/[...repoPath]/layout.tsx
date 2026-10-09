@@ -40,21 +40,33 @@ export async function generateMetadata({
     };
   }
 
+  const title = `${config.displayName} Source Explorer`;
+  const imageUrl = `${siteUrl}/opengraph-image`;
+
   return {
-    title: config.displayName,
+    title,
     description: config.seoDescription,
     openGraph: {
-      title: `${config.displayName} | ${SITE_NAME}`,
+      title: `${title} | ${SITE_NAME}`,
       description: config.seoDescription,
       url: canonicalUrl,
       type: 'website',
       siteName: SITE_NAME,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${config.displayName} source explorer on ${SITE_NAME}`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${config.displayName} | ${SITE_NAME}`,
+      title: `${title} | ${SITE_NAME}`,
       description: config.seoDescription,
       creator: '@gitshaman',
+      images: [imageUrl],
     },
     alternates: {
       canonical: canonicalUrl,

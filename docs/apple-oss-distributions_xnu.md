@@ -46,6 +46,22 @@ fileRecommendations:
     - path: osfmk/kern/task.c:task_create
       description: Mach task — the fundamental unit of resource ownership
       type: source
+  directories:
+    - path: osfmk/
+      description: Mach kernel core: tasks, threads, IPC, VM, scheduler, and architecture glue.
+      type: directory
+    - path: bsd/
+      description: POSIX and Unix layer: processes, syscalls, networking, VFS, credentials, and signals.
+      type: directory
+    - path: iokit/
+      description: Driver framework: C++ service objects, matching, driver lifecycle, and device abstractions.
+      type: directory
+    - path: libkern/
+      description: Shared kernel runtime support used by I/O Kit and lower-level kernel code.
+      type: directory
+    - path: pexpert/
+      description: Platform expert layer that adapts XNU startup and hardware discovery to each Apple platform.
+      type: directory
 ---
 
 XNU stands for "X is Not Unix." The name is accurate in the ways that matter: the kernel's core is Mach, not Unix. BSD is layered on top. Drivers live in a separate C++ framework called I/O Kit. All three run in the same address space, at the same privilege level — this is why Apple calls it a hybrid kernel.

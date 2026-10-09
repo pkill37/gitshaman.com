@@ -17,6 +17,9 @@ const INDEX_REPO_SLUG_ORDER = [
   'little-kernel',
   'sel4-microkernel',
   'reactos',
+  'lineageos-android',
+  'grapheneos-platform-manifest',
+  'miniageos',
   'cpython',
   'gnu-c-library',
   'llvm-project',
@@ -36,6 +39,11 @@ const CURATED_REPO_CATEGORIES = [
       'sel4-microkernel',
       'reactos',
     ],
+  },
+  {
+    id: 'aosp',
+    title: 'AOSP',
+    slugs: ['lineageos-android', 'grapheneos-platform-manifest', 'miniageos'],
   },
   {
     id: 'languages',
@@ -149,6 +157,7 @@ function LandingPage() {
                 <div className="grid gap-3 lg:grid-cols-2">
                   {repoCategories.map((category) => (
                     <div key={category.id} className="shaman-hero-portal-group rounded-lg p-3">
+                      <h3 className="shaman-hero-portal-title">{category.title}</h3>
                       <div className="flex flex-wrap gap-2">
                         {category.repos.map((repo) => (
                           <CompactRepositoryPortal key={`${repo.owner}/${repo.repo}`} repo={repo} />
@@ -174,6 +183,8 @@ function LandingPage() {
                 <img
                   src="/features/vscode-lsp.svg"
                   alt="VS Code editor connected to LSP diagnostics and symbols"
+                  width={640}
+                  height={360}
 
                   loading="lazy"
                   decoding="async"
@@ -190,6 +201,8 @@ function LandingPage() {
                 <img
                   src="/features/code-indexing.svg"
                   alt="Repository files flowing into a searchable code index"
+                  width={640}
+                  height={360}
 
                   loading="lazy"
                   decoding="async"
@@ -206,6 +219,8 @@ function LandingPage() {
                 <img
                   src="/features/semantic-enrichment.svg"
                   alt="Semantic graph connecting code symbols, files, and relationships"
+                  width={640}
+                  height={360}
 
                   loading="lazy"
                   decoding="async"

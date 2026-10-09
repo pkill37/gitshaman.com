@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import RepositoryWorkspaceExplorer, {
   type InitialFileTarget,
 } from './components/RepositoryWorkspaceExplorer';
@@ -151,7 +150,6 @@ export default function RepositoryExplorerClient({
     }
     return true;
   });
-  const [showShareMenu, setShowShareMenu] = useState(false);
   // Keep EntityView mounted once first activated to preserve per-chapter cache
   const [entitiesMounted, setEntitiesMounted] = useState(false);
   const urlInitialFile = useMemo<InitialFileTarget | null>(() => {
@@ -396,38 +394,6 @@ export default function RepositoryExplorerClient({
     }
   }, [workspaceTheme]);
 
-  const handleShare = useCallback((platform: string) => {
-    const shareText = 'Explore source code with interactive learning on GitShaman.';
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-    const encodedText = encodeURIComponent(shareText);
-    const encodedUrl = encodeURIComponent(shareUrl);
-    const encodedTextWithUrl = encodeURIComponent(`${shareText} ${shareUrl}`);
-
-    let shareLink = '';
-    switch (platform) {
-      case 'twitter':
-        shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
-        break;
-      case 'linkedin':
-        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
-        break;
-      case 'reddit':
-        shareLink = `https://reddit.com/submit?title=${encodedText}&url=${encodedUrl}`;
-        break;
-      case 'whatsapp':
-        shareLink = `https://wa.me/?text=${encodedTextWithUrl}`;
-        break;
-      case 'hackernews':
-        shareLink = `https://news.ycombinator.com/submitlink?u=${encodedUrl}&t=${encodedText}`;
-        break;
-    }
-
-    if (shareLink) {
-      window.open(shareLink, '_blank', 'width=550,height=420');
-      setShowShareMenu(false);
-    }
-  }, []);
-
   // ── Guide panel resize ──────────────────────────────────────────────────────
   const [guideWidth, setGuideWidth] = useState(GUIDE_DEFAULT_WIDTH);
   const isResizingGuide = useRef(false);
@@ -529,60 +495,6 @@ export default function RepositoryExplorerClient({
           {_loadingDescription}
         </p>
       )}
-      <header className="shaman-brandbar">
-        <div className="shaman-brandbar-primary">
-          <Link className="shaman-wordmark" href="/" aria-label="gitshaman.com home">
-            <span>git</span>
-            <span className="shaman-wordmark-sha">sha</span>
-            <span>man</span>
-            <span className="shaman-wordmark-domain">.com</span>
-            <span className="shaman-wordmark-path">
-              /{owner}/{repo}
-            </span>
-          </Link>
-          <span className="shaman-brandbar-ref">@ {statusBranch}</span>
-        </div>
-        <div className="shaman-brandbar-context shaman-brandbar-actions">
-          <span className="shaman-sigil" aria-hidden="true">
-            ◈
-          </span>
-          <div className="shaman-share-menu-wrap">
-            <button
-              type="button"
-              className="shaman-header-action"
-              aria-haspopup="menu"
-              aria-expanded={showShareMenu}
-              onClick={() => setShowShareMenu((open) => !open)}
-            >
-              Share
-            </button>
-            {showShareMenu && (
-              <div
-                className="shaman-share-menu"
-                role="menu"
-                onMouseLeave={() => setShowShareMenu(false)}
-              >
-                {(['hackernews', 'twitter', 'reddit', 'linkedin', 'whatsapp'] as const).map(
-                  (platform) => (
-                    <button
-                      key={platform}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => handleShare(platform)}
-                    >
-                      {platform === 'hackernews' && 'Hacker News'}
-                      {platform === 'twitter' && 'Twitter'}
-                      {platform === 'reddit' && 'Reddit'}
-                      {platform === 'linkedin' && 'LinkedIn'}
-                      {platform === 'whatsapp' && 'WhatsApp'}
-                    </button>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
         {/* ── Activity bar ── */}
         <div

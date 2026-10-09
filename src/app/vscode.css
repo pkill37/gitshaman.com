@@ -1342,6 +1342,22 @@
   background: color-mix(in srgb, var(--repo-accent, transparent) 38%, transparent);
 }
 
+.cursor-statusbar-brand {
+  gap: 0;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.cursor-statusbar-brand-sha {
+  color: #d9a441;
+}
+
+.cursor-statusbar-brand-domain {
+  margin-left: 1px;
+  font-weight: 500;
+  opacity: 0.78;
+}
+
 .cursor-statusbar-link--repo-flash {
   background: color-mix(in srgb, var(--repo-accent, white) 58%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--repo-accent, white) 85%, white);
@@ -1416,9 +1432,65 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
+.cursor-statusbar-aosp-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.cursor-statusbar-aosp-label {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cursor-statusbar-aosp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.cursor-statusbar-aosp-link:hover,
+.cursor-statusbar-aosp-link:focus-visible,
+.cursor-statusbar-aosp-link.is-active {
+  background: color-mix(in srgb, var(--repo-accent, #56d6c9) 32%, transparent);
+  color: #fff;
+  outline: none;
+}
+
+.cursor-statusbar-aosp-avatar {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  object-fit: contain;
+}
+
 .cursor-statusbar-icon {
   font-size: 12px;
   opacity: 0.9;
+}
+
+.cursor-statusbar-share-icon {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  flex-shrink: 0;
 }
 
 .cursor-statusbar-text {
@@ -1812,6 +1884,11 @@
   flex-shrink: 0;
 }
 
+.shaman-share-menu-wrap--statusbar {
+  display: flex;
+  align-items: center;
+}
+
 .shaman-header-action {
   border: 1px solid var(--vscode-border);
   border-radius: 3px;
@@ -1843,6 +1920,11 @@
   background: var(--vscode-bg-secondary);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   padding: 4px;
+}
+
+.shaman-share-menu--statusbar {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .shaman-share-menu button {

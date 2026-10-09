@@ -1035,6 +1035,15 @@ body {
   box-shadow: 0 12px 30px rgba(17, 16, 23, 0.18) inset;
 }
 
+.shaman-hero-portal-title {
+  margin: 0 0 0.65rem;
+  color: var(--shaman-gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .shaman-compact-portal {
   display: inline-flex;
   max-width: 100%;
@@ -1371,6 +1380,9 @@ body {
 }
 
 .shaman-workspace-boot {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -1380,11 +1392,157 @@ body {
 }
 
 .shaman-workspace-boot::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: block;
   height: 2.35rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: #181818;
   content: '';
+}
+
+.shaman-workspace-boot-panel {
+  position: relative;
+  z-index: 1;
+  width: min(34rem, calc(100vw - 2rem));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  background: rgba(30, 30, 30, 0.9);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  color: #d4d4d4;
+  padding: 1.5rem;
+}
+
+.shaman-workspace-boot-panel h1 {
+  margin: 0 0 0.75rem;
+  color: #f8f3e7;
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  line-height: 1.15;
+}
+
+.shaman-workspace-boot-panel p {
+  margin: 0;
+  color: #b8b8b8;
+  line-height: 1.55;
+}
+
+.shaman-workspace-boot-kicker {
+  margin-bottom: 0.6rem !important;
+  color: #63d8c9 !important;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.shaman-workspace-boot-steps {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
+.shaman-workspace-boot-steps span {
+  display: block;
+  height: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #2d2d30;
+}
+
+.shaman-workspace-boot-steps span::after {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #63d8c9, #efc66f);
+  animation: shaman-boot-progress 1.25s ease-in-out infinite;
+  content: '';
+}
+
+.shaman-workspace-boot-steps span:nth-child(2)::after {
+  animation-delay: 160ms;
+}
+
+.shaman-workspace-boot-steps span:nth-child(3)::after {
+  animation-delay: 320ms;
+}
+
+@keyframes shaman-boot-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.shaman-repo-seo-summary {
+  display: grid;
+  gap: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(99, 216, 201, 0.12), transparent 24rem),
+    linear-gradient(135deg, #111017, #1e1e1e);
+  color: #d4d4d4;
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.shaman-repo-seo-summary h1,
+.shaman-repo-seo-summary h2,
+.shaman-repo-seo-summary p {
+  margin-top: 0;
+}
+
+.shaman-repo-seo-summary h1 {
+  margin-bottom: 0.75rem;
+  color: #f8f3e7;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  line-height: 1.1;
+}
+
+.shaman-repo-seo-summary h2 {
+  margin-bottom: 0.6rem;
+  color: #efc66f;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shaman-repo-seo-summary a {
+  color: #63d8c9;
+}
+
+.shaman-repo-seo-summary ol,
+.shaman-repo-seo-summary ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.shaman-repo-seo-summary li {
+  margin: 0.35rem 0;
+  line-height: 1.45;
+}
+
+.shaman-repo-seo-summary code {
+  color: #efc66f;
+}
+
+.shaman-repo-seo-kicker {
+  margin-bottom: 0.6rem;
+  color: #63d8c9;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 900px) {
+  .shaman-repo-seo-summary {
+    grid-template-columns: minmax(18rem, 1.3fr) minmax(14rem, 0.85fr) minmax(16rem, 1fr);
+    align-items: start;
+  }
 }
 
 @keyframes shaman-workspace-enter {

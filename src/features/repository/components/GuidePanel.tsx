@@ -145,17 +145,6 @@ export default function GuidePanel({
     }, 0);
   }, []);
 
-  const activeIndex = currentSections.findIndex((s) => s.id === currentActiveId);
-  const total = currentSections.length;
-  const completedCount = activeIndex >= 0 ? activeIndex + 1 : 0;
-  const progressPercent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-  const progressLabel =
-    total > 0
-      ? activeIndex >= 0
-        ? `Chapter ${activeIndex + 1} of ${total}`
-        : `${total} chapter${total === 1 ? '' : 's'}`
-      : 'No chapters';
-
   return (
     <div
       style={{
@@ -181,111 +170,7 @@ export default function GuidePanel({
           gap: 8,
         }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto minmax(72px, 160px) auto',
-            alignItems: 'center',
-            gap: 8,
-            minWidth: 0,
-            flex: '1 1 auto',
-            maxWidth: 320,
-          }}
-        >
-          {total > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-                minWidth: 58,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 9,
-                  color: 'var(--vscode-text-muted, #666)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  lineHeight: 1,
-                }}
-              >
-                Guide
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  color: 'var(--vscode-text-secondary)',
-                  fontFamily: 'monospace',
-                  lineHeight: 1.1,
-                }}
-              >
-                {progressLabel}
-              </span>
-            </div>
-          )}
-
-          {total > 0 && (
-            <div
-              aria-label="Guide progress"
-              title={`${progressLabel} · ${progressPercent}%`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-                height: 18,
-                minWidth: 72,
-              }}
-            >
-              {currentSections.map((section, index) => {
-                const isCurrent = index === activeIndex;
-                const isComplete = activeIndex >= 0 && index <= activeIndex;
-                const accent = 'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
-
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    aria-label={`Open chapter ${index + 1}: ${section.title}`}
-                    title={`${index + 1}. ${section.title}`}
-                    onClick={() => onActiveChapterChange?.(section.id)}
-                    style={{
-                      flex: '1 1 0%',
-                      minWidth: 5,
-                      height: isCurrent ? 12 : 8,
-                      padding: 0,
-                      border: isCurrent ? `1px solid ${accent}` : '1px solid transparent',
-                      borderRadius: 999,
-                      background: isComplete ? accent : 'var(--vscode-border)',
-                      opacity: isCurrent ? 1 : isComplete ? 0.8 : 0.55,
-                      boxShadow: isCurrent
-                        ? `0 0 0 2px color-mix(in srgb, ${accent} 22%, transparent)`
-                        : 'none',
-                      cursor: 'pointer',
-                      transition: 'height 0.16s ease, opacity 0.16s ease, background 0.16s ease',
-                    }}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          {total > 0 && (
-            <span
-              style={{
-                justifySelf: 'end',
-                minWidth: 34,
-                textAlign: 'right',
-                fontSize: 10,
-                color: 'var(--vscode-text-muted, #444)',
-                fontFamily: 'monospace',
-                flexShrink: 0,
-              }}
-            >
-              {progressPercent}%
-            </span>
-          )}
-        </div>
+        <div style={{ minWidth: 0, flex: '1 1 auto' }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {onSidebarToggle && (
