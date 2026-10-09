@@ -248,6 +248,11 @@ test.describe('Monaco xref and jumps', () => {
     await expect(page.locator('.vscode-editor').first()).toBeVisible({ timeout: 30000 });
     await focusEditorSymbol(page, 'add');
     await goToDefinitionAtCursor(page);
+    const headerDefinition = page.getByRole('button', {
+      name: /L1 function int add\(int left, int right\); lib\/math\.h · indexed · high/,
+    });
+    await expect(headerDefinition).toBeVisible({ timeout: 15000 });
+    await headerDefinition.click();
     await expect(page.getByRole('code').getByText('int add(int left, int right);')).toBeVisible({
       timeout: 30000,
     });

@@ -19,7 +19,7 @@ defaultOpenIds:
 
 > seL4 is easiest to understand when you read it as a tree of contracts: boot code, capability management, generated ABI, architecture ports, and build-time configuration all reinforce the same kernel model.
 
-This guide follows the downloaded seL4 15.0.0 tree. It starts from the top-level build and manual files, then moves into the kernel boot path, the capability/object model, syscall generation, scheduling and faults, and finally the architecture/configuration layer that makes the same kernel run across ARM, RISC-V, and x86.
+This guide follows the downloaded seL4 15.0.0 tree. It starts from the top-level build and manual files, then moves into the kernel boot path, the capability/object model, syscall generation, scheduling and faults, and then the architecture/configuration layer that makes the same kernel run across ARM, RISC-V, and x86.
 
 **The important question is not "what does this function do?" but "which contract does this layer enforce?"**
 
@@ -48,9 +48,9 @@ fileRecommendations:
       type: source
 ---
 
-seL4 is not a general-purpose monolithic kernel. It is a microkernel that keeps policy out of the kernel wherever possible and makes authority explicit through capabilities.
+seL4 is not a general-purpose monolithic kernel. The microkernel keeps policy out of the kernel wherever possible and makes authority explicit through capabilities.
 
-The README and top-level build files matter because seL4 is usually consumed as part of a larger system, not just as a standalone binary. `CMakeLists.txt` and `configs/seL4Config.cmake` decide which arch, platform, and verification settings are in play; `include/config.h` turns those selections into compile-time truth. In seL4, build configuration is not decoration. It is part of the kernel contract.
+The README and top-level build files matter because seL4 often forms part of a larger system rather than a standalone binary. `CMakeLists.txt` and `configs/seL4Config.cmake` decide which arch, platform, and verification settings are in play; `include/config.h` turns those selections into compile-time truth. In seL4, build configuration is not decoration. The configuration forms part of the kernel contract.
 
 The generated ABI types in `include/api/types.h` show the shape of that contract from the outside. They are the user-visible vocabulary for objects, rights, faults, and system call results.
 
@@ -87,9 +87,9 @@ fileRecommendations:
 
 Boot is where seL4 proves it can be small and still portable. The generic kernel boot path establishes the initial state, then the architecture layer takes over to set up trap entry, registers, and the machine features that the kernel depends on.
 
-The architecture tree is split by ISA and width: ARM 32/64, RISC-V, and x86 32/64. That split is not arbitrary. It is the boundary between kernel invariants and hardware-specific entry mechanics.
+The architecture tree is split by ISA and width: ARM 32/64, RISC-V, and x86 32/64. That split is not arbitrary. The split defines the boundary between kernel invariants and hardware-specific entry mechanics.
 
-If you want to understand how seL4 can stay the same kernel while running on very different CPUs, start here. The boot path shows which assumptions are universal and which ones are delegated to the port.
+If you want to understand how seL4 can stay the same kernel while running across CPU architectures, start here. The boot path shows which assumptions are universal and which ones are delegated to the port.
 
 ---
 id: ch3
@@ -127,7 +127,7 @@ fileRecommendations:
 
 Capabilities are the center of seL4's security model. The kernel does not ask "who are you?" in a global identity sense. It asks "what authority does this capability grant, and where can it be copied or derived?"
 
-`src/kernel/cspace.c` and the `src/object/` tree are where that model becomes concrete. `src/object/cnode.c`, `src/object/untyped.c`, and `src/object/objecttype.c` define how the kernel stores, creates, and dispatches objects; `src/object/tcb.c`, `src/object/endpoint.c`, and `src/object/notification.c` implement the objects that most user-level systems actually build on.
+The model becomes concrete when capability lookup, object creation, and object dispatch meet. Read those pieces as one authority path rather than as independent subsystems.
 
 The important idea is that object creation is not free-form. Untyped memory is retyped into concrete kernel objects, which means authority and memory allocation are tied together from the start.
 
@@ -158,9 +158,9 @@ fileRecommendations:
 
 seL4's ABI is intentionally generated rather than hand-maintained in a single header. That is how the project keeps the kernel implementation, the C bindings, and the manual consistent.
 
-`libsel4/include/api/syscall.xml` is the source of truth. The generator under `libsel4/tools/` emits the syscall stubs and headers under `libsel4/include/sel4/`, while `include/api/syscall.h` reflects the kernel-side declaration set. This is the layer where the kernel stops being abstract and becomes something user code can call.
+The syscall schema is the source of truth. This generated layer is where the kernel stops being abstract and becomes something user code can call.
 
-If the capability model is seL4's security story, the generated ABI is its usability story. It gives userland a stable, typed interface without making the kernel hand-write the same contract in multiple places.
+If the capability model is seL4's security story, the generated ABI is its usability story. It gives userland a stable, typed interface without making the kernel hand-write the same contract in separate places.
 
 ---
 id: ch5
@@ -193,7 +193,7 @@ fileRecommendations:
       type: source
 ---
 
-Scheduling in seL4 is smaller than in a monolithic kernel, but it is still the heart of the system. Threads, faults, preemption, and multiprocessor state all have to agree on who is runnable and who owns execution right now.
+Scheduling in seL4 is smaller than in a monolithic kernel, but remains central to the system. Threads, faults, preemption, and multiprocessor state all have to agree on who is runnable and who owns execution right now.
 
 `src/kernel/thread.c` and `src/kernel/faulthandler.c` cover the basic kernel execution model. `src/kernel/sporadic.c` matters because seL4 15.0.0 carries MCS-related scheduling support, which pushes the scheduler toward time-partitioned execution rather than a simple always-runnable model.
 
@@ -230,8 +230,8 @@ fileRecommendations:
       type: source
 ---
 
-The configuration layer is where seL4 becomes a concrete product. A single kernel tree can target several architectures and scheduling variants, but only the selected configuration is compiled into the image.
+The configuration layer is where seL4 becomes a concrete product. A single kernel tree can target different architectures and scheduling variants, but only the selected configuration is compiled into the image.
 
 The verified config files under `configs/` are the most direct way to see the supported combinations. They sit above the architecture tree and below the build system: they decide which code is even eligible to compile.
 
-This is also where the tree reminds you that seL4 is not just a kernel source tree. It is a configurable, generated, and architecture-parameterized system that keeps the verified contract intact while shifting platform details into the right layer.
+This is also where the tree reminds you that seL4 extends beyond kernel source: the configurable, generated, and architecture-parameterized system keeps the verified contract intact while shifting platform details into the right layer.

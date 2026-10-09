@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">VSCode editor and LSP illustration</title>
+  <desc id="desc">A code editor connected to language server diagnostics and symbols.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffdf7e"/>
+      <stop offset="0.35" stop-color="#a78bfa"/>
+      <stop offset="0.7" stop-color="#63d8c9"/>
+      <stop offset="1" stop-color="#b9f97d"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="#111017"/>
+  <rect x="44" y="50" width="552" height="320" rx="22" fill="#17171f" stroke="url(#g)" stroke-opacity="0.55"/>
+  <rect x="44" y="50" width="552" height="42" rx="22" fill="#25202e"/>
+  <circle cx="76" cy="71" r="6" fill="#ff8fb8"/>
+  <circle cx="98" cy="71" r="6" fill="#ffdf7e"/>
+  <circle cx="120" cy="71" r="6" fill="#63d8c9"/>
+  <rect x="70" y="124" width="92" height="208" rx="10" fill="#0f0e15" stroke="#ffffff" stroke-opacity="0.08"/>
+  <path d="M88 151h48M88 180h58M88 209h38M88 238h52M88 267h44" stroke="#aaa4b3" stroke-width="8" stroke-linecap="round" opacity="0.55"/>
+  <path d="M202 143h86M202 177h220M202 211h176M202 245h250M202 279h132" stroke="#aaa4b3" stroke-width="10" stroke-linecap="round" opacity="0.36"/>
+  <path d="M202 177h96M202 245h112" stroke="#63d8c9" stroke-width="10" stroke-linecap="round"/>
+  <path d="M318 177h104M334 245h118" stroke="#efc66f" stroke-width="10" stroke-linecap="round"/>
+  <rect x="384" y="128" width="146" height="82" rx="14" fill="#0f0e15" stroke="#63d8c9" stroke-opacity="0.5" filter="url(#glow)"/>
+  <path d="M410 157h72M410 181h46" stroke="#63d8c9" stroke-width="8" stroke-linecap="round"/>
+  <path d="M526 169c42 0 42 58 0 58h-18" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="506" cy="227" r="8" fill="#ffdf7e"/>
+</svg>

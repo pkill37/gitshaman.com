@@ -33,7 +33,7 @@ const codeIndexCache = new Map<string, Promise<LoadedCodeIndex | null>>();
 const treeStructureCache = new Map<string, Promise<FileNode[] | null>>();
 const codeIndexSizeCache = new Map<string, number>();
 const codeIndexLoadSourceCache = new Map<string, CodeIndexLoadProgress['source']>();
-const CODE_INDEX_BROWSER_CACHE_NAME = 'explorar-code-index-v1';
+export const CODE_INDEX_BROWSER_CACHE_NAME = 'explorar-code-index-v2';
 
 export type { CuratedRepoSourceMode };
 
@@ -782,6 +782,7 @@ export async function getCodeIndexFromStatic(
 
           const handle: LoadedCodeIndex = {
             db,
+            version: codeIndexVersion,
             fileCount: Number(metadata.fileCount ?? 0),
             buildSignature: String(metadata.buildSignature ?? ''),
           };

@@ -1,61 +1,61 @@
 /* VSCode Theme - Dark */
 :root {
   /* VSCode Dark Theme Colors */
-  --vscode-bg-primary: #1e1e1e;
-  --vscode-bg-secondary: #252526;
-  --vscode-bg-tertiary: #2d2d30;
-  --vscode-bg-quaternary: #3c3c3c;
-  --vscode-bg-hover: #2a2d2e;
-  --vscode-bg-selected: #094771;
-  --vscode-bg-focus: #062f4a;
+  --vscode-bg-primary: #17151c;
+  --vscode-bg-secondary: #211c2b;
+  --vscode-bg-tertiary: #2b2436;
+  --vscode-bg-quaternary: #3c3147;
+  --vscode-bg-hover: #342b40;
+  --vscode-bg-selected: #39415a;
+  --vscode-bg-focus: #2d3748;
 
-  --vscode-border: #3c3c3c;
-  --vscode-border-light: #464647;
+  --vscode-border: #473850;
+  --vscode-border-light: #5b4660;
 
-  --vscode-text-primary: #cccccc;
-  --vscode-text-secondary: #969696;
-  --vscode-text-tertiary: #6a6a6a;
-  --vscode-text-muted: #7f7f7f;
-  --vscode-text-accent: #569cd6;
-  --vscode-text-error: #f48771;
-  --vscode-text-warning: #dcdcaa;
-  --vscode-text-success: #4ec9b0;
+  --vscode-text-primary: #eee8dc;
+  --vscode-text-secondary: #aaa2b0;
+  --vscode-text-tertiary: #777180;
+  --vscode-text-muted: #898292;
+  --vscode-text-accent: #63d8c9;
+  --vscode-text-error: #f4878c;
+  --vscode-text-warning: #efc66f;
+  --vscode-text-success: #63d8c9;
 
   --vscode-sidebar-width: 300px;
 
   /* Syntax highlighting */
-  --syntax-keyword: #569cd6;
-  --syntax-string: #ce9178;
-  --syntax-comment: #6a9955;
-  --syntax-function: #dcdcaa;
-  --syntax-variable: #9cdcfe;
-  --syntax-type: #4ec9b0;
-  --syntax-number: #b5cea8;
-  --syntax-operator: #d4d4d4;
+  --syntax-keyword: #a78bfa;
+  --syntax-string: #e7a77c;
+  --syntax-comment: #7eae82;
+  --syntax-function: #efc66f;
+  --syntax-variable: #8fded4;
+  --syntax-type: #63d8c9;
+  --syntax-number: #d6b4ed;
+  --syntax-operator: #ddd4c5;
 }
 
 .vscode-theme-light {
   color-scheme: light;
 
-  --vscode-bg-primary: #ffffff;
-  --vscode-bg-secondary: #f3f3f3;
-  --vscode-bg-tertiary: #e8e8e8;
-  --vscode-bg-quaternary: #d4d4d4;
-  --vscode-bg-hover: #e5e5e5;
-  --vscode-bg-selected: #dbeafe;
-  --vscode-bg-focus: #bfdbfe;
+  --vscode-bg-primary: #fbf7ed;
+  --vscode-bg-secondary: #f1eadb;
+  --vscode-bg-tertiary: #e8deca;
+  --vscode-bg-quaternary: #d5c7ad;
+  --vscode-bg-hover: #e9dfcf;
+  --vscode-bg-selected: #d9eee9;
+  --vscode-bg-focus: #c6e4df;
 
-  --vscode-border: #d0d0d0;
-  --vscode-border-light: #c6c6c6;
+  --vscode-border: #d2c4aa;
+  --vscode-border-light: #c5b594;
 
-  --vscode-text-primary: #1f2328;
-  --vscode-text-secondary: #57606a;
-  --vscode-text-tertiary: #8c959f;
-  --vscode-text-muted: #6e7781;
-  --vscode-text-accent: #0969da;
+  --vscode-text-primary: #29232e;
+  --vscode-text-secondary: #665d6b;
+  --vscode-text-tertiary: #8d8290;
+  --vscode-text-muted: #786e7b;
+  --vscode-text-accent: #287f78;
   --vscode-text-error: #cf222e;
-  --vscode-text-warning: #9a6700;
-  --vscode-text-success: #1a7f37;
+  --vscode-text-warning: #9b6b1e;
+  --vscode-text-success: #287f78;
 
   --syntax-keyword: #cf222e;
   --syntax-string: #0a3069;
@@ -392,10 +392,10 @@
   background: transparent;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: 0;
-  padding: 2px 16px 2px 8px;
-  min-height: 22px;
+  padding: 1px 8px;
+  min-height: 19px;
   font-size: 12px;
   line-height: 20px;
   color: var(--vscode-text-primary);
@@ -410,16 +410,27 @@
 .vscode-tree-search-group-header .name {
   font-size: 12px;
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.vscode-tree-search-relevance {
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--vscode-text-accent, #4fc1ff);
 }
 
 .vscode-tree-search-group-list {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-left: 8px;
+  margin-left: 4px;
   border-left: 1px solid var(--vscode-border);
 }
 
@@ -433,7 +444,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 16px 0 10px;
+  padding: 0 8px 0 8px;
   text-align: left;
   line-height: 18px;
 }
@@ -446,7 +457,7 @@
   flex-shrink: 0;
   font-size: 10px;
   color: var(--vscode-text-secondary);
-  min-width: 28px;
+  min-width: 22px;
   text-align: right;
   font-family: monospace;
 }
@@ -466,6 +477,28 @@
   font-size: 10px;
   color: var(--vscode-text-tertiary);
   margin-left: auto;
+}
+
+.vscode-tree-search-match-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.vscode-tree-search-match-filename {
+  background: var(--vscode-text-accent, #4fc1ff);
+  color: var(--vscode-bg-primary, #1e1e1e);
+}
+
+.vscode-tree-search-match-quoted {
+  background: #f59e0b;
+  color: #1e1e1e;
 }
 
 .vscode-file-item {
@@ -685,6 +718,47 @@
 
 .vscode-editor .monaco-editor .view-lines {
   height: 100% !important;
+}
+
+/*
+ * Monaco's folding controls normally render via the Codicon icon font. In the
+ * Next/Turbopack dev bundle that font can fail to attach before Monaco paints,
+ * leaving raw private-use unicode glyphs in the line-number gutter. Draw the
+ * fold chevrons with CSS instead so the range collapse control is stable even
+ * when the icon font is unavailable.
+ */
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed {
+  color: var(--vscode-text-secondary) !important;
+  font-family: inherit !important;
+  font-size: 0 !important;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  box-sizing: border-box;
+  display: block;
+  width: 0;
+  height: 0;
+  content: '' !important;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before {
+  border-top: 5px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+}
+
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.vscode-editor .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
 }
 
 /* Ensure Monaco editor wrapper fills available space */
@@ -957,17 +1031,22 @@
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: var(--vscode-text-secondary);
+  color: #aaa4b3;
   flex-direction: column;
   gap: 12px;
 }
 
 .vscode-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--vscode-border);
-  border-top: 2px solid var(--repo-accent, var(--vscode-text-accent));
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(167, 139, 250, 0.28);
+  border-top: 2px solid var(--shaman-teal, #63d8c9);
+  border-right: 2px solid var(--shaman-gold, #efc66f);
   border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 216, 201, 0.18), transparent 58%);
+  box-shadow:
+    0 0 18px rgba(99, 216, 201, 0.2),
+    0 0 28px rgba(167, 139, 250, 0.12);
   animation: spin 1s linear infinite;
 }
 
@@ -1619,4 +1698,293 @@
 
 .giscus-container .giscus-frame {
   width: 100% !important;
+}
+.shaman-brandbar {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-border) 80%, #d9a441 20%);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--vscode-bg-secondary) 88%, #8b5cf6 12%),
+      var(--vscode-bg-secondary)
+    ),
+    repeating-linear-gradient(135deg, transparent 0 10px, rgba(217, 164, 65, 0.04) 10px 11px);
+  color: var(--vscode-text-primary);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.shaman-wordmark {
+  border-radius: 4px;
+  color: var(--vscode-text-primary);
+  letter-spacing: -0.04em;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    filter 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.shaman-wordmark:hover {
+  filter: brightness(1.12);
+}
+
+.shaman-wordmark:focus-visible {
+  outline: 2px solid #56d6c9;
+  outline-offset: 5px;
+}
+
+.shaman-wordmark-sha {
+  position: relative;
+  display: inline-block;
+  margin: 0 1px;
+  color: #f2c46d;
+  text-shadow: 0 0 14px rgba(242, 196, 109, 0.45);
+}
+
+.shaman-wordmark-sha::after {
+  position: absolute;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8b5cf6, #f2c46d, #56d6c9);
+  content: '';
+}
+
+.shaman-wordmark-domain {
+  color: var(--vscode-text-secondary);
+  font-weight: 500;
+}
+
+.shaman-wordmark-path {
+  color: var(--vscode-text-secondary);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.shaman-brandbar-primary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.shaman-brandbar-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shaman-brandbar-actions {
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.shaman-sigil {
+  color: #56d6c9;
+  font-size: 16px;
+  text-shadow: 0 0 10px rgba(86, 214, 201, 0.5);
+}
+
+.shaman-brandbar-ref {
+  overflow: hidden;
+  color: #f2c46d;
+  text-overflow: ellipsis;
+}
+
+.shaman-share-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.shaman-header-action {
+  border: 1px solid var(--vscode-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.shaman-header-action:hover,
+.shaman-header-action:focus-visible {
+  border-color: var(--repo-accent, var(--vscode-text-accent, #0078d4));
+  background: var(--vscode-bg-hover);
+  color: var(--vscode-text-primary);
+  outline: none;
+}
+
+.shaman-share-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1000;
+  min-width: 140px;
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  background: var(--vscode-bg-secondary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+}
+
+.shaman-share-menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.shaman-share-menu button:hover,
+.shaman-share-menu button:focus-visible {
+  background: var(--vscode-bg-hover);
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .shaman-brandbar-context {
+    max-width: 52%;
+  }
+}
+
+/* Shared shell finish: keep every surface in the same GitShaman palette. */
+.vscode-container {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(167, 139, 250, 0.06), transparent 24rem),
+    var(--vscode-bg-primary);
+}
+
+.vscode-sidebar,
+.vscode-sidebar-header,
+.vscode-panel,
+.vscode-statusbar,
+.vscode-status-bar,
+.vscode-tab-strip,
+.right-panel-tabs,
+.giscus-container {
+  background: var(--vscode-bg-secondary);
+  border-color: var(--vscode-border);
+}
+
+.vscode-sidebar,
+.vscode-panel {
+  box-shadow: inset 0 1px rgba(239, 198, 111, 0.035);
+}
+
+.vscode-sidebar-header,
+.vscode-editor-header,
+.vscode-breadcrumbs,
+.cursor-breadcrumbs {
+  background: linear-gradient(90deg, var(--vscode-bg-secondary), var(--vscode-bg-tertiary));
+  border-color: var(--vscode-border);
+}
+
+.vscode-file-item:hover,
+.sidebar-tab:hover,
+.right-panel-tab:hover,
+.vscode-tab:hover {
+  background: color-mix(in srgb, var(--vscode-bg-hover) 88%, var(--shaman-gold, #efc66f) 12%);
+}
+
+.vscode-file-item.selected,
+.vscode-tab.active,
+.sidebar-tab.active,
+.right-panel-tab.active {
+  background: color-mix(in srgb, var(--vscode-bg-selected) 82%, var(--shaman-teal, #63d8c9) 18%);
+  border-color: var(--shaman-gold, #efc66f);
+  color: var(--vscode-text-primary);
+}
+
+.vscode-file-item .icon,
+.vscode-sidebar .icon,
+.vscode-statusbar .codicon,
+.vscode-status-bar .codicon {
+  color: var(--shaman-gold, #efc66f);
+}
+
+.vscode-empty-state,
+.vscode-empty-icon {
+  color: var(--vscode-text-secondary);
+}
+
+.vscode-empty-icon {
+  filter: drop-shadow(0 0 10px rgba(239, 198, 111, 0.25));
+}
+
+.vscode-statusbar,
+.vscode-status-bar {
+  color: var(--vscode-text-secondary);
+  box-shadow: 0 -1px rgba(167, 139, 250, 0.12);
+}
+
+.vscode-statusbar button:hover,
+.vscode-statusbar select:hover,
+.vscode-status-bar button:hover,
+.vscode-status-bar select:hover {
+  color: var(--vscode-text-primary);
+  background: var(--vscode-bg-hover);
+}
+
+.vscode-container button:focus-visible,
+.vscode-container input:focus-visible,
+.vscode-container select:focus-visible {
+  outline: 1px solid var(--shaman-teal, #63d8c9);
+  outline-offset: 2px;
+}
+
+.vscode-container input,
+.vscode-container select,
+.vscode-container textarea {
+  border-color: var(--vscode-border);
+  background: var(--vscode-bg-tertiary);
+  color: var(--vscode-text-primary);
+}
+
+.vscode-container ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.vscode-container ::-webkit-scrollbar-track {
+  background: var(--vscode-bg-primary);
+}
+
+.vscode-container ::-webkit-scrollbar-thumb {
+  border: 2px solid var(--vscode-bg-primary);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vscode-border-light) 78%, var(--shaman-violet, #a78bfa) 22%);
+}
+
+.vscode-container ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--shaman-gold, #efc66f) 62%, var(--vscode-border-light) 38%);
+}
+
+.monaco-editor,
+.monaco-editor-background,
+.monaco-editor .margin {
+  background-color: var(--vscode-bg-primary) !important;
 }

@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 import { CURATED_REPOS } from '@/lib/curated-repos';
+import { CODE_INDEX_FILE_NAME } from '@/lib/code-index';
+import { CODE_INDEX_BROWSER_CACHE_NAME } from '@/lib/repo-static';
+import { buildCodeIndex } from '../scripts/code-index-builder';
 
 type SqlJsResponse = {
   url: string;
@@ -19,15 +22,59 @@ const LITTLE_KERNEL_REPO = CURATED_REPOS.find(
 if (!LITTLE_KERNEL_REPO) {
   throw new Error('Missing curated Little Kernel repo config');
 }
+const LITTLE_KERNEL = LITTLE_KERNEL_REPO;
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const LITTLE_KERNEL_REPO_ROOT = path.resolve(
   TEST_DIR,
   '..',
   'repos',
-  LITTLE_KERNEL_REPO.owner,
-  LITTLE_KERNEL_REPO.repo
+  LITTLE_KERNEL.owner,
+  LITTLE_KERNEL.repo
 );
+const LITTLE_KERNEL_REVISION_ROOT = path.join(LITTLE_KERNEL_REPO_ROOT, LITTLE_KERNEL.revision);
+
+type ManifestTreeNode = {
+  name: string;
+  type: 'd' | 'f' | 'directory' | 'file';
+  children?: ManifestTreeNode[];
+};
+
+function normalizeManifestTree(nodes: ManifestTreeNode[]): Parameters<typeof buildCodeIndex>[1] {
+  return nodes.map((node) => ({
+    name: node.name,
+    path: node.name,
+    type: node.type === 'd' || node.type === 'directory' ? 'directory' : 'file',
+    children: node.children ? normalizeManifestTree(node.children) : undefined,
+  }));
+}
+
+function ensureLittleKernelCodeIndex(): void {
+  const manifestPath = path.join(LITTLE_KERNEL_REVISION_ROOT, 'repo-manifest.json');
+  const codeIndexPath = path.join(LITTLE_KERNEL_REVISION_ROOT, CODE_INDEX_FILE_NAME);
+
+  if (fs.existsSync(codeIndexPath)) {
+    return;
+  }
+
+  if (!fs.existsSync(manifestPath)) {
+    test.skip(true, 'Little Kernel corpus is not available locally');
+    return;
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+    tree: ManifestTreeNode[];
+  };
+  buildCodeIndex(
+    LITTLE_KERNEL_REVISION_ROOT,
+    normalizeManifestTree(manifest.tree),
+    `${LITTLE_KERNEL.owner}/${LITTLE_KERNEL.repo}@${LITTLE_KERNEL.revision}`,
+    {
+      log: () => {},
+      warn: () => {},
+    }
+  );
+}
 
 async function startCorpusServer(): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   const server = http.createServer((request, response) => {
@@ -126,6 +173,10 @@ async function waitForDebugEntry(
 }
 
 test.describe('SQL.js browser runtime', () => {
+  test.beforeAll(() => {
+    ensureLittleKernelCodeIndex();
+  });
+
   test('loads the Little Kernel search index with the published wasm asset', async ({ page }) => {
     const pageErrors: string[] = [];
     const sqlJsResponses: SqlJsResponse[] = [];
@@ -195,6 +246,8 @@ test.describe('SQL.js browser runtime', () => {
       await page.locator('.vscode-tree-search-input').fill('main');
 
       await waitForDebugLog(page, '[explorar:code-index-static] success');
+      await expect(page.locator('.vscode-tree-search-index-badge')).toHaveText('ready');
+      await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
       await waitForDebugEntry(
         page,
         (entry) => {
@@ -226,11 +279,11 @@ test.describe('SQL.js browser runtime', () => {
       await expect
         .poll(
           async () =>
-            page.evaluate(async () => {
-              const cache = await caches.open('explorar-code-index-v1');
+            page.evaluate(async (cacheName) => {
+              const cache = await caches.open(cacheName);
               const keys = await cache.keys();
               return keys.map((request) => request.url);
-            }),
+            }, CODE_INDEX_BROWSER_CACHE_NAME),
           {
             timeout: 30000,
             message: 'Expected code-index.sqlite to be stored in browser cache',
@@ -238,9 +291,18 @@ test.describe('SQL.js browser runtime', () => {
         )
         .toContainEqual(
           expect.stringMatching(
-            /^http:\/\/localhost:8000\/repos\/littlekernel\/lk\/.+\/code-index\.sqlite\?__explorar_source=local-filesystem$/
+            /^http:\/\/localhost:\d+\/repos\/littlekernel\/lk\/.+\/code-index\.sqlite\?__explorar_source=local-filesystem$/
           )
         );
+
+      // A reload must search the persisted index even when its network URL is unavailable.
+      await page.route('**/code-index.sqlite', (route) => route.abort());
+      await page.reload();
+      await page.getByRole('button', { name: 'File search' }).click();
+      await page.locator('.vscode-tree-search-input').fill('main');
+      await expect(page.getByText('Cached index ready', { exact: true })).toBeVisible();
+      await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
+      await page.unroute('**/code-index.sqlite');
 
       await page.getByLabel('Storage source').selectOption('r2-bucket');
       await waitForDebugEntry(
@@ -263,11 +325,11 @@ test.describe('SQL.js browser runtime', () => {
       await expect
         .poll(
           async () =>
-            page.evaluate(async () => {
-              const cache = await caches.open('explorar-code-index-v1');
+            page.evaluate(async (cacheName) => {
+              const cache = await caches.open(cacheName);
               const keys = await cache.keys();
               return keys.map((request) => request.url);
-            }),
+            }, CODE_INDEX_BROWSER_CACHE_NAME),
           {
             timeout: 30000,
             message: 'Expected local and R2 code indexes to use separate browser cache keys',
@@ -276,7 +338,7 @@ test.describe('SQL.js browser runtime', () => {
         .toEqual(
           expect.arrayContaining([
             expect.stringMatching(
-              /^http:\/\/localhost:8000\/repos\/littlekernel\/lk\/.+\/code-index\.sqlite\?__explorar_source=local-filesystem$/
+              /^http:\/\/localhost:\d+\/repos\/littlekernel\/lk\/.+\/code-index\.sqlite\?__explorar_source=local-filesystem$/
             ),
             expect.stringMatching(
               /^https:\/\/pub-fed8a8778c5340c9a70aec8e22b8296d\.r2\.dev\/repos\/littlekernel\/lk\/.+\/code-index\.sqlite\?__explorar_source=r2-bucket$/

@@ -1,6 +1,10 @@
 {
-  "name": "Explorar",
-  "short_name": "Explorar",
+  "name": "GitShaman",
+  "short_name": "GitShaman",
+  "description": "Explore large repositories through indexed files, symbols, references, dependency views, and curated guides.",
+  "start_url": "/",
+  "scope": "/",
+  "categories": ["developer tools", "education", "productivity"],
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

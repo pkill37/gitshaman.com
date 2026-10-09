@@ -211,6 +211,38 @@ test.describe('curated repo source routing', () => {
     );
   });
 
+  test('skips static corpus probes for arbitrary GitHub repositories', async () => {
+    await withR2BaseUrl(() =>
+      withMockedFetch(
+        (url) => {
+          if (
+            url === 'https://raw.githubusercontent.com/s0xDk/ghostty-blackhole/main/blackhole.glsl'
+          ) {
+            return new Response('runtime repo content', { status: 200 });
+          }
+          return new Response('unexpected source', { status: 500 });
+        },
+        async (calls) => {
+          const result = await fetchRepositoryFile(
+            's0xDk',
+            'ghostty-blackhole',
+            'main',
+            'blackhole.glsl',
+            {
+              sourceMode: 'local-filesystem',
+            }
+          );
+
+          expect(result.content).toBe('runtime repo content');
+          expect(result.debugInfo?.source).toBe('github-api');
+          expect(calls).toEqual([
+            'https://raw.githubusercontent.com/s0xDk/ghostty-blackhole/main/blackhole.glsl',
+          ]);
+        }
+      )
+    );
+  });
+
   test('reads file content only from the selected R2 bucket source', async () => {
     await withR2BaseUrl(() =>
       withMockedFetch(

@@ -19,7 +19,7 @@ defaultOpenIds:
 
 ## Understanding TypeScript Before Code
 
-> This is not a guide to writing TypeScript. It is a guide to understanding the
+> This is not a guide to writing TypeScript. This guide explains the
 > TypeScript 7 native compiler and language tooling implementation.
 
 TypeScript 7 moves the compiler and language tooling onto a native Go foundation. The implementation
@@ -50,13 +50,13 @@ fileRecommendations:
       description: Native compiler command entry point
       type: source
     - path: internal/
-      description: Compiler, language service, project, module, and tooling packages
+      description: Contains compiler, language service, project, module, and tooling packages.
       type: directory
     - path: testdata/
-      description: Ported and native test inputs
+      description: Contains ported and native test inputs.
       type: directory
     - path: _submodules/
-      description: Linked upstream TypeScript repository content used during the port
+      description: Contains linked upstream TypeScript repository content used during the port.
       type: directory
 ---
 
@@ -68,7 +68,7 @@ formatting, and testing helpers. The command in `cmd/tsgo` is thin by design: it
 hands work to internal packages.
 
 The `README.md` states the TypeScript 7 context and feature status. Treat it as release context, then
-move quickly into `internal/compiler`, `internal/parser`, `internal/binder`, and `internal/checker`.
+move into `internal/compiler`, `internal/parser`, `internal/binder`, and `internal/checker`.
 
 ```chapter-graph
 cmd/tsgo/main.go -> internal/execute/tsc.go : dispatches command-line execution
@@ -79,9 +79,9 @@ internal/compiler/program.go -> internal/checker/checker.go : asks for semantic 
 
 ### Read Around The Compatibility Goal
 
-TypeScript 7 is a port, not a redesign from first principles. Many package and function names mirror
-the older compiler's architecture. When a file looks surprisingly faithful to the old implementation,
-that is usually intentional: compatibility is a product requirement.
+TypeScript 7 is a port, not a redesign from first principles. Package and function names often mirror
+the older compiler's architecture. When a file looks faithful to the old implementation,
+that often reflects the need to preserve compatibility.
 
 ---
 id: ch2
@@ -92,7 +92,7 @@ fileRecommendations:
       description: CLI process entry and mode selection
       type: source
     - path: internal/execute/
-      description: Command-line execution, status handling, and compiler invocation
+      description: Contains command-line execution, status handling, and compiler invocation.
       type: directory
     - path: internal/compiler/program.go
       description: Program lifecycle, source files, project references, and diagnostics
@@ -101,13 +101,13 @@ fileRecommendations:
       description: Compiler host abstraction over files, paths, and libraries
       type: source
     - path: internal/tsoptions/
-      description: Command-line and tsconfig option parsing
+      description: Contains command-line and tsconfig option parsing.
       type: directory
     - path: internal/vfs/
-      description: Virtual file-system interfaces
+      description: Contains virtual file-system interfaces.
       type: directory
     - path: internal/tspath/
-      description: TypeScript path normalization and comparison helpers
+      description: Contains TypeScript path normalization and comparison helpers.
       type: directory
 ---
 
@@ -141,7 +141,7 @@ title: Chapter 3 - Scanner Parser And AST
 fileRecommendations:
   readingOrder:
     - path: internal/scanner/
-      description: Tokenization and lexical diagnostics
+      description: Contains tokenization and lexical diagnostics.
       type: directory
     - path: internal/parser/parser.go
       description: Parser implementation for TypeScript and JavaScript syntax
@@ -153,10 +153,10 @@ fileRecommendations:
       description: AST node types and source-file representation
       type: source
     - path: internal/astnav/
-      description: AST traversal helpers
+      description: Contains AST traversal helpers.
       type: directory
     - path: internal/diagnostics/
-      description: Diagnostic message definitions and identifiers
+      description: Contains diagnostic message definitions and identifiers.
       type: directory
 ---
 
@@ -186,7 +186,7 @@ title: Chapter 4 - Binding And Type Checking
 fileRecommendations:
   readingOrder:
     - path: internal/binder/
-      description: Symbol creation, scopes, and declaration binding
+      description: Contains symbol creation, scopes, and declaration binding.
       type: directory
     - path: internal/checker/checker.go
       description: Main type checker implementation
@@ -198,10 +198,10 @@ fileRecommendations:
       description: Symbol utilities and checker-facing symbol behavior
       type: source
     - path: internal/nodebuilder/
-      description: Builds type nodes for display and declaration output
+      description: Builds type nodes for display and declaration output.
       type: directory
     - path: internal/evaluator/
-      description: Constant and expression evaluation support
+      description: Contains constant and expression evaluation support.
       type: directory
 ---
 
@@ -232,25 +232,25 @@ title: Chapter 5 - Module Resolution Projects And Incrementality
 fileRecommendations:
   readingOrder:
     - path: internal/module/
-      description: Module resolution implementation
+      description: Contains module resolution implementation.
       type: directory
     - path: internal/packagejson/
-      description: package.json parsing and package boundary metadata
+      description: Contains package.json parsing and package boundary metadata.
       type: directory
     - path: internal/project/
-      description: Project service and configured/inferred project behavior
+      description: Contains project service and configured/inferred project behavior.
       type: directory
     - path: internal/fswatch/
-      description: File watching support
+      description: Contains file watching support.
       type: directory
     - path: internal/compiler/program.go
       description: Program update and project-reference handling
       type: source
     - path: internal/outputpaths/
-      description: Output path computation for emit and declaration files
+      description: Contains output path computation for emit and declaration files.
       type: directory
     - path: internal/symlinks/
-      description: Symlink tracking used by module and package resolution
+      description: Contains symlink tracking used by module and package resolution.
       type: directory
 ---
 
@@ -281,28 +281,28 @@ title: Chapter 6 - Emit Language Service And Tests
 fileRecommendations:
   readingOrder:
     - path: internal/transformers/
-      description: JavaScript and declaration transform pipeline
+      description: Contains JavaScript and declaration transform pipeline.
       type: directory
     - path: internal/printer/
-      description: Source text printing
+      description: Contains source text printing.
       type: directory
     - path: internal/sourcemap/
-      description: Source map generation
+      description: Contains source map generation.
       type: directory
     - path: internal/ls/
-      description: Language service features
+      description: Contains language service features.
       type: directory
     - path: internal/lsp/
-      description: Language Server Protocol implementation
+      description: Contains Language Server Protocol implementation.
       type: directory
     - path: internal/format/
-      description: Formatting implementation
+      description: Contains formatting implementation.
       type: directory
     - path: internal/fourslash/
-      description: Editor-service test framework
+      description: Contains editor-service test framework.
       type: directory
     - path: internal/testrunner/
-      description: Test harness and compiler test execution
+      description: Contains test harness and compiler test execution.
       type: directory
 ---
 
@@ -325,5 +325,5 @@ internal/fourslash/fourslash.go -> internal/ls/languageservice.go : tests exerci
 
 Use tests to learn the compatibility surface. Compiler tests explain diagnostics and emit expectations;
 fourslash tests explain editor behavior; project tests explain watch and configuration behavior. For a
-port like TypeScript 7, tests are not just safeguards. They are a catalog of observable behavior that
+port like TypeScript 7, tests serve as more than safeguards. They are a catalog of observable behavior that
 the native implementation must preserve.

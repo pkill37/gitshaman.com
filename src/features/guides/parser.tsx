@@ -1,16 +1,16 @@
 // Markdown parser utility for guide files
 import React from 'react';
 import matter from 'gray-matter';
-import { marked } from 'marked';
+import { marked, type Tokens } from 'marked';
 import { GuideSection, FileRecommendation } from '@/lib/project-guides';
 import { createFileRecommendationsComponent } from '@/lib/project-guides';
 import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import { debugLog } from '@/lib/browser-debug';
+import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
 import {
   decodeHtmlEntities,
   escapeHtml,
   getExternalRepoIconHtml,
-  getManualPageLinkAttributes,
   getRepoLinkAttributes,
   hasUnsafeScheme,
   isExternalHref,
@@ -45,21 +45,28 @@ type OpenFileInTab = (
   repoTarget?: { owner: string; repo: string }
 ) => void;
 
-type OpenManPageInTab = (name: string, section: string) => void;
-
-function createMarkdownRenderer(symbolScopePaths: string[]) {
+function createMarkdownRenderer(
+  symbolScopePaths: string[],
+  options?: { linkRepoReferences?: boolean }
+) {
   const renderer = new marked.Renderer();
+  const linkRepoReferences = options?.linkRepoReferences ?? true;
 
-  renderer.link = (href, title, text) => {
+  renderer.code = function ({ text, lang }: Tokens.Code) {
+    return renderHighlightedCodeBlock(text, lang);
+  };
+
+  renderer.link = function ({ href, title, tokens }: Tokens.Link) {
     const safeHref = href?.trim() || '#';
     // A markdown link can wrap an inline-code span. Since codespan navigation
     // also renders an anchor, remove that nested anchor before rendering the
     // outer link so the resulting HTML contains one accessible link.
-    const linkText = text.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
+    const renderedText = this.parser.parseInline(tokens);
+    const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
 
     if (hasUnsafeScheme(safeHref)) {
-      return `<span>${text}</span>`;
+      return `<span>${renderedText}</span>`;
     }
 
     const navigationTarget = parseMarkdownNavigationTarget(safeHref, undefined, {
@@ -67,11 +74,10 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
       title: title ?? undefined,
     });
 
-    if (navigationTarget?.kind === 'man-page') {
-      return `<a href="#" ${getManualPageLinkAttributes(navigationTarget)}${titleAttr}>${linkText}</a>`;
-    }
-
     if (navigationTarget?.kind === 'repo-file') {
+      if (!linkRepoReferences) {
+        return linkText;
+      }
       return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
     }
 
@@ -79,13 +85,8 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
     return `<a href="${escapeHtml(safeHref)}"${titleAttr}${targetAttr}>${linkText}</a>`;
   };
 
-  renderer.codespan = function (code) {
+  renderer.codespan = function ({ text: code }: Tokens.Codespan) {
     const decodedCode = decodeHtmlEntities(code);
-    const navigationTarget = parseMarkdownNavigationTarget(decodedCode);
-    if (navigationTarget?.kind === 'man-page') {
-      return `<a href="#" class="inline-code-link" ${getManualPageLinkAttributes(navigationTarget)}><code>${escapeHtml(decodedCode)}</code></a>`;
-    }
-
     const repoTarget = parseRepoNavigationTarget(decodedCode);
     const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
 
@@ -95,6 +96,10 @@ function createMarkdownRenderer(symbolScopePaths: string[]) {
           decodedCode.trim()
         )}" data-symbol-scope="${escapeHtml(symbolScopePaths.join('|||'))}">${codeHtml}</a>`;
       }
+      return codeHtml;
+    }
+
+    if (!linkRepoReferences) {
       return codeHtml;
     }
 
@@ -333,6 +338,53 @@ function extractNarrativePaths(sectionContent: string, sectionMeta: SectionFront
   return paths;
 }
 
+function collectNarrativeFileRecommendations(sectionContent: string): FileRecommendation[] {
+  const recommendations: FileRecommendation[] = [];
+  const seen = new Set<string>();
+
+  const pushRecommendation = (path: string, description?: string) => {
+    const target = parseRepoNavigationTarget(path, undefined, { title: description });
+    if (!target || seen.has(target.path)) return;
+    seen.add(target.path);
+    recommendations.push({
+      path,
+      description: description?.trim() || target.path,
+      type: target.path.endsWith('/') ? 'directory' : 'source',
+    });
+  };
+
+  const markdownLinkRe = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = markdownLinkRe.exec(sectionContent)) !== null) {
+    pushRecommendation(match[2], match[1]);
+  }
+
+  const codeSpanRe = /`([^`\n]+)`/g;
+  while ((match = codeSpanRe.exec(sectionContent)) !== null) {
+    pushRecommendation(match[1]);
+  }
+
+  return recommendations;
+}
+
+function mergeRecommendations(
+  explicit: FileRecommendation[] = [],
+  discovered: FileRecommendation[] = []
+): FileRecommendation[] {
+  const merged: FileRecommendation[] = [];
+  const seen = new Set<string>();
+
+  for (const item of [...explicit, ...discovered]) {
+    const target = parseRepoNavigationTarget(item.path, undefined, { title: item.description });
+    const key = target?.path ?? item.path;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
 function looksLikeSectionFrontmatter(frontmatter: string): boolean {
   if (!frontmatter.trim()) return false;
 
@@ -425,11 +477,7 @@ function parseSectionFrontmatter(yaml: string): SectionFrontmatter {
 /**
  * Parse guide markdown file and return GuideSection array
  */
-export function parseGuideMarkdown(
-  markdown: string,
-  openFileInTab: OpenFileInTab,
-  openManPageInTab?: OpenManPageInTab
-): GuideSection[] {
+export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTab): GuideSection[] {
   // Validate inputs
   if (!markdown || markdown.trim().length === 0) {
     throw new Error('Empty markdown content provided');
@@ -484,6 +532,25 @@ export function parseGuideMarkdown(
       const { graph, cleanContent: contentWithoutGraph } = extractChapterGraph(sectionContent);
       sectionContent = contentWithoutGraph;
       const narrativePaths = extractNarrativePaths(sectionContent, sectionMeta);
+      const narrativeRecommendations = collectNarrativeFileRecommendations(sectionContent);
+      const hasReadingOrder = (sectionMeta.fileRecommendations?.readingOrder?.length ?? 0) > 0;
+      const readingOrderRecommendations = hasReadingOrder
+        ? mergeRecommendations(
+            sectionMeta.fileRecommendations?.readingOrder ?? [],
+            narrativeRecommendations
+          )
+        : [];
+      const sourceRecommendations = hasReadingOrder
+        ? (sectionMeta.fileRecommendations?.source ?? [])
+        : mergeRecommendations(
+            sectionMeta.fileRecommendations?.source ?? [],
+            narrativeRecommendations
+          );
+      const hasRecommendationBoxes =
+        readingOrderRecommendations.length > 0 ||
+        (sectionMeta.fileRecommendations?.docs?.length ?? 0) > 0 ||
+        sourceRecommendations.length > 0 ||
+        (sectionMeta.fileRecommendations?.directories?.length ?? 0) > 0;
 
       // Convert markdown to HTML (only if content exists)
       let reactContent: React.ReactNode = null;
@@ -513,8 +580,6 @@ export function parseGuideMarkdown(
               const repoPath = anchor.getAttribute('data-repo-path');
               const repoOwner = anchor.getAttribute('data-repo-owner') || undefined;
               const repoName = anchor.getAttribute('data-repo-name') || undefined;
-              const manPageName = anchor.getAttribute('data-man-page-name');
-              const manPageSection = anchor.getAttribute('data-man-page-section');
               const searchPattern = anchor.getAttribute('data-search-pattern') || undefined;
               const scrollToLineAttr = anchor.getAttribute('data-scroll-to-line');
               const scrollToLine = scrollToLineAttr ? parseInt(scrollToLineAttr, 10) : undefined;
@@ -522,12 +587,6 @@ export function parseGuideMarkdown(
               const symbolScope = symbolScopeAttr
                 ? symbolScopeAttr.split('|||').filter(Boolean)
                 : undefined;
-
-              if (manPageName && manPageSection && openManPageInTab) {
-                e.preventDefault();
-                openManPageInTab(manPageName, manPageSection);
-                return;
-              }
 
               if (repoPath) {
                 e.preventDefault();
@@ -597,16 +656,12 @@ export function parseGuideMarkdown(
           >
             {reactContent}
           </div>
-          {sectionMeta.fileRecommendations &&
-            (sectionMeta.fileRecommendations.readingOrder ||
-              sectionMeta.fileRecommendations.docs ||
-              sectionMeta.fileRecommendations.source ||
-              sectionMeta.fileRecommendations.directories) &&
+          {hasRecommendationBoxes &&
             createFileRecommendationsComponent(
-              sectionMeta.fileRecommendations.readingOrder || [],
-              sectionMeta.fileRecommendations.docs || [],
-              sectionMeta.fileRecommendations.source || [],
-              sectionMeta.fileRecommendations.directories || [],
+              readingOrderRecommendations,
+              sectionMeta.fileRecommendations?.docs || [],
+              sourceRecommendations,
+              sectionMeta.fileRecommendations?.directories || [],
               openFileInTab
             )}
         </div>

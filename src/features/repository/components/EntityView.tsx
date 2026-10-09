@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import SidebarSearchHeader from './SidebarSearchHeader';
-import { fetchRepositoryFile } from '@/lib/github-api';
+import { fetchRepositoryFile, getTrustedVersion } from '@/lib/github-api';
 import { getProjectConfig, type GuideSection } from '@/lib/project-guides';
 import { getGuideByRepo } from '@/features/guides/docs-loader';
 import { buildGraphData, buildGraphDataFromSections } from '@/lib/graph-data';
@@ -195,11 +195,7 @@ function EntityCard({ scored, onOpenFile, color, folderLabel }: EntityCardProps)
         borderRadius: 7,
         overflow: 'hidden',
         cursor: 'pointer',
-        boxShadow: isHero
-          ? `0 0 20px ${color}20, 0 4px 20px rgba(0,0,0,0.5)`
-          : isMajor
-            ? `0 2px 10px rgba(0,0,0,0.4)`
-            : `0 1px 5px rgba(0,0,0,0.3)`,
+        boxShadow: 'none',
         opacity: tier === 'minor' ? 0.72 : 1,
         transition: 'opacity 0.15s, box-shadow 0.15s, border-color 0.15s',
         display: 'flex',
@@ -210,18 +206,14 @@ function EntityCard({ scored, onOpenFile, color, folderLabel }: EntityCardProps)
         const el = e.currentTarget as HTMLElement;
         el.style.opacity = '1';
         el.style.borderColor = color;
-        el.style.boxShadow = `0 0 18px ${color}50, 0 6px 24px rgba(0,0,0,0.6)`;
+        el.style.boxShadow = 'none';
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLElement;
         el.style.opacity = tier === 'minor' ? '0.72' : '1';
         el.style.border = `1px solid ${color}33`;
         el.style.borderTop = `${borderTopWidth}px solid ${color}`;
-        el.style.boxShadow = isHero
-          ? `0 0 20px ${color}20, 0 4px 20px rgba(0,0,0,0.5)`
-          : isMajor
-            ? `0 2px 10px rgba(0,0,0,0.4)`
-            : `0 1px 5px rgba(0,0,0,0.3)`;
+        el.style.boxShadow = 'none';
       }}
     >
       {/* Header */}
@@ -978,8 +970,12 @@ export function EntityView({
         await Promise.all(
           batch.slice(i, i + BATCH_SIZE).map(async (fp: string) => {
             try {
-              const fullText = (await fetchRepositoryFile(owner, repo, branch, fp, { sourceMode }))
-                .content;
+              const fullText = (
+                await fetchRepositoryFile(owner, repo, branch, fp, {
+                  sourceMode,
+                  allowGitHubFallback: branch !== getTrustedVersion(owner, repo),
+                })
+              ).content;
               const text = fullText.length > BYTES_CAP ? fullText.slice(0, BYTES_CAP) : fullText;
               const entities = extractEntities(fp, text);
 
@@ -1168,7 +1164,6 @@ export function EntityView({
       }}
     >
       <SidebarSearchHeader
-        titleLabel={`${owner}/${repo}`}
         query={searchQuery}
         onQueryChange={onSearchQueryChange ?? (() => undefined)}
         placeholder="Search entities"

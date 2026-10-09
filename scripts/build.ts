@@ -142,13 +142,13 @@ async function main(): Promise<void> {
     `explorar-code-index-stats-${process.pid}.json`
   );
   let codeIndexStats: CodeIndexRunStats | null = null;
-  console.log('\n[build] starting 7 phases');
+  console.log('\n[build] starting 6 phases');
 
-  console.log('\n[1/7] Generate guide registry');
+  console.log('\n[1/6] Generate guide registry');
   writeGuideRegistry();
 
   if (shouldSkipCorpusBuild()) {
-    console.log('\n[2/7] Download curated corpus');
+    console.log('\n[2/6] Download curated corpus');
     console.log(
       '  skipped: CI shell build uses the prebuilt R2 corpus (set EXPLORAR_SKIP_CORPUS_BUILD=0 to force local corpus generation)'
     );
@@ -158,18 +158,19 @@ async function main(): Promise<void> {
       skip: [],
       depth: 1,
       list: false,
+      reindex: false,
     });
 
     if (corpusState.staleRepos.length === 0) {
-      console.log('\n[2/7] Download curated corpus');
+      console.log('\n[2/6] Download curated corpus');
       console.log(`  skipped: ${corpusState.totalRepos} repos already cached`);
     } else {
-      console.log('\n[2/7] Download curated corpus');
+      console.log('\n[2/6] Download curated corpus');
       console.log('  refresh required before build:');
       if (corpusState.staleRepos.length > 0) {
         console.log(`  - refreshing ${corpusState.staleRepos.length} repo target(s)`);
       }
-      await runStep(2, 7, {
+      await runStep(2, 6, {
         name: 'Download curated corpus',
         command: 'tsx',
         args: ['scripts/download-repos.ts', '--depth=1'],
@@ -181,18 +182,12 @@ async function main(): Promise<void> {
     }
   }
 
-  if (shouldSkipCorpusBuild()) {
-    console.log('\n[3/7] Build Linux man pages');
-    console.log('  skipped: CI shell build fetches manual pages from the R2 corpus');
-  } else {
-    await runStep(3, 7, {
-      name: 'Build Linux man pages',
+  await runConcurrentGroup(3, 6, 'Guide validation', [
+    {
+      name: 'Lint guide prose',
       command: 'tsx',
-      args: ['scripts/build-man-pages.ts'],
-    });
-  }
-
-  await runConcurrentGroup(4, 7, 'Guide validation', [
+      args: ['scripts/lint-guide-prose.ts'],
+    },
     {
       name: 'Validate guide frontmatter',
       command: 'tsx',
@@ -205,19 +200,19 @@ async function main(): Promise<void> {
     },
   ]);
 
-  await runStep(5, 7, {
+  await runStep(4, 6, {
     name: 'Prepare shell-only public assets',
     command: 'tsx',
     args: ['scripts/prepare-public-assets.ts', '--shell'],
   });
 
-  await runStep(6, 7, {
+  await runStep(5, 6, {
     name: 'Run Next.js production build',
     command: 'next',
     args: ['build'],
   });
 
-  await runStep(7, 7, {
+  await runStep(6, 6, {
     name: 'Generate build report',
     command: 'tsx',
     args: ['scripts/report-build.ts'],

@@ -9,7 +9,7 @@ import {
 } from './console-log-buffer';
 
 const DEFAULT_ISSUE_OWNER = 'pkill37';
-const DEFAULT_ISSUE_REPO = 'explorar.dev';
+const DEFAULT_ISSUE_REPO = 'gitshaman.com';
 const MAX_DESCRIPTION_LENGTH = 4_000;
 
 export type BugReportIssueInput = {
@@ -64,7 +64,7 @@ function formatIssueBody(
     '<!-- Describe what happened and what you expected. -->';
 
   const screenshotInstruction = input.screenshotIncluded
-    ? 'A screenshot preview was generated in explorar.dev. Please paste or drag it into this GitHub issue before submitting.'
+    ? 'A screenshot preview was generated in gitshaman.com. Please paste or drag it into this GitHub issue before submitting.'
     : 'No screenshot preview was available.';
 
   return `

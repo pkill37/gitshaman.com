@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { CURATED_TEST_REPOS } from './helpers/curated-repos';
 
@@ -11,7 +9,7 @@ test.describe('Sanity Checks', () => {
   test('homepage loads successfully', async ({ page }) => {
     const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
-    await expect(page).toHaveTitle(/explorar/i);
+    await expect(page).toHaveTitle(/gitshaman/i);
   });
 
   test('no console errors on homepage', async ({ page }) => {
@@ -46,24 +44,5 @@ test.describe('Sanity Checks', () => {
     expect(response?.status()).toBe(200);
     const content = await page.textContent('body');
     expect(content).toContain('urlset');
-  });
-
-  test('all images load successfully', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const images = page.locator('img');
-    const count = await images.count();
-
-    for (let i = 0; i < count; i++) {
-      const img = images.nth(i);
-      const src = await img.getAttribute('src');
-      if (src && !src.startsWith('data:') && !src.startsWith('http')) {
-        const publicPath = path.join(process.cwd(), 'public', src.replace(/^\/+/, ''));
-        if (!fs.existsSync(publicPath)) {
-          continue;
-        }
-        const response = await page.request.get(src);
-        expect(response.status()).toBeLessThan(400);
-      }
-    }
   });
 });

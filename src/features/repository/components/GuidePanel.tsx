@@ -113,7 +113,6 @@ export default function GuidePanel({
     [currentActiveId, onActiveChapterChange]
   );
 
-  const [showShareMenu, setShowShareMenu] = useState(false);
   const [selectionTooltip, setSelectionTooltip] = useState<SelectionTooltipState | null>(null);
 
   const handleBodyMouseUp = useCallback((event: React.SyntheticEvent<HTMLDivElement>) => {
@@ -146,41 +145,16 @@ export default function GuidePanel({
     }, 0);
   }, []);
 
-  const handleShare = (platform: string) => {
-    const shareText = `Explore source code with interactive learning on Explorar.dev! 🚀`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-    const encodedText = encodeURIComponent(shareText);
-    const encodedUrl = encodeURIComponent(shareUrl);
-    const shareTextWithUrl = `${shareText} ${shareUrl}`;
-    const encodedTextWithUrl = encodeURIComponent(shareTextWithUrl);
-
-    let shareLink = '';
-    switch (platform) {
-      case 'twitter':
-        shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
-        break;
-      case 'linkedin':
-        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
-        break;
-      case 'reddit':
-        shareLink = `https://reddit.com/submit?title=${encodedText}&url=${encodedUrl}`;
-        break;
-      case 'whatsapp':
-        shareLink = `https://wa.me/?text=${encodedTextWithUrl}`;
-        break;
-      case 'hackernews':
-        shareLink = `https://news.ycombinator.com/submitlink?u=${encodedUrl}&t=${encodedText}`;
-        break;
-    }
-
-    if (shareLink) {
-      window.open(shareLink, '_blank', 'width=550,height=420');
-      setShowShareMenu(false);
-    }
-  };
-
   const activeIndex = currentSections.findIndex((s) => s.id === currentActiveId);
   const total = currentSections.length;
+  const completedCount = activeIndex >= 0 ? activeIndex + 1 : 0;
+  const progressPercent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+  const progressLabel =
+    total > 0
+      ? activeIndex >= 0
+        ? `Chapter ${activeIndex + 1} of ${total}`
+        : `${total} chapter${total === 1 ? '' : 's'}`
+      : 'No chapters';
 
   return (
     <div
@@ -207,45 +181,112 @@ export default function GuidePanel({
           gap: 8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'auto minmax(72px, 160px) auto',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+            flex: '1 1 auto',
+            maxWidth: 320,
+          }}
+        >
+          {total > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                minWidth: 58,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 9,
+                  color: 'var(--vscode-text-muted, #666)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  lineHeight: 1,
+                }}
+              >
+                Guide
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: 'var(--vscode-text-secondary)',
+                  fontFamily: 'monospace',
+                  lineHeight: 1.1,
+                }}
+              >
+                {progressLabel}
+              </span>
+            </div>
+          )}
+
+          {total > 0 && (
+            <div
+              aria-label="Guide progress"
+              title={`${progressLabel} · ${progressPercent}%`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                height: 18,
+                minWidth: 72,
+              }}
+            >
+              {currentSections.map((section, index) => {
+                const isCurrent = index === activeIndex;
+                const isComplete = activeIndex >= 0 && index <= activeIndex;
+                const accent = 'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-label={`Open chapter ${index + 1}: ${section.title}`}
+                    title={`${index + 1}. ${section.title}`}
+                    onClick={() => onActiveChapterChange?.(section.id)}
+                    style={{
+                      flex: '1 1 0%',
+                      minWidth: 5,
+                      height: isCurrent ? 12 : 8,
+                      padding: 0,
+                      border: isCurrent ? `1px solid ${accent}` : '1px solid transparent',
+                      borderRadius: 999,
+                      background: isComplete ? accent : 'var(--vscode-border)',
+                      opacity: isCurrent ? 1 : isComplete ? 0.8 : 0.55,
+                      boxShadow: isCurrent
+                        ? `0 0 0 2px color-mix(in srgb, ${accent} 22%, transparent)`
+                        : 'none',
+                      cursor: 'pointer',
+                      transition: 'height 0.16s ease, opacity 0.16s ease, background 0.16s ease',
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
+
           {total > 0 && (
             <span
               style={{
+                justifySelf: 'end',
+                minWidth: 34,
+                textAlign: 'right',
                 fontSize: 10,
                 color: 'var(--vscode-text-muted, #444)',
                 fontFamily: 'monospace',
                 flexShrink: 0,
               }}
             >
-              {activeIndex >= 0 ? activeIndex + 1 : '—'} / {total}
+              {progressPercent}%
             </span>
-          )}
-          {/* Progress bar */}
-          {total > 0 && (
-            <div
-              style={{
-                flex: 1,
-                height: 2,
-                background: 'var(--vscode-border)',
-                borderRadius: 1,
-                overflow: 'hidden',
-                minWidth: 24,
-              }}
-            >
-              <div
-                style={{
-                  height: '100%',
-                  width: `${activeIndex >= 0 ? ((activeIndex + 1) / total) * 100 : 0}%`,
-                  background: 'var(--repo-accent, var(--vscode-text-accent, #0078d4))',
-                  borderRadius: 1,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
           )}
         </div>
 
-        {/* Share button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {onSidebarToggle && (
             <button
@@ -282,88 +323,6 @@ export default function GuidePanel({
               {sidebarToggleIcon}
             </button>
           )}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <button
-              onClick={() => setShowShareMenu(!showShareMenu)}
-              title="Share this page"
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--vscode-border)',
-                borderRadius: 3,
-                padding: '2px 6px',
-                cursor: 'pointer',
-                color: 'var(--vscode-text-muted, #555)',
-                fontSize: 10,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--vscode-bg-hover)';
-                e.currentTarget.style.borderColor =
-                  'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
-                e.currentTarget.style.color = 'var(--vscode-text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = 'var(--vscode-border)';
-                e.currentTarget.style.color = 'var(--vscode-text-muted, #555)';
-              }}
-            >
-              ↑ Share
-            </button>
-            {showShareMenu && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  background: 'var(--vscode-bg-secondary)',
-                  border: '1px solid var(--vscode-border)',
-                  borderRadius: 4,
-                  padding: 4,
-                  zIndex: 1000,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  minWidth: 140,
-                }}
-                onMouseLeave={() => setShowShareMenu(false)}
-              >
-                {(['hackernews', 'twitter', 'reddit', 'linkedin', 'whatsapp'] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => handleShare(p)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '6px 10px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: 3,
-                      cursor: 'pointer',
-                      color: 'var(--vscode-text-primary)',
-                      fontSize: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--vscode-bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    {p === 'hackernews' && '🟠 Hacker News'}
-                    {p === 'twitter' && '🐦 Twitter'}
-                    {p === 'reddit' && '🤖 Reddit'}
-                    {p === 'linkedin' && '💼 LinkedIn'}
-                    {p === 'whatsapp' && '💬 WhatsApp'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -526,15 +485,40 @@ export default function GuidePanel({
             trigger={
               <span
                 style={{
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
                   padding: '3px 6px',
-                  color: 'var(--vscode-text-secondary)',
+                  color: 'inherit',
                   fontSize: 10,
                   lineHeight: 1.2,
                   whiteSpace: 'nowrap',
                 }}
               >
-                🐛 Report bug
+                <svg
+                  aria-hidden="true"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M5.5 5.5h5" />
+                  <path d="M4.5 7.5h7" />
+                  <path d="M4.5 9.5h7" />
+                  <path d="M6 3.5 4.5 2" />
+                  <path d="M10 3.5 11.5 2" />
+                  <path d="M3 6H1.5" />
+                  <path d="M14.5 6H13" />
+                  <path d="M3 10H1.5" />
+                  <path d="M14.5 10H13" />
+                  <path d="M5 4.5c0-1 1.3-1.8 3-1.8s3 .8 3 1.8v5c0 2-1.3 3.8-3 3.8s-3-1.8-3-3.8z" />
+                </svg>
+                Report bug
               </span>
             }
           />

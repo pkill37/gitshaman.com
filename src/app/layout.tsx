@@ -1,60 +1,33 @@
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Mono } from 'next/font/google';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
 import './globals.css';
-import { RepositoryProvider } from '@/contexts/RepositoryContext';
-import { initializeWebPlatform } from '@/shared/platform/web';
-import { config } from '@/shared/config';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
+import { getSiteUrl, SITE_NAME } from '@/lib/site';
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://explorar.dev';
-const siteName = 'explorar.dev';
-const defaultTitle = 'Explore Source Code | explorar.dev';
+const siteUrl = getSiteUrl();
+const siteName = SITE_NAME;
+const brandName = 'GitShaman';
+const defaultTitle = 'GitShaman: Semantic Code Intelligence';
 const defaultDescription =
-  'Interactive source code browser with guided learning paths for curated repositories and any GitHub repository.';
+  'Explore large codebases with indexed files, symbols, references, dependency views, and curated guides for developers and agents.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  applicationName: brandName,
   title: {
     default: defaultTitle,
     template: `%s | ${siteName}`,
   },
   description: defaultDescription,
-  keywords: [
-    'source code browser',
-    'CPython',
-    'glibc',
-    'LLVM',
-    'code exploration',
-    'interactive learning',
-    'source code explorer',
-    'code browser',
-    'GitHub repository explorer',
-    'interactive code browser',
-    'VS Code interface',
-    'code study',
-    'software development',
-    'programming education',
-    'open source learning',
-    'codebase navigation',
-    'software engineering',
-    'developer tools',
-    'code analysis',
-    'source code analysis',
-  ],
-  authors: [{ name: 'explorar.dev' }],
-  creator: 'explorar.dev',
-  publisher: 'explorar.dev',
-  category: 'Education',
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: 'Developer Tools',
   classification: 'Developer Tools, Educational Software',
   formatDetection: {
     email: false,
@@ -65,25 +38,15 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: siteUrl,
-    siteName: siteName,
+    siteName: brandName,
     title: defaultTitle,
     description: defaultDescription,
-    images: [
-      {
-        url: `${siteUrl}/og.png`,
-        width: 1200,
-        height: 630,
-        alt: defaultTitle,
-        type: 'image/png',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: defaultTitle,
     description: defaultDescription,
-    images: [`${siteUrl}/og.png`],
-    creator: '@explorardev',
+    creator: '@gitshaman',
   },
   robots: {
     index: true,
@@ -119,7 +82,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: siteName,
+    title: brandName,
   },
 };
 
@@ -135,11 +98,20 @@ export default function RootLayout({
   const webAppSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: siteName,
+    name: brandName,
+    alternateName: siteName,
     description: defaultDescription,
     url: siteUrl,
-    applicationCategory: 'EducationalApplication',
+    applicationCategory: 'DeveloperApplication',
     operatingSystem: 'Web',
+    browserRequirements: 'Requires JavaScript. Runs in a modern web browser.',
+    featureList: [
+      'Replace github.com with gitshaman.com to open repository workspaces',
+      'Explore arbitrary GitHub repositories',
+      'Search indexed source files, symbols, and references',
+      'Browse curated source-code guides linked to implementation evidence',
+      'Explore dependency relationships across large repositories',
+    ],
     offers: {
       '@type': 'Offer',
       price: '0',
@@ -147,79 +119,53 @@ export default function RootLayout({
     },
     author: {
       '@type': 'Organization',
-      name: siteName,
+      name: brandName,
+      url: siteUrl,
     },
   };
 
   const webSiteSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: siteName,
+    name: brandName,
+    alternateName: siteName,
     url: siteUrl,
     description: defaultDescription,
     potentialAction: {
-      '@type': 'SearchAction',
+      '@type': 'ViewAction',
       target: {
         '@type': 'EntryPoint',
-        urlTemplate: `${siteUrl}?search={search_term_string}`,
+        urlTemplate: `${siteUrl}/{owner}/{repo}`,
       },
-      'query-input': 'required name=search_term_string',
+      name: 'Open a GitHub repository in GitShaman',
     },
     publisher: {
       '@type': 'Organization',
-      name: siteName,
+      name: brandName,
       url: siteUrl,
     },
   };
 
-  const organizationSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: siteName,
-    url: siteUrl,
-    description: defaultDescription,
-    logo: `${siteUrl}/og.png`,
-    sameAs: [
-      // Add social media profiles when available
-      // 'https://twitter.com/explorardev',
-      // 'https://github.com/explorardev',
-    ],
-  };
-
-  // Initialize web platform on client side
-  if (typeof window !== 'undefined') {
-    initializeWebPlatform({
-      guidesApiUrl: config.getGuidesApiUrl(),
-      guidesApiKey: config.getGuidesApiKey(),
-    });
-  }
+  const serializeJsonLd = (value: object) => JSON.stringify(value).replace(/</g, '\\u003c');
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* Structured Data - JSON-LD for SEO */}
-        <Script
+      <body className={`${geistMono.variable} antialiased`}>
+        <script
           id="webapp-schema"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webAppSchema),
+            __html: serializeJsonLd(webAppSchema),
           }}
         />
-        <Script
+        <script
           id="website-schema"
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(webSiteSchema),
+            __html: serializeJsonLd(webSiteSchema),
           }}
         />
-        <Script
-          id="organization-schema"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationSchema),
-          }}
-        />
-        <RepositoryProvider>{children}</RepositoryProvider>
+        {children}
       </body>
     </html>
   );

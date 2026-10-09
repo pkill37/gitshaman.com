@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
-import { notFound } from 'next/navigation';
 import { getCuratedRepoRouteParams, resolveCuratedRepoRoute } from '@/lib/curated-repos';
+import { getSiteUrl, SITE_NAME } from '@/lib/site';
+import RepositoryAppProvider from '@/features/repository/RepositoryAppProvider';
 
 export const dynamicParams = false;
 
@@ -9,7 +9,7 @@ export async function generateStaticParams() {
   return getCuratedRepoRouteParams();
 }
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://explorar.dev';
+const siteUrl = getSiteUrl();
 
 export async function generateMetadata({
   params,
@@ -24,13 +24,12 @@ export async function generateMetadata({
   }
 
   const { config, canonicalPath, isLegacyPath } = resolved;
-  const repoLabel = `${config.owner}/${config.repo}`;
-  const canonicalUrl = `${siteUrl}${canonicalPath}`;
+  const canonicalUrl = `${siteUrl}${canonicalPath}/`;
 
   if (isLegacyPath) {
     return {
-      title: `${config.displayName} | explorar.dev`,
-      description: `Legacy route for ${config.displayName}. Redirecting to the canonical explorar.dev URL.`,
+      title: config.displayName,
+      description: `Legacy route for ${config.displayName}. Redirecting to the canonical ${SITE_NAME} URL.`,
       alternates: {
         canonical: canonicalUrl,
       },
@@ -42,38 +41,20 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${config.displayName} | explorar.dev`,
+    title: config.displayName,
     description: config.seoDescription,
-    keywords: [
-      ...config.seoKeywords,
-      repoLabel,
-      config.owner,
-      config.repo,
-      config.displayName,
-      'source code explorer',
-      'interactive code browser',
-    ],
     openGraph: {
-      title: `${config.displayName} | explorar.dev`,
+      title: `${config.displayName} | ${SITE_NAME}`,
       description: config.seoDescription,
       url: canonicalUrl,
       type: 'website',
-      siteName: 'explorar.dev',
-      images: [
-        {
-          url: `${siteUrl}/og.png`,
-          width: 1200,
-          height: 630,
-          alt: `${config.displayName} - Source Code Explorer`,
-        },
-      ],
+      siteName: SITE_NAME,
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${config.displayName} | explorar.dev`,
+      title: `${config.displayName} | ${SITE_NAME}`,
       description: config.seoDescription,
-      images: [`${siteUrl}/og.png`],
-      creator: '@explorardev',
+      creator: '@gitshaman',
     },
     alternates: {
       canonical: canonicalUrl,
@@ -104,17 +85,13 @@ export default async function RepositoryRouteLayout({
   const { repoPath } = await params;
   const resolved = resolveCuratedRepoRoute(repoPath);
 
-  if (!resolved) {
-    notFound();
-  }
-
+  if (!resolved) return <RepositoryAppProvider>{children}</RepositoryAppProvider>;
   if (resolved.isLegacyPath) {
-    return children;
+    return <RepositoryAppProvider>{children}</RepositoryAppProvider>;
   }
 
   const { config, canonicalPath } = resolved;
-  const repoLabel = `${config.owner}/${config.repo}`;
-  const repoUrl = `${siteUrl}${canonicalPath}`;
+  const repoUrl = `${siteUrl}${canonicalPath}/`;
   const githubUrl = `https://github.com/${config.owner}/${config.repo}`;
 
   const softwareSourceCodeSchema = {
@@ -123,7 +100,7 @@ export default async function RepositoryRouteLayout({
     name: config.displayName,
     codeRepository: githubUrl,
     url: repoUrl,
-    description: `Interactive source code browser for ${repoLabel}`,
+    description: config.seoDescription,
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'Web',
     offers: {
@@ -152,23 +129,25 @@ export default async function RepositoryRouteLayout({
     ],
   };
 
+  const serializeJsonLd = (value: object) => JSON.stringify(value).replace(/</g, '\\u003c');
+
   return (
-    <>
-      <Script
+    <RepositoryAppProvider>
+      <script
         id="software-source-code-schema"
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(softwareSourceCodeSchema),
+          __html: serializeJsonLd(softwareSourceCodeSchema),
         }}
       />
-      <Script
+      <script
         id="breadcrumb-schema"
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbSchema),
+          __html: serializeJsonLd(breadcrumbSchema),
         }}
       />
       {children}
-    </>
+    </RepositoryAppProvider>
   );
 }

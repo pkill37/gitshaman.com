@@ -17,7 +17,7 @@ defaultOpenIds:
 
 GhostBSD is a FreeBSD-derived operating system with desktop-oriented defaults. Its kernel reading path starts in the same places as FreeBSD, but the interesting question is how a downstream system carries source changes, device defaults, and integration choices.
 
-Read this guide as a downstream-maintenance exercise. The goal is not to prove that every subsystem was rewritten; it is to learn where a desktop BSD distribution changes the user-visible system while still relying on the FreeBSD kernel architecture.
+Read this guide as a downstream-maintenance exercise. The goal is not to prove that every subsystem was rewritten; the goal is to learn where a desktop BSD distribution changes the user-visible system while still relying on the FreeBSD kernel architecture.
 
 ---
 id: ch1
@@ -43,7 +43,7 @@ fileRecommendations:
 
 GhostBSD keeps the recognizable FreeBSD source layout. That means `sys/` remains the center for kernel work, while `stand/`, `sbin/`, `etc/`, and the rest of userland provide the base-system context around it.
 
-For kernel exploration, start by treating it as a FreeBSD tree and then look for downstream policy. Configuration defaults, device enablement, and desktop-facing integration points usually tell you more about GhostBSD than low-level rewrites do.
+For kernel exploration, start by treating it as a FreeBSD tree and then look for downstream policy. Configuration defaults, device enablement, and desktop-facing integration points often tell you more about GhostBSD than low-level rewrites do.
 
 The first reading pass should establish the inherited baseline. `sys/conf/files`, `sys/conf/options`, and `sys/amd64/conf/GENERIC` explain how the kernel is selected and compiled. Once you understand that baseline, downstream changes become easier to classify: source changes alter mechanisms, config changes alter what is compiled, and runtime defaults alter how stock mechanisms behave after boot.
 
@@ -100,9 +100,9 @@ fileRecommendations:
 
 The core kernel services are inherited from the same BSD design: processes and threads, virtual memory, scheduling, and VFS. Read these files as the stable substrate GhostBSD relies on rather than as a separate desktop layer.
 
-The important downstream reading habit is comparison. When a desktop distribution changes defaults, enables hardware support, or packages a different experience, the kernel core may remain close to upstream while the operating system behavior changes substantially.
+The important downstream reading habit is comparison. When a desktop distribution changes defaults, enables hardware support, or packages a different experience, the kernel core may remain close to upstream while the operating system behavior changes for desktop users.
 
-Use the FreeBSD-shaped core as stable vocabulary. In `sys/sys/proc.h`, identify `struct proc` and `struct thread`; in `sys/kern/kern_fork.c`, follow process creation; in `sys/kern/sched_ule.c`, look for the policy that makes kern.sched.preempt_thresh meaningful. The GhostBSD-specific lesson is that a desktop default can sit several layers away from the code that enforces it.
+Use the FreeBSD-shaped core as stable vocabulary. In `sys/sys/proc.h`, identify `struct proc` and `struct thread`; in `sys/kern/kern_fork.c`, follow process creation; in `sys/kern/sched_ule.c`, look for the policy that makes kern.sched.preempt_thresh meaningful. The GhostBSD-specific lesson is that a desktop default can sit layers away from the code that enforces it.
 
 For VM and VFS, keep one example in mind: mounting or opening a desktop application image. VFS policy decides who may mount, VM handles mapped executable pages, and process code supplies credentials. GhostBSD does not need a new kernel architecture for that workflow; it needs inherited subsystems with different defaults.
 
@@ -134,4 +134,4 @@ The USB HID setting in `sbin/sysctl/sysctl.conf` is a good example of distributi
 
 Trace hardware support in two passes. First, read `sys/kern/subr_bus.c`, `sys/sys/bus.h`, and `sys/dev/pci/pci.c` to understand probe, attach, and bus-specific resource discovery. Then read `sys/dev/usb/usb_hid.c` next to the hw.usb.usbhid.enable default. That pairing shows the difference between a driver mechanism and a distribution decision to prefer that mechanism.
 
-The practical takeaway is that downstream kernel work often lives at the boundary between code and defaults. For GhostBSD, the most educational files are the ones that reveal that boundary clearly rather than the largest kernel files.
+The practical takeaway is that downstream kernel work often lives at the boundary between code and defaults. For GhostBSD, the most educational files are the ones that reveal that boundary rather than the largest kernel files.

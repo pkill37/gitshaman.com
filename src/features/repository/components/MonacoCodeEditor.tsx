@@ -10,14 +10,15 @@ import {
   type Location,
   type SymbolReference,
 } from '@/lib/cross-reference';
-import type { LoadedCodeIndex } from '@/lib/code-index';
 import {
-  HeuristicLanguageBackend,
-  IndexedLanguageBackend,
-  LanguageBackendRegistry,
-  type BackendDefinition,
-  type LanguageBackendContext,
-} from '@/lib/language-backends';
+  findCodeIndexSymbolsByName,
+  searchCodeIndexSymbols,
+  type CodeIndexSymbolEntry,
+  type LoadedCodeIndex,
+} from '@/lib/code-index';
+import { HeuristicLanguageBackend, IndexedLanguageBackend } from '@/lib/language-backends';
+import type { BackendDefinition, LanguageBackendContext } from '@/lib/semantic-backend-contract';
+import { SemanticQueryService } from '@/lib/semantic-query-service';
 import { configureMonacoEnvironment as configureMonacoWorkers } from '@/lib/monaco-config';
 import { debugLog } from '@/lib/browser-debug';
 
@@ -32,6 +33,91 @@ type OpenFileFn = (
   scrollToLine?: number,
   searchScope?: string[]
 ) => void;
+
+const MONACO_DARK_THEME = 'gitshaman-dark';
+const MONACO_LIGHT_THEME = 'gitshaman-light';
+
+type MonacoThemeApi = {
+  editor?: {
+    defineTheme?: (name: string, data: Record<string, unknown>) => void;
+    setTheme?: (name: string) => void;
+  };
+};
+
+function getMonacoThemeName(editorTheme: 'vs-dark' | 'vs'): string {
+  return editorTheme === 'vs' ? MONACO_LIGHT_THEME : MONACO_DARK_THEME;
+}
+
+function configureMonacoThemes(monaco: MonacoThemeApi): void {
+  const defineTheme = monaco.editor?.defineTheme;
+  if (!defineTheme) return;
+
+  defineTheme(MONACO_DARK_THEME, {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '', foreground: 'eee8dc', background: '17151c' },
+      { token: 'comment', foreground: '898292', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'c4a7e7' },
+      { token: 'string', foreground: '95d6a4' },
+      { token: 'number', foreground: 'efc66f' },
+      { token: 'type', foreground: '63d8c9' },
+      { token: 'function', foreground: '8ecbff' },
+      { token: 'variable', foreground: 'eee8dc' },
+    ],
+    colors: {
+      'editor.background': '#17151c',
+      'editor.foreground': '#eee8dc',
+      'editorLineNumber.foreground': '#777180',
+      'editorLineNumber.activeForeground': '#eee8dc',
+      'editorCursor.foreground': '#63d8c9',
+      'editor.selectionBackground': '#39415a',
+      'editor.inactiveSelectionBackground': '#2b2436',
+      'editor.lineHighlightBackground': '#211c2b',
+      'editorGutter.background': '#17151c',
+      'minimap.background': '#17151c',
+      'scrollbarSlider.background': '#3c314780',
+      'scrollbarSlider.hoverBackground': '#3c3147b0',
+      'editorWidget.background': '#211c2b',
+      'editorWidget.foreground': '#eee8dc',
+      'editorSuggestWidget.background': '#211c2b',
+      'editorSuggestWidget.foreground': '#eee8dc',
+    },
+  });
+
+  defineTheme(MONACO_LIGHT_THEME, {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: '', foreground: '29232e', background: 'fbf7ed' },
+      { token: 'comment', foreground: '786e7b', fontStyle: 'italic' },
+      { token: 'keyword', foreground: '6f42c1' },
+      { token: 'string', foreground: '1f7a3f' },
+      { token: 'number', foreground: '9b6b1e' },
+      { token: 'type', foreground: '287f78' },
+      { token: 'function', foreground: '0b63a8' },
+      { token: 'variable', foreground: '29232e' },
+    ],
+    colors: {
+      'editor.background': '#fbf7ed',
+      'editor.foreground': '#29232e',
+      'editorLineNumber.foreground': '#8d8290',
+      'editorLineNumber.activeForeground': '#29232e',
+      'editorCursor.foreground': '#287f78',
+      'editor.selectionBackground': '#c6e4df',
+      'editor.inactiveSelectionBackground': '#e8deca',
+      'editor.lineHighlightBackground': '#f1eadb',
+      'editorGutter.background': '#fbf7ed',
+      'minimap.background': '#fbf7ed',
+      'scrollbarSlider.background': '#d5c7ad80',
+      'scrollbarSlider.hoverBackground': '#d5c7adb0',
+      'editorWidget.background': '#f1eadb',
+      'editorWidget.foreground': '#29232e',
+      'editorSuggestWidget.background': '#f1eadb',
+      'editorSuggestWidget.foreground': '#29232e',
+    },
+  });
+}
 
 const INDEXABLE_SOURCE_EXTENSIONS = new Set([
   'c',
@@ -218,6 +304,45 @@ function rankReferenceCandidatePaths(
     .map(([filePath]) => filePath);
 }
 
+function getKnownDefinitionCandidatePaths(symbolName: string): string[] {
+  const normalizedSymbol = normalizeSymbolQuery(symbolName);
+  const paths: string[] = [];
+
+  if (
+    normalizedSymbol === 'pr_debug' ||
+    normalizedSymbol === 'pr_info' ||
+    normalizedSymbol === 'pr_warn' ||
+    normalizedSymbol === 'pr_warning' ||
+    normalizedSymbol === 'pr_err' ||
+    normalizedSymbol === 'pr_notice' ||
+    normalizedSymbol === 'pr_cont' ||
+    normalizedSymbol === 'pr_devel' ||
+    normalizedSymbol === 'printk' ||
+    normalizedSymbol === 'no_printk'
+  ) {
+    paths.push('include/linux/printk.h');
+  }
+
+  if (normalizedSymbol.startsWith('dev_') || normalizedSymbol.startsWith('netdev_')) {
+    paths.push('include/linux/dev_printk.h', 'include/linux/device.h');
+  }
+
+  if (normalizedSymbol.startsWith('list_') || normalizedSymbol.startsWith('hlist_')) {
+    paths.push('include/linux/list.h', 'include/linux/llist.h');
+  }
+
+  if (
+    normalizedSymbol.startsWith('spin_') ||
+    normalizedSymbol.startsWith('raw_spin_') ||
+    normalizedSymbol.startsWith('read_lock') ||
+    normalizedSymbol.startsWith('write_lock')
+  ) {
+    paths.push('include/linux/spinlock.h', 'include/linux/spinlock_types.h');
+  }
+
+  return paths;
+}
+
 function findBestMatchingSymbolDefinition(
   symbolName: string,
   symbols: SymbolReference[]
@@ -232,6 +357,55 @@ function findBestMatchingSymbolDefinition(
     symbols.find((symbol) => normalizeSymbolQuery(symbol.name) === normalizedSymbol) ??
     null
   );
+}
+
+function buildLocalSymbolHoverMarkdown(symbolName: string, symbols: SymbolReference[]): string[] {
+  const definition = findBestMatchingSymbolDefinition(symbolName, symbols);
+  const allRefs = findAllReferences(symbolName, symbols);
+  const usageCount = allRefs.length;
+
+  if (!definition && usageCount === 0) {
+    return [];
+  }
+
+  const symbol = definition ?? symbols.find((candidate) => candidate.name === symbolName) ?? null;
+  const symbolType = symbol?.type ?? 'symbol';
+  const contents = [`**${symbolName}** \`${symbolType}\``];
+
+  if (symbol?.type === 'function' && symbol.signature) {
+    contents.push('```c\n' + symbol.signature + '\n```');
+  } else if ((symbol?.type === 'struct' || symbol?.type === 'class') && symbol.members) {
+    if (symbol.members.length > 0) {
+      const membersList = symbol.members
+        .slice(0, 10)
+        .map((member) => `  ${member.type} ${member.name};`)
+        .join('\n');
+      const moreText =
+        symbol.members.length > 10 ? `\n  // ... ${symbol.members.length - 10} more` : '';
+      contents.push('```c\n' + membersList + moreText + '\n```');
+    }
+  }
+
+  if (symbol?.documentation) {
+    contents.push(`*${symbol.documentation}*`);
+  }
+
+  contents.push(`**${usageCount}** reference${usageCount !== 1 ? 's' : ''} found`);
+
+  if (symbol && symbol.relatedSymbols.length > 0) {
+    const relatedList = symbol.relatedSymbols.slice(0, 5).join(', ');
+    const moreRelated =
+      symbol.relatedSymbols.length > 5 ? ` +${symbol.relatedSymbols.length - 5} more` : '';
+    contents.push(`*Related: ${relatedList}${moreRelated}*`);
+  }
+
+  if (symbol) {
+    contents.push(
+      `${symbol.isDefinition ? '📍' : '📝'} Line ${symbol.line} in ${symbol.file.split('/').pop()}`
+    );
+  }
+
+  return contents;
 }
 
 function backendDefinitionToSymbolReference(definition: BackendDefinition): SymbolReference {
@@ -262,16 +436,27 @@ function symbolReferenceToBackendDefinition(symbol: SymbolReference): BackendDef
   };
 }
 
-// Dynamically import Monaco Editor to avoid SSR issues
-const Editor = dynamic(() => import('@monaco-editor/react'), {
-  ssr: false,
-  loading: () => (
-    <div className="vscode-loading">
-      <div className="vscode-spinner" />
-      <div>Loading editor...</div>
-    </div>
-  ),
-});
+// Configure the local Monaco runtime before mounting the lazy-loaded editor.
+const Editor = dynamic(
+  async () => {
+    configureMonacoWorkers();
+    const [monaco, { default: MonacoEditor, loader }] = await Promise.all([
+      import('monaco-editor'),
+      import('@monaco-editor/react'),
+    ]);
+    loader.config({ monaco });
+    return MonacoEditor;
+  },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="vscode-loading">
+        <div className="vscode-spinner" />
+        <div>Loading editor...</div>
+      </div>
+    ),
+  }
+);
 
 interface MonacoCodeEditorProps {
   filePath: string;
@@ -355,6 +540,95 @@ type XrefPanelState = {
   error: string | null;
 };
 
+type DefinitionCandidate = SymbolReference & {
+  provider: string;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+};
+
+type DefinitionPanelState = {
+  symbolName: string;
+  candidates: DefinitionCandidate[];
+};
+
+function codeIndexSymbolToDefinitionCandidate(
+  symbol: CodeIndexSymbolEntry,
+  reason: string,
+  confidence: DefinitionCandidate['confidence'] = 'high'
+): DefinitionCandidate {
+  const reference = backendDefinitionToSymbolReference({
+    name: symbol.name,
+    kind: symbol.kind,
+    file: symbol.path,
+    line: symbol.startLine,
+    column: symbol.startColumn,
+    signature: symbol.signature ?? undefined,
+    documentation: symbol.doc ?? undefined,
+  });
+  return {
+    ...reference,
+    provider: 'indexed',
+    confidence,
+    reason,
+  };
+}
+
+function symbolReferenceToDefinitionCandidate(
+  symbol: SymbolReference,
+  reason: string,
+  confidence: DefinitionCandidate['confidence'] = 'medium'
+): DefinitionCandidate {
+  return {
+    ...symbol,
+    provider: 'heuristic',
+    confidence,
+    reason,
+  };
+}
+
+function dedupeDefinitionCandidates(candidates: DefinitionCandidate[]): DefinitionCandidate[] {
+  const rankedConfidence = { high: 0, medium: 1, low: 2 } satisfies Record<
+    DefinitionCandidate['confidence'],
+    number
+  >;
+  const byLocation = new Map<string, DefinitionCandidate>();
+  for (const candidate of candidates) {
+    const key = `${candidate.name}:${candidate.file}:${candidate.line}:${candidate.column}`;
+    const existing = byLocation.get(key);
+    if (
+      !existing ||
+      rankedConfidence[candidate.confidence] < rankedConfidence[existing.confidence]
+    ) {
+      byLocation.set(key, candidate);
+    }
+  }
+  return Array.from(byLocation.values()).sort((left, right) => {
+    const confidenceDelta = rankedConfidence[left.confidence] - rankedConfidence[right.confidence];
+    if (confidenceDelta !== 0) return confidenceDelta;
+    const definitionDelta = Number(right.isDefinition) - Number(left.isDefinition);
+    if (definitionDelta !== 0) return definitionDelta;
+    const kindDelta = definitionKindRank(left.type) - definitionKindRank(right.type);
+    if (kindDelta !== 0) return kindDelta;
+    return left.file.localeCompare(right.file) || left.line - right.line;
+  });
+}
+
+function definitionKindRank(kind: SymbolReference['type']): number {
+  if (kind === 'macro') return 0;
+  if (kind === 'function') return 1;
+  if (kind === 'typedef') return 2;
+  if (kind === 'struct' || kind === 'class') return 3;
+  return 4;
+}
+
+function definitionReasonForSymbol(symbol: CodeIndexSymbolEntry | SymbolReference): string {
+  const kind = 'kind' in symbol ? symbol.kind : symbol.type;
+  if (kind === 'macro') return 'macro-definition';
+  if (kind === 'function') return 'function-definition';
+  if (kind === 'typedef' || kind === 'type') return 'type-definition';
+  return 'workspace-symbol';
+}
+
 const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   filePath,
   content,
@@ -385,6 +659,9 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   } | null>(null);
   const [hasMountedEditor, setHasMountedEditor] = useState(false);
   const [xrefPanelState, setXrefPanelState] = useState<XrefPanelState | null>(null);
+  const [definitionPanelState, setDefinitionPanelState] = useState<DefinitionPanelState | null>(
+    null
+  );
 
   const disposeRegisteredProviders = useCallback(() => {
     for (const disposable of providerDisposablesRef.current) {
@@ -425,100 +702,107 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     );
   }, []);
 
-  const findDefinitionLineForPattern = useCallback((pattern: string, lines: string[]): number => {
-    const normalizedPattern = pattern.trim().replace(/\(\)$/, '');
-    if (!normalizedPattern) return -1;
+  const findDefinitionLineForPattern = useCallback(
+    (pattern: string, lines: string[], symbols: SymbolReference[] = symbolsRef.current): number => {
+      const normalizedPattern = pattern.trim().replace(/\(\)$/, '');
+      if (!normalizedPattern) return -1;
 
-    const slugifyHeading = (value: string) =>
-      value
-        .replace(/`([^`]+)`/g, '$1')
-        .replace(/<[^>]*>/g, '')
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9 _-]+/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+      const slugifyHeading = (value: string) =>
+        value
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/<[^>]*>/g, '')
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9 _-]+/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
 
-    const normalizedSlug = slugifyHeading(normalizedPattern);
-    if (normalizedSlug) {
-      for (let i = 0; i < lines.length; i++) {
-        const markdownHeading = lines[i].match(/^#{1,6}\s+(.+?)\s*#*$/);
-        if (markdownHeading) {
-          const headingText = markdownHeading[1].trim();
-          if (headingText === normalizedPattern || slugifyHeading(headingText) === normalizedSlug) {
+      const normalizedSlug = slugifyHeading(normalizedPattern);
+      if (normalizedSlug) {
+        for (let i = 0; i < lines.length; i++) {
+          const markdownHeading = lines[i].match(/^#{1,6}\s+(.+?)\s*#*$/);
+          if (markdownHeading) {
+            const headingText = markdownHeading[1].trim();
+            if (
+              headingText === normalizedPattern ||
+              slugifyHeading(headingText) === normalizedSlug
+            ) {
+              return i + 1;
+            }
+          }
+
+          const currentLine = lines[i].trim();
+          const nextLine = lines[i + 1]?.trim() || '';
+          if (
+            currentLine &&
+            /^[=\-~^"']+$/.test(nextLine) &&
+            (currentLine === normalizedPattern || slugifyHeading(currentLine) === normalizedSlug)
+          ) {
             return i + 1;
           }
         }
-
-        const currentLine = lines[i].trim();
-        const nextLine = lines[i + 1]?.trim() || '';
-        if (
-          currentLine &&
-          /^[=\-~^"']+$/.test(nextLine) &&
-          (currentLine === normalizedPattern || slugifyHeading(currentLine) === normalizedSlug)
-        ) {
-          return i + 1;
-        }
       }
-    }
 
-    const directDefinition = findDefinition(normalizedPattern, symbolsRef.current);
-    if (directDefinition) {
-      return directDefinition.line;
-    }
-
-    const exactDefinition = symbolsRef.current.find(
-      (symbol) =>
-        symbol.isDefinition &&
-        (symbol.name === normalizedPattern ||
-          symbol.name === normalizedPattern.replace(/^(struct|class|enum)\s+/, ''))
-    );
-    if (exactDefinition) {
-      return exactDefinition.line;
-    }
-
-    const escapedPattern = normalizedPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const simpleName = normalizedPattern.replace(/^(struct|class|enum)\s+/, '');
-    const escapedSimpleName = simpleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const definitionPatterns = [
-      new RegExp(`^\\s*(?:export\\s+)?(?:async\\s+)?function\\s+${escapedSimpleName}\\s*\\(`),
-      new RegExp(
-        `^\\s*(?:export\\s+)?(?:const|let|var)\\s+${escapedSimpleName}\\s*=\\s*(?:async\\s*)?\\(`
-      ),
-      new RegExp(
-        `^\\s*(?:export\\s+)?(?:const|let|var)\\s+${escapedSimpleName}\\s*=\\s*(?:async\\s*)?[^=]*=>`
-      ),
-      new RegExp(`^\\s*(?:async\\s+)?def\\s+${escapedSimpleName}\\s*\\(`),
-      new RegExp(`^\\s*fn\\s+${escapedSimpleName}\\s*\\(`),
-      new RegExp(`^\\s*func\\s+${escapedSimpleName}\\s*\\(`),
-      new RegExp(`^\\s*(?:COMPAT_)?SYSCALL_DEFINE\\d+\\s*\\(\\s*${escapedSimpleName}\\s*,?`),
-      new RegExp(
-        `^\\s*(?:[\\w~:*<>\\[\\],&]+\\s+)+${escapedSimpleName}\\s*\\([^;{}]*\\)\\s*(?:\\{|$)`
-      ),
-      new RegExp(`^\\s*${escapedPattern}\\s*\\{`),
-      new RegExp(`^\\s*${escapedPattern}\\s*$`),
-      new RegExp(`^\\s*typedef\\s+${escapedPattern}`),
-    ];
-
-    for (let i = 0; i < lines.length; i++) {
-      for (const definitionPattern of definitionPatterns) {
-        if (definitionPattern.test(lines[i])) {
-          return i + 1;
-        }
+      const directDefinition = findDefinition(normalizedPattern, symbols);
+      if (directDefinition) {
+        return directDefinition.line;
       }
-    }
 
-    if (simpleName !== normalizedPattern) {
+      const exactDefinition = symbols.find(
+        (symbol) =>
+          symbol.isDefinition &&
+          (symbol.name === normalizedPattern ||
+            symbol.name === normalizedPattern.replace(/^(struct|class|enum)\s+/, ''))
+      );
+      if (exactDefinition) {
+        return exactDefinition.line;
+      }
+
+      const escapedPattern = normalizedPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const simpleName = normalizedPattern.replace(/^(struct|class|enum)\s+/, '');
+      const escapedSimpleName = simpleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const definitionPatterns = [
+        new RegExp(`^\\s*(?:export\\s+)?(?:async\\s+)?function\\s+${escapedSimpleName}\\s*\\(`),
+        new RegExp(
+          `^\\s*(?:export\\s+)?(?:const|let|var)\\s+${escapedSimpleName}\\s*=\\s*(?:async\\s*)?\\(`
+        ),
+        new RegExp(
+          `^\\s*(?:export\\s+)?(?:const|let|var)\\s+${escapedSimpleName}\\s*=\\s*(?:async\\s*)?[^=]*=>`
+        ),
+        new RegExp(`^\\s*(?:async\\s+)?def\\s+${escapedSimpleName}\\s*\\(`),
+        new RegExp(`^\\s*fn\\s+${escapedSimpleName}\\s*\\(`),
+        new RegExp(`^\\s*func\\s+${escapedSimpleName}\\s*\\(`),
+        new RegExp(`^\\s*#\\s*define\\s+${escapedSimpleName}\\b`),
+        new RegExp(`^\\s*(?:COMPAT_)?SYSCALL_DEFINE\\d+\\s*\\(\\s*${escapedSimpleName}\\s*,?`),
+        new RegExp(
+          `^\\s*(?:[\\w~:*<>\\[\\],&]+\\s+)+${escapedSimpleName}\\s*\\([^;{}]*\\)\\s*(?:\\{|$)`
+        ),
+        new RegExp(`^\\s*${escapedPattern}\\s*\\{`),
+        new RegExp(`^\\s*${escapedPattern}\\s*$`),
+        new RegExp(`^\\s*typedef\\s+${escapedPattern}`),
+      ];
+
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes(simpleName) && lines[i].includes(normalizedPattern.split(' ')[0])) {
-          return i + 1;
+        for (const definitionPattern of definitionPatterns) {
+          if (definitionPattern.test(lines[i])) {
+            return i + 1;
+          }
         }
       }
-    }
 
-    return -1;
-  }, []);
+      if (simpleName !== normalizedPattern) {
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes(simpleName) && lines[i].includes(normalizedPattern.split(' ')[0])) {
+            return i + 1;
+          }
+        }
+      }
+
+      return -1;
+    },
+    []
+  );
 
   const getMonacoLanguage = useCallback((filename: string): string => {
     const extension = filename.split('.').pop()?.toLowerCase();
@@ -882,46 +1166,9 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   const getHeuristicHover = useCallback(async (symbolName: string) => {
-    const definition = findBestMatchingSymbolDefinition(symbolName, symbolsRef.current);
-    return definition
-      ? {
-          markdown: [
-            `**${symbolName}** \`${definition.type}\``,
-            ...(definition.signature ? ['```c\n' + definition.signature + '\n```'] : []),
-            ...(definition.documentation ? [`*${definition.documentation}*`] : []),
-          ],
-        }
-      : null;
+    const markdown = buildLocalSymbolHoverMarkdown(symbolName, symbolsRef.current);
+    return markdown.length > 0 ? { markdown } : null;
   }, []);
-
-  const getHeuristicDocumentSymbols = useCallback(async () => symbolsRef.current, []);
-
-  const backendRegistry = useMemo(() => {
-    const registry = new LanguageBackendRegistry();
-    registry.register(new IndexedLanguageBackend(codeIndex));
-    return registry;
-  }, [codeIndex]);
-
-  const createHeuristicBackend = useCallback(
-    () =>
-      new HeuristicLanguageBackend({
-        getDefinition: async (symbolName: string) => {
-          const definition = await resolveDefinitionHeuristically(symbolName);
-          return definition ? symbolReferenceToBackendDefinition(definition) : null;
-        },
-        getReferences: async (symbolName: string, context: LanguageBackendContext) =>
-          findReferencesHeuristically(symbolName, Boolean(context.includeDeclaration)),
-        getHover: getHeuristicHover,
-        getDiagnostics: async () => [],
-        getDocumentSymbols: getHeuristicDocumentSymbols,
-      }),
-    [
-      findReferencesHeuristically,
-      getHeuristicDocumentSymbols,
-      getHeuristicHover,
-      resolveDefinitionHeuristically,
-    ]
-  );
 
   const backendContext = useMemo(
     (): LanguageBackendContext => ({
@@ -932,35 +1179,216 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     [content, filePath, workspaceFilePaths]
   );
 
-  const resolveDefinitionAcrossWorkspace = useCallback(
-    async (symbolName: string): Promise<SymbolReference | null> => {
-      for (const backend of [...backendRegistry.getBackends(language), createHeuristicBackend()]) {
-        const definition = await backend.getDefinition(symbolName, backendContext);
-        if (definition) {
-          return backendDefinitionToSymbolReference(definition);
+  const semanticQueryService = useMemo(() => {
+    return new SemanticQueryService([new IndexedLanguageBackend(codeIndex)], {
+      debugLog,
+    });
+  }, [codeIndex]);
+
+  useEffect(() => {
+    semanticQueryService.register(
+      new HeuristicLanguageBackend({
+        getDefinition: async (symbolName: string) => {
+          const definition = await resolveDefinitionHeuristically(symbolName);
+          return definition ? symbolReferenceToBackendDefinition(definition) : null;
+        },
+        getReferences: async (symbolName: string, context: LanguageBackendContext) =>
+          findReferencesHeuristically(symbolName, Boolean(context.includeDeclaration)),
+        getHover: getHeuristicHover,
+        getDiagnostics: async () => [],
+        getDocumentSymbols: async () => symbolsRef.current,
+      })
+    );
+  }, [
+    findReferencesHeuristically,
+    getHeuristicHover,
+    resolveDefinitionHeuristically,
+    semanticQueryService,
+  ]);
+
+  const resolveDefinitionCandidatesAcrossWorkspace = useCallback(
+    async (symbolName: string): Promise<DefinitionCandidate[]> => {
+      const normalizedSymbol = normalizeSymbolQuery(symbolName);
+      if (!normalizedSymbol) {
+        return [];
+      }
+
+      const candidates: DefinitionCandidate[] = [];
+      const definition = await semanticQueryService.findDefinition(
+        language,
+        normalizedSymbol,
+        backendContext
+      );
+      if (definition) {
+        candidates.push({
+          ...backendDefinitionToSymbolReference(definition),
+          provider: 'semantic',
+          confidence: 'high',
+          reason: 'indexed',
+        });
+      }
+
+      if (codeIndex) {
+        const exactSymbols = findCodeIndexSymbolsByName(codeIndex, normalizedSymbol, {
+          definitionOnly: true,
+          limit: 25,
+        });
+        candidates.push(
+          ...exactSymbols.map((symbol) =>
+            codeIndexSymbolToDefinitionCandidate(
+              symbol,
+              definitionReasonForSymbol(symbol),
+              symbol.name === normalizedSymbol ? 'high' : 'medium'
+            )
+          )
+        );
+
+        const searchedSymbols = searchCodeIndexSymbols(codeIndex, normalizedSymbol, 25).filter(
+          (symbol) =>
+            symbol.isDefinition &&
+            normalizeSymbolQuery(symbol.name).toLowerCase() === normalizedSymbol.toLowerCase()
+        );
+        candidates.push(
+          ...searchedSymbols.map((symbol) =>
+            codeIndexSymbolToDefinitionCandidate(
+              symbol,
+              definitionReasonForSymbol(symbol),
+              'medium'
+            )
+          )
+        );
+      }
+
+      const localDefinition =
+        findBestMatchingSymbolDefinition(normalizedSymbol, symbolsRef.current) ??
+        symbolsRef.current.find(
+          (symbol) => normalizeSymbolQuery(symbol.name) === normalizedSymbol
+        ) ??
+        null;
+      if (localDefinition) {
+        candidates.push(
+          symbolReferenceToDefinitionCandidate(
+            localDefinition,
+            definitionReasonForSymbol(localDefinition),
+            localDefinition.isDefinition ? 'medium' : 'low'
+          )
+        );
+      }
+
+      if (fetchFile && workspaceFilePaths.length > 0) {
+        const candidatePaths = rankWorkspaceCandidatePaths(
+          normalizedSymbol,
+          filePath,
+          content,
+          workspaceFilePaths
+        );
+        const searchSeedPaths = new Set(candidatePaths.slice(0, 80));
+        const workspacePathSet = new Set(workspaceFilePaths);
+        for (const knownPath of getKnownDefinitionCandidatePaths(normalizedSymbol)) {
+          if (workspacePathSet.has(knownPath)) {
+            searchSeedPaths.add(knownPath);
+          }
+        }
+        for (const candidate of candidates) {
+          if (candidate.file && candidate.file !== filePath) {
+            searchSeedPaths.add(candidate.file);
+          }
+        }
+
+        for (const candidatePath of Array.from(searchSeedPaths).slice(0, 120)) {
+          if (!candidatePath || !isIndexableSourceFile(candidatePath)) {
+            continue;
+          }
+
+          try {
+            const candidateContent =
+              candidatePath === filePath ? content : await getWorkspaceFileContent(candidatePath);
+            if (!candidateContent) {
+              continue;
+            }
+
+            const targetLine = findDefinitionLineForPattern(
+              normalizedSymbol,
+              candidateContent.split('\n'),
+              candidatePath === filePath ? symbolsRef.current : []
+            );
+            if (targetLine === -1) {
+              continue;
+            }
+
+            const candidateSymbols =
+              candidatePath === filePath
+                ? symbolsRef.current
+                : await getAnalyzedSymbolsForFile(candidatePath);
+            const parsedDefinition = findBestMatchingSymbolDefinition(
+              normalizedSymbol,
+              candidateSymbols
+            );
+            if (parsedDefinition) {
+              candidates.push(
+                symbolReferenceToDefinitionCandidate(
+                  parsedDefinition,
+                  definitionReasonForSymbol(parsedDefinition),
+                  parsedDefinition.type === 'macro' ? 'high' : 'medium'
+                )
+              );
+              continue;
+            }
+
+            const lineText = candidateContent.split('\n')[targetLine - 1] ?? '';
+            const column = Math.max(1, lineText.indexOf(normalizedSymbol) + 1);
+            candidates.push({
+              name: normalizedSymbol,
+              type: lineText.trim().startsWith('#define') ? 'macro' : 'function',
+              line: targetLine,
+              column,
+              file: candidatePath,
+              isDefinition: true,
+              isDeclaration: false,
+              signature: lineText.trim(),
+              references: [],
+              relatedSymbols: [],
+              provider: 'heuristic',
+              confidence: lineText.trim().startsWith('#define') ? 'high' : 'medium',
+              reason: lineText.trim().startsWith('#define')
+                ? 'macro-definition'
+                : 'pattern-definition',
+            });
+          } catch (error) {
+            debugLog('[explorar:xref] deep-definition-error', {
+              symbolName: normalizedSymbol,
+              sourceFile: filePath,
+              candidatePath,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
-      return null;
+
+      return dedupeDefinitionCandidates(candidates);
     },
-    [backendContext, backendRegistry, createHeuristicBackend, language]
+    [
+      backendContext,
+      codeIndex,
+      content,
+      fetchFile,
+      filePath,
+      findDefinitionLineForPattern,
+      getAnalyzedSymbolsForFile,
+      getWorkspaceFileContent,
+      language,
+      semanticQueryService,
+      workspaceFilePaths,
+    ]
   );
 
   const findReferencesAcrossWorkspace = useCallback(
     async (symbolName: string, includeDeclaration: boolean): Promise<Location[]> => {
       const context = { ...backendContext, includeDeclaration };
-      const allReferences: Location[] = [];
-      for (const backend of [...backendRegistry.getBackends(language), createHeuristicBackend()]) {
-        const references = await backend.getReferences(symbolName, context);
-        allReferences.push(...references);
-      }
-
-      const dedupedReferences = Array.from(
-        new Map(
-          allReferences.map((reference) => [
-            `${reference.file}:${reference.line}:${reference.column}`,
-            reference,
-          ])
-        ).values()
+      const dedupedReferences = await semanticQueryService.findReferences(
+        language,
+        symbolName,
+        context
       );
 
       const uniqueReferenceFiles = Array.from(
@@ -986,19 +1414,22 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       return dedupedReferences;
     },
-    [
-      backendContext,
-      backendRegistry,
-      createHeuristicBackend,
-      ensureMonacoModelForFile,
-      filePath,
-      language,
-    ]
+    [backendContext, ensureMonacoModelForFile, filePath, language, semanticQueryService]
   );
 
   const navigateToDefinition = useCallback(
     async (symbolName: string): Promise<boolean> => {
-      const definition = await resolveDefinitionAcrossWorkspace(symbolName);
+      const candidates = await resolveDefinitionCandidatesAcrossWorkspace(symbolName);
+      if (candidates.length > 1) {
+        setXrefPanelState(null);
+        setDefinitionPanelState({
+          symbolName: normalizeSymbolQuery(symbolName),
+          candidates,
+        });
+        return true;
+      }
+
+      const definition = candidates[0] ?? null;
       if (!definition) {
         return false;
       }
@@ -1011,7 +1442,19 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       onOpenFile?.(definition.file, undefined, definition.line);
       return true;
     },
-    [content, filePath, onOpenFile, resolveDefinitionAcrossWorkspace, revealTargetLine]
+    [content, filePath, onOpenFile, resolveDefinitionCandidatesAcrossWorkspace, revealTargetLine]
+  );
+
+  const jumpToDefinitionCandidate = useCallback(
+    (definition: DefinitionCandidate) => {
+      setDefinitionPanelState(null);
+      if (definition.file === filePath) {
+        revealTargetLine(definition.line, content.split('\n'));
+        return;
+      }
+      onOpenFile?.(definition.file, undefined, definition.line);
+    },
+    [content, filePath, onOpenFile, revealTargetLine]
   );
 
   const jumpToReference = useCallback(
@@ -1682,6 +2125,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       // Configure Monaco Editor to use local workers
       configureMonacoWorkers();
+      configureMonacoThemes(monaco as MonacoThemeApi);
+      const activeMonacoTheme = getMonacoThemeName(editorTheme);
 
       // Configure editor options
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1695,7 +2140,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         wordWrap: 'off',
         readOnly: true, // Read-only for now since we're just viewing
         automaticLayout: true,
-        theme: editorTheme,
+        theme: activeMonacoTheme,
         renderWhitespace: 'selection',
         showFoldingControls: 'always',
         folding: true,
@@ -1712,9 +2157,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         },
       });
 
-      (monaco as { editor?: { setTheme?: (theme: string) => void } }).editor?.setTheme?.(
-        editorTheme
-      );
+      (monaco as MonacoThemeApi).editor?.setTheme?.(activeMonacoTheme);
 
       // Track cursor position changes for status bar
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1848,14 +2291,18 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   useEffect(() => {
-    const monaco = monacoRef.current as { editor?: { setTheme?: (theme: string) => void } } | null;
-    monaco?.editor?.setTheme?.(editorTheme);
+    const monaco = monacoRef.current as MonacoThemeApi | null;
+    if (!monaco) return;
+    configureMonacoThemes(monaco);
+    monaco.editor?.setTheme?.(getMonacoThemeName(editorTheme));
   }, [editorTheme]);
 
   useEffect(() => {
     if (!hasMountedEditor || !monacoRef.current) {
       return;
     }
+
+    let disposed = false;
 
     const monaco = monacoRef.current as {
       editor: {
@@ -1865,6 +2312,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         ) => { dispose: () => void };
       };
       languages: MonacoLanguageApi & {
+        SymbolKind: Record<string, number>;
         registerHoverProvider: (
           languageSelector: string,
           provider: Record<string, unknown>
@@ -1881,7 +2329,16 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           languageSelector: string,
           provider: Record<string, unknown>
         ) => { dispose: () => void };
+        registerDocumentSymbolProvider: (
+          languageSelector: string,
+          provider: Record<string, unknown>
+        ) => { dispose: () => void };
+        registerCallHierarchyProvider?: (
+          languageSelector: string,
+          provider: Record<string, unknown>
+        ) => { dispose: () => void };
       };
+      MarkerSeverity: { Error: number; Warning: number; Info: number };
       Range: new (
         startLineNumber: number,
         startColumn: number,
@@ -1899,6 +2356,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     };
     type MonacoModelLike = {
       getWordAtPosition: (position: MonacoPosition) => MonacoWord | null;
+      getLineMaxColumn?: (lineNumber: number) => number;
       uri: unknown;
     };
 
@@ -1912,80 +2370,11 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             if (!word) return null;
 
             const symbolName = word.word;
-            for (const backend of backendRegistry.getBackends(language)) {
-              const hover = await backend.getHover(symbolName, backendContext);
-              if (hover) {
-                return {
-                  range: new monaco.Range(
-                    position.lineNumber,
-                    word.startColumn,
-                    position.lineNumber,
-                    word.endColumn
-                  ),
-                  contents: hover.markdown.map((value) => ({ value })),
-                };
-              }
-            }
-
-            const definition = findBestMatchingSymbolDefinition(symbolName, symbolsRef.current);
-            const allRefs = findAllReferences(symbolName, symbolsRef.current);
-            const usageCount = allRefs.length;
-
-            if (definition) {
-              const contents: Array<{ value: string }> = [];
-
-              contents.push({
-                value: `**${symbolName}** \`${definition.type}\``,
-              });
-
-              if (definition.type === 'function' && definition.signature) {
-                contents.push({
-                  value: '```c\n' + definition.signature + '\n```',
-                });
-              } else if (
-                (definition.type === 'struct' || definition.type === 'class') &&
-                definition.members
-              ) {
-                if (definition.members.length > 0) {
-                  const membersList = definition.members
-                    .slice(0, 10)
-                    .map((m) => `  ${m.type} ${m.name};`)
-                    .join('\n');
-                  const moreText =
-                    definition.members.length > 10
-                      ? `\n  // ... ${definition.members.length - 10} more`
-                      : '';
-                  contents.push({
-                    value: '```c\n' + membersList + moreText + '\n```',
-                  });
-                }
-              }
-
-              if (definition.documentation) {
-                contents.push({
-                  value: `*${definition.documentation}*`,
-                });
-              }
-
-              contents.push({
-                value: `**${usageCount}** reference${usageCount !== 1 ? 's' : ''} found`,
-              });
-
-              if (definition.relatedSymbols.length > 0) {
-                const relatedList = definition.relatedSymbols.slice(0, 5).join(', ');
-                const moreRelated =
-                  definition.relatedSymbols.length > 5
-                    ? ` +${definition.relatedSymbols.length - 5} more`
-                    : '';
-                contents.push({
-                  value: `*Related: ${relatedList}${moreRelated}*`,
-                });
-              }
-
-              contents.push({
-                value: `${definition.isDefinition ? '📍' : '📝'} Line ${definition.line} in ${definition.file.split('/').pop()}`,
-              });
-
+            const hover = await semanticQueryService.getHover(language, symbolName, {
+              ...backendContext,
+              position: { line: position.lineNumber, column: position.column },
+            });
+            if (hover) {
               return {
                 range: new monaco.Range(
                   position.lineNumber,
@@ -1993,7 +2382,20 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
                   position.lineNumber,
                   word.endColumn
                 ),
-                contents,
+                contents: hover.markdown.map((value) => ({ value })),
+              };
+            }
+
+            const localMarkdown = buildLocalSymbolHoverMarkdown(symbolName, symbolsRef.current);
+            if (localMarkdown.length > 0) {
+              return {
+                range: new monaco.Range(
+                  position.lineNumber,
+                  word.startColumn,
+                  position.lineNumber,
+                  word.endColumn
+                ),
+                contents: localMarkdown.map((value) => ({ value })),
               };
             }
 
@@ -2084,31 +2486,34 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
             try {
               const symbolName = word.word;
-              const definition = await resolveDefinitionAcrossWorkspace(symbolName);
-
-              if (!definition) {
+              const definitions = await resolveDefinitionCandidatesAcrossWorkspace(symbolName);
+              if (definitions.length === 0) {
                 return [];
               }
 
-              const uri =
-                definition.file === filePath
-                  ? model.uri
-                  : await ensureMonacoModelForFile(definition.file);
-              if (!uri) {
-                return [];
-              }
-
-              return [
-                {
-                  uri,
-                  range: new monaco.Range(
-                    definition.line,
-                    definition.column,
-                    definition.line,
-                    definition.column + definition.name.length
-                  ),
-                },
-              ];
+              const locations = await Promise.all(
+                definitions.map(async (definition) => {
+                  const uri =
+                    definition.file === filePath
+                      ? model.uri
+                      : await ensureMonacoModelForFile(definition.file);
+                  if (!uri) {
+                    return null;
+                  }
+                  return {
+                    uri,
+                    range: new monaco.Range(
+                      definition.line,
+                      definition.column,
+                      definition.line,
+                      definition.column + definition.name.length
+                    ),
+                  };
+                })
+              );
+              return locations.filter((location): location is NonNullable<typeof location> =>
+                Boolean(location)
+              );
             } catch (error) {
               console.warn('[explorar:xref] provide-definition-failed', {
                 filePath,
@@ -2193,6 +2598,142 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           },
         })
       );
+
+      providerDisposablesRef.current.push(
+        monaco.languages.registerDocumentSymbolProvider(lang, {
+          provideDocumentSymbols: async () => {
+            const backendSymbols = await semanticQueryService.getDocumentSymbols(
+              language,
+              backendContext
+            );
+            const symbols = backendSymbols.length > 0 ? backendSymbols : symbolsRef.current;
+
+            return symbols
+              .filter((symbol) => symbol.line > 0)
+              .map((symbol) => {
+                const symbolKind =
+                  monaco.languages.SymbolKind[
+                    symbol.type === 'function'
+                      ? 'Function'
+                      : symbol.type === 'class'
+                        ? 'Class'
+                        : symbol.type === 'struct'
+                          ? 'Struct'
+                          : symbol.type === 'variable'
+                            ? 'Variable'
+                            : 'Object'
+                  ] ?? monaco.languages.SymbolKind.Object;
+                return {
+                  name: symbol.name,
+                  detail: symbol.signature ?? symbol.type,
+                  kind: symbolKind,
+                  range: new monaco.Range(symbol.line, 1, symbol.line, Number.MAX_SAFE_INTEGER),
+                  selectionRange: new monaco.Range(
+                    symbol.line,
+                    Math.max(1, symbol.column),
+                    symbol.line,
+                    Math.max(1, symbol.column) + symbol.name.length
+                  ),
+                };
+              });
+          },
+        })
+      );
+
+      const registerCallHierarchyProvider = monaco.languages.registerCallHierarchyProvider;
+      if (registerCallHierarchyProvider) {
+        providerDisposablesRef.current.push(
+          registerCallHierarchyProvider(lang, {
+            prepareCallHierarchy: (model: MonacoModelLike, position: MonacoPosition) => {
+              const word = model.getWordAtPosition(position);
+              if (!word) return null;
+              const range = new monaco.Range(
+                position.lineNumber,
+                word.startColumn,
+                position.lineNumber,
+                word.endColumn
+              );
+              return {
+                name: word.word,
+                detail: filePath,
+                kind: monaco.languages.SymbolKind.Function,
+                uri: model.uri,
+                range,
+                selectionRange: range,
+                data: { filePath, symbolName: word.word },
+              };
+            },
+            provideIncomingCalls: async (item: {
+              data?: { filePath?: string; symbolName?: string };
+            }) => {
+              const relationships = await semanticQueryService.getRelationships(
+                language,
+                backendContext
+              );
+              const calls = relationships.filter(
+                (relationship) =>
+                  relationship.kind === 'call' &&
+                  relationship.direction === 'incoming' &&
+                  (!item.data?.symbolName ||
+                    relationship.symbols.length === 0 ||
+                    relationship.symbols.includes(item.data.symbolName))
+              );
+              return Promise.all(
+                calls.map(async (call) => {
+                  const uri = await ensureMonacoModelForFile(call.sourcePath);
+                  const range = new monaco.Range(1, 1, 1, 1);
+                  return {
+                    from: {
+                      name: call.symbols[0] ?? getPathBasename(call.sourcePath),
+                      detail: call.sourcePath,
+                      kind: monaco.languages.SymbolKind.Function,
+                      uri,
+                      range,
+                      selectionRange: range,
+                      data: { filePath: call.sourcePath, symbolName: call.symbols[0] },
+                    },
+                    fromRanges: [range],
+                  };
+                })
+              );
+            },
+            provideOutgoingCalls: async (item: {
+              data?: { filePath?: string; symbolName?: string };
+            }) => {
+              const relationships = await semanticQueryService.getRelationships(
+                language,
+                backendContext
+              );
+              const calls = relationships.filter(
+                (relationship) =>
+                  relationship.kind === 'call' &&
+                  relationship.direction === 'outgoing' &&
+                  (!item.data?.symbolName ||
+                    relationship.symbols.length === 0 ||
+                    relationship.symbols.includes(item.data.symbolName))
+              );
+              return Promise.all(
+                calls.map(async (call) => {
+                  const uri = await ensureMonacoModelForFile(call.targetPath);
+                  const range = new monaco.Range(1, 1, 1, 1);
+                  return {
+                    to: {
+                      name: call.symbols[0] ?? getPathBasename(call.targetPath),
+                      detail: call.targetPath,
+                      kind: monaco.languages.SymbolKind.Function,
+                      uri,
+                      range,
+                      selectionRange: range,
+                      data: { filePath: call.targetPath, symbolName: call.symbols[0] },
+                    },
+                    fromRanges: [range],
+                  };
+                })
+              );
+            },
+          })
+        );
+      }
     };
 
     providerDisposablesRef.current.push(
@@ -2207,8 +2748,45 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       })
     );
 
-    if (backendRegistry.getBackends(language).length > 0) {
+    if (semanticQueryService.getBackends(language).length > 0) {
       registerLSPProviders(language);
+
+      const model = (editorRef.current as MonacoEditorLike | null)?.getModel();
+      if (model) {
+        void semanticQueryService
+          .getDiagnostics(language, backendContext)
+          .then((diagnostics) => {
+            if (disposed || (editorRef.current as MonacoEditorLike | null)?.getModel() !== model) {
+              return;
+            }
+            const editorApi = monaco.editor as typeof monaco.editor & {
+              setModelMarkers: (model: unknown, owner: string, markers: unknown[]) => void;
+            };
+            editorApi.setModelMarkers(
+              model,
+              'gitshaman-semantic',
+              diagnostics.map((diagnostic) => ({
+                severity:
+                  diagnostic.severity === 'error'
+                    ? monaco.MarkerSeverity.Error
+                    : diagnostic.severity === 'warning'
+                      ? monaco.MarkerSeverity.Warning
+                      : monaco.MarkerSeverity.Info,
+                message: diagnostic.message,
+                startLineNumber: diagnostic.line,
+                startColumn: diagnostic.column,
+                endLineNumber: diagnostic.line,
+                endColumn: diagnostic.column + 1,
+              }))
+            );
+          })
+          .catch((error) => {
+            debugLog('[explorar:semantic] diagnostics-error', {
+              filePath,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
     }
 
     const foldingRanges = getAutoFoldRanges();
@@ -2237,10 +2815,12 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       }
     }
 
-    return disposeRegisteredProviders;
+    return () => {
+      disposed = true;
+      disposeRegisteredProviders();
+    };
   }, [
     backendContext,
-    backendRegistry,
     content,
     disposeRegisteredProviders,
     ensureMonacoModelForFile,
@@ -2249,7 +2829,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     getAutoFoldRanges,
     hasMountedEditor,
     language,
-    resolveDefinitionAcrossWorkspace,
+    resolveDefinitionCandidatesAcrossWorkspace,
+    semanticQueryService,
     workspaceFilePaths,
     workspaceId,
   ]);
@@ -2299,7 +2880,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           width="100%"
           language={language}
           value={content}
-          theme={editorTheme}
+          theme={getMonacoThemeName(editorTheme)}
+          saveViewState={false}
           onMount={handleEditorDidMount}
           options={{
             readOnly: true,
@@ -2319,6 +2901,11 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             selectOnLineNumbers: true,
             smoothScrolling: true,
             cursorBlinking: 'smooth',
+            hover: {
+              enabled: true,
+              delay: 250,
+              sticky: true,
+            },
           }}
         />
         {xrefPanelState && (
@@ -2382,6 +2969,55 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
                   </section>
                 ))
               )}
+            </div>
+          </aside>
+        )}
+        {definitionPanelState && (
+          <aside className="explorar-xref-panel" aria-label="Definition candidates">
+            <div className="explorar-xref-panel-header">
+              <div className="explorar-xref-panel-title-wrap">
+                <div className="explorar-xref-panel-label">Definitions</div>
+                <div className="explorar-xref-panel-title">
+                  {definitionPanelState.symbolName}
+                  <span className="explorar-xref-panel-count">
+                    {definitionPanelState.candidates.length}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="explorar-xref-panel-close"
+                aria-label="Close definition candidates"
+                onClick={() => setDefinitionPanelState(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="explorar-xref-panel-subtitle">
+              Choose the macro, inline helper, or symbol definition to open.
+            </div>
+            <div className="explorar-xref-panel-body">
+              <div className="explorar-xref-group-list">
+                {definitionPanelState.candidates.map((candidate) => {
+                  const key = `${candidate.file}:${candidate.line}:${candidate.column}:${candidate.reason}`;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className="explorar-xref-row"
+                      onClick={() => jumpToDefinitionCandidate(candidate)}
+                    >
+                      <span className="explorar-xref-row-line">L{candidate.line}</span>
+                      <span className="explorar-xref-row-preview">
+                        <strong>{candidate.type}</strong> {candidate.signature ?? candidate.name}
+                        <span className="explorar-xref-row-meta">
+                          {candidate.file} · {candidate.reason} · {candidate.confidence}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </aside>
         )}

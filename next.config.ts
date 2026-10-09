@@ -1,8 +1,10 @@
 import type { NextConfig } from 'next';
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 import { withMonacoEditor } from './scripts/monaco-plugin';
 
 const nextConfig: NextConfig = {
-  // Enable static site generation with export unless a dev-only test server opts out.
+  // Curated routes are exported. Arbitrary GitHub routes use the static app
+  // shell fallback (public/_redirects) and are loaded in the browser.
   output: process.env.NEXT_OUTPUT_EXPORT === 'false' ? undefined : 'export',
 
   // Trailing slash ensures python http.server serves index.html from directories
@@ -33,5 +35,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Automatically copy Monaco Editor files during build/dev
-export default withMonacoEditor(nextConfig);
+// Automatically bundle Monaco Editor workers during build/dev
+export default function config(phase: string): NextConfig {
+  return withMonacoEditor({
+    ...nextConfig,
+    // Let unlisted paths reach the 404 app-shell fallback in development.
+    output: phase === PHASE_DEVELOPMENT_SERVER ? undefined : nextConfig.output,
+  });
+}

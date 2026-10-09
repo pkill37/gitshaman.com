@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { CURATED_TEST_SITEMAP_PATHS } from './helpers/curated-repos';
 
+function expectUrlPath(url: string | null, path: string): void {
+  expect(url).toBeTruthy();
+  expect(new URL(url!).pathname).toBe(path);
+}
+
 /**
  * SEO Tests
  * Validates meta tags, structured data, robots.txt, sitemap, etc.
@@ -12,12 +17,15 @@ test.describe('SEO Checks', () => {
     // Check for title
     const title = await page.title();
     expect(title).toBeTruthy();
+    expect(title).toBe('GitShaman: Semantic Code Intelligence');
     expect(title.length).toBeGreaterThan(10);
     expect(title.length).toBeLessThan(60);
 
     // Check for meta description
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     expect(description).toBeTruthy();
+    expect(description).toContain('indexed files');
+    expect(description).toContain('curated guides');
     expect(description?.length).toBeGreaterThan(50);
     expect(description?.length).toBeLessThan(160);
 
@@ -35,10 +43,43 @@ test.describe('SEO Checks', () => {
 
     const title = await page.title();
     expect(title).toBeTruthy();
-    expect(title.toLowerCase()).toContain('linux');
+    expect(title).toBe('Linux | gitshaman.com');
 
     const description = await page.locator('meta[name="description"]').getAttribute('content');
-    expect(description).toBeTruthy();
+    expect(description).toContain('Linux kernel source code');
+
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    expectUrlPath(canonical, '/linux-kernel/');
+
+    const ogTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
+    const twitterTitle = await page.locator('meta[name="twitter:title"]').getAttribute('content');
+    expect(ogTitle).toBe(title);
+    expect(twitterTitle).toBe(title);
+  });
+
+  test('repository pages expose useful content without JavaScript', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto('/linux-kernel', { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Linux source explorer');
+    await expect(page.locator('body')).toContainText('kernel architecture');
+    await context.close();
+  });
+
+  test('homepage exposes feature explanations without JavaScript', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    for (const name of ['VS Code Editor + LSP', 'Code Indexing', 'Semantic Enrichment']) {
+      await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    }
+    await expect(page.getByRole('main')).toContainText('language-aware navigation');
+    await expect(page.getByRole('main')).toContainText(
+      'references, and implementation relationships'
+    );
+    await context.close();
   });
 
   test('has Open Graph meta tags', async ({ page }) => {
@@ -53,6 +94,16 @@ test.describe('SEO Checks', () => {
     expect(ogTitle).toBeTruthy();
     expect(ogDescription).toBeTruthy();
     expect(ogType).toBeTruthy();
+
+    const imageUrl = await page.locator('meta[property="og:image"]').getAttribute('content');
+    expect(imageUrl).toBeTruthy();
+    const parsedImageUrl = new URL(imageUrl!);
+    const imageResponse = await page.request.get(
+      `${parsedImageUrl.pathname}${parsedImageUrl.search}`
+    );
+    expect(imageResponse.ok()).toBe(true);
+    const imageBytes = await imageResponse.body();
+    expect([...imageBytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
   });
 
   test('has Twitter Card meta tags', async ({ page }) => {
@@ -91,28 +142,56 @@ test.describe('SEO Checks', () => {
     for (const repo of CURATED_TEST_SITEMAP_PATHS) {
       expect(content).toContain(repo);
     }
+    expect(content).not.toContain('/technology/');
   });
 
   test('has canonical URLs', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
-    expect(canonical).toBeTruthy();
+    expectUrlPath(canonical, '/');
+  });
+
+  test('has valid structured data for the shipped product', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const parsed = schemas.map((schema) => JSON.parse(schema) as Record<string, unknown>);
+    const webApp = parsed.find((schema) => schema['@type'] === 'WebApplication');
+
+    expect(webApp).toBeTruthy();
+    expect(webApp?.description).toContain('indexed files');
+    expect(JSON.stringify(webApp)).not.toContain('LSP/MCP-grounded');
+  });
+
+  test('curated repositories are crawlable links', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('link', { name: 'Linux', exact: true })).toHaveAttribute(
+      'href',
+      '/linux-kernel/'
+    );
+  });
+
+  test('unrelated one-segment routes remain 404s', async ({ request }) => {
+    const response = await request.get('/definitely-not-a-gitshaman-route/');
+    expect(response.status()).toBe(404);
   });
 
   test('has proper heading hierarchy', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Check for h1
-    const h1 = await page.locator('h1').count();
+    const h1 = await page.locator('main h1:visible').count();
     expect(h1).toBeGreaterThan(0);
     expect(h1).toBeLessThanOrEqual(1); // Should have exactly one h1
 
     // Check that headings are in order (no h3 without h2, etc.)
-    const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', (elements) =>
-      elements.map((el) => ({
-        tag: el.tagName.toLowerCase(),
-        text: el.textContent?.trim() || '',
-      }))
+    const headings = await page.$$eval(
+      'main h1, main h2, main h3, main h4, main h5, main h6',
+      (elements) =>
+        elements.map((el) => ({
+          tag: el.tagName.toLowerCase(),
+          text: el.textContent?.trim() || '',
+        }))
     );
 
     let lastLevel = 0;
@@ -141,19 +220,16 @@ test.describe('SEO Checks', () => {
 
   test('has proper alt text for images', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const images = page.locator('img');
+    const missingAltSrc = await page.$$eval('main img', (images) => {
+      const missingAlt = images.find(
+        (img) => !img.hasAttribute('alt') && img.getAttribute('role') !== 'presentation'
+      );
+      return missingAlt?.getAttribute('src') ?? null;
+    });
 
-    const count = await images.count();
-    for (let i = 0; i < count; i++) {
-      const img = images.nth(i);
-      const alt = await img.getAttribute('alt');
-      const role = await img.getAttribute('role');
-
-      // Images should have alt text or be decorative (role="presentation")
-      if (!alt && role !== 'presentation') {
-        const src = await img.getAttribute('src');
-        throw new Error(`Image missing alt text: ${src}`);
-      }
+    // Empty alt text is valid for decorative images; a missing alt attribute is not.
+    if (missingAltSrc) {
+      throw new Error(`Image missing alt text: ${missingAltSrc}`);
     }
   });
 

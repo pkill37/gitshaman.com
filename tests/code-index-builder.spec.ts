@@ -5,13 +5,20 @@ import Database from 'better-sqlite3';
 import { expect, test } from '@playwright/test';
 
 import { buildCodeIndex } from '../scripts/code-index-builder';
+import { enrichCodeIndexWithClangd } from '../scripts/clangd-semantic-index';
 import {
   CODE_INDEX_FILE_NAME,
   CODE_INDEX_MAX_CONTENT_BYTES,
   CODE_INDEX_VERSION,
   findCodeIndexSymbolsByName,
+  getCodeIndexCapabilities,
+  getCodeIndexDiagnostics,
   getCodeIndexGraphNeighbors,
+  getCodeIndexGuideLinks,
+  getCodeIndexIncludeChain,
+  getCodeIndexMembersForSymbol,
   getCodeIndexReferencesForSymbol,
+  getCodeIndexSymbolsForFile,
   searchCodeIndexConcepts,
   searchCodeIndexFiles,
   searchCodeIndexSymbols,
@@ -20,6 +27,7 @@ import {
   type LoadedCodeIndex,
 } from '@/lib/code-index';
 import { findSymbolsInFile } from '@/lib/cross-reference';
+import { IndexedLanguageBackend } from '@/lib/language-backends';
 
 type BetterSqliteStatementWithParams = {
   all: (...params: unknown[]) => Array<Record<string, unknown>>;
@@ -75,7 +83,11 @@ function createSyntheticRepo(): { tempDir: string; repoDir: string } {
   const repoDir = path.join(tempDir, 'example-owner', 'example-repo', 'v1.0.0');
   fs.mkdirSync(repoDir, { recursive: true });
 
-  writeFile(repoDir, 'include/foo.h', '#pragma once\nint helper(int value);\n');
+  writeFile(
+    repoDir,
+    'include/foo.h',
+    '#pragma once\n\nstruct Config {\n  int enabled;\n  int mode;\n};\n\nint helper(int value);\n'
+  );
   writeFile(
     repoDir,
     'src/foo.c',
@@ -164,7 +176,7 @@ test.describe('code index builder', () => {
       expect(fs.existsSync(path.join(repoDir, 'search-index.json'))).toBe(false);
 
       const db = new Database(path.join(repoDir, CODE_INDEX_FILE_NAME), {
-        readonly: true,
+        readonly: false,
         fileMustExist: true,
       });
 
@@ -212,6 +224,7 @@ test.describe('code index builder', () => {
 
         const handle: LoadedCodeIndex = {
           db: new BetterSqliteCodeIndexDatabase(db as unknown as BetterSqliteDatabaseWithParams),
+          version: Number(metadata.version),
           fileCount: Number(metadata.fileCount),
           buildSignature: String(metadata.buildSignature),
         };
@@ -219,6 +232,15 @@ test.describe('code index builder', () => {
         expect(searchCodeIndexFiles(handle, 'notes').map((entry) => entry.path)).toContain(
           'docs/notes.md'
         );
+        expect(searchCodeIndexFiles(handle, 'foo').slice(0, 2)).toEqual([
+          expect.objectContaining({ path: 'include/foo.h', matchType: 'filename' }),
+          expect.objectContaining({ path: 'src/foo.c', matchType: 'filename' }),
+        ]);
+        expect(searchCodeIndexFiles(handle, '"src/foo.c"')[0]).toMatchObject({
+          path: 'docs/notes.md',
+          matchType: 'quoted',
+          relevanceScore: expect.any(Number),
+        });
 
         const helperSymbols = findCodeIndexSymbolsByName(handle, 'helper', {
           definitionOnly: true,
@@ -274,6 +296,333 @@ test.describe('code index builder', () => {
             }),
           ])
         );
+        expect(getCodeIndexSymbolsForFile(handle, 'include/foo.h')).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Config',
+              kind: 'struct',
+              path: 'include/foo.h',
+            }),
+          ])
+        );
+        const configSymbols = findCodeIndexSymbolsByName(handle, 'Config', {
+          definitionOnly: true,
+        });
+        expect(configSymbols).toHaveLength(1);
+        expect(getCodeIndexMembersForSymbol(handle, configSymbols[0].symbolId)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ name: 'enabled', type: 'int' }),
+            expect.objectContaining({ name: 'mode', type: 'int' }),
+          ])
+        );
+        expect(getCodeIndexIncludeChain(handle, 'src/main.c')).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourcePath: 'src/main.c',
+              targetPath: 'include/foo.h',
+              type: 'includes',
+              symbols: ['foo.h'],
+            }),
+          ])
+        );
+
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS AnalysisCapabilities (
+            Language TEXT NOT NULL,
+            Feature TEXT NOT NULL,
+            Provider TEXT NOT NULL,
+            Status TEXT NOT NULL,
+            Detail TEXT,
+            PRIMARY KEY (Language, Feature, Provider)
+          );
+          CREATE TABLE IF NOT EXISTS Diagnostics (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            FileId INTEGER NOT NULL,
+            Severity TEXT NOT NULL,
+            Message TEXT NOT NULL,
+            StartLine INTEGER NOT NULL,
+            StartColumn INTEGER NOT NULL,
+            EndLine INTEGER NOT NULL,
+            EndColumn INTEGER NOT NULL,
+            Provider TEXT NOT NULL
+          );
+        `);
+        db.prepare(
+          'INSERT INTO AnalysisCapabilities(Language, Feature, Provider, Status, Detail) VALUES (?, ?, ?, ?, ?)'
+        ).run('c-family', 'references', 'clangd', 'available', 'synthetic semantic fixture');
+        const mainFile = db
+          .prepare('SELECT Id AS id FROM Files WHERE Path = ?')
+          .get('src/main.c') as { id: number } | undefined;
+        expect(mainFile).toBeTruthy();
+        db.prepare(
+          'INSERT INTO Diagnostics(FileId, Severity, Message, StartLine, StartColumn, EndLine, EndColumn, Provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(mainFile!.id, 'warning', 'synthetic warning', 4, 10, 4, 16, 'clangd');
+
+        expect(getCodeIndexCapabilities(handle)).toEqual([
+          expect.objectContaining({
+            language: 'c-family',
+            feature: 'references',
+            provider: 'clangd',
+            status: 'available',
+          }),
+        ]);
+        expect(getCodeIndexDiagnostics(handle, 'src/main.c')).toEqual([
+          expect.objectContaining({
+            path: 'src/main.c',
+            severity: 'warning',
+            message: 'synthetic warning',
+            provider: 'clangd',
+          }),
+        ]);
+        expect(getCodeIndexGuideLinks(handle)).toEqual([]);
+      } finally {
+        db.close();
+      }
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('serves live editor definition, reference, hover, and relationship queries from the index', async () => {
+    const { tempDir, repoDir } = createSyntheticRepo();
+
+    try {
+      buildCodeIndex(
+        repoDir,
+        [
+          {
+            name: 'include',
+            path: 'include',
+            type: 'directory',
+            children: [{ name: 'foo.h', path: 'include/foo.h', type: 'file' }],
+          },
+          {
+            name: 'src',
+            path: 'src',
+            type: 'directory',
+            children: [
+              { name: 'foo.c', path: 'src/foo.c', type: 'file' },
+              { name: 'main.c', path: 'src/main.c', type: 'file' },
+            ],
+          },
+        ],
+        'synthetic-live-editor-signature',
+        { log: () => {}, warn: () => {} }
+      );
+
+      const db = new Database(path.join(repoDir, CODE_INDEX_FILE_NAME), {
+        readonly: false,
+        fileMustExist: true,
+      });
+
+      try {
+        const metadata = db
+          .prepare(
+            'SELECT Version AS version, BuildSignature AS buildSignature, FileCount AS fileCount FROM Metadata LIMIT 1'
+          )
+          .get() as Record<string, unknown>;
+        const helperSymbol = db
+          .prepare(
+            'SELECT s.Id AS symbolId FROM Symbols s JOIN Files f ON f.Id = s.FileId WHERE s.Name = ? AND f.Path = ? AND s.IsDefinition = 1 LIMIT 1'
+          )
+          .get('helper', 'src/foo.c') as { symbolId: number } | undefined;
+        const mainFile = db
+          .prepare('SELECT Id AS fileId FROM Files WHERE Path = ?')
+          .get('src/main.c') as { fileId: number } | undefined;
+        expect(helperSymbol).toBeTruthy();
+        expect(mainFile).toBeTruthy();
+        db.prepare(
+          'INSERT INTO "References"(SymbolId, FileId, Line, Column) VALUES (?, ?, ?, ?)'
+        ).run(helperSymbol!.symbolId, mainFile!.fileId, 4, 10);
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS Diagnostics (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            FileId INTEGER NOT NULL,
+            Severity TEXT NOT NULL,
+            Message TEXT NOT NULL,
+            StartLine INTEGER NOT NULL,
+            StartColumn INTEGER NOT NULL,
+            EndLine INTEGER NOT NULL,
+            EndColumn INTEGER NOT NULL,
+            Provider TEXT NOT NULL
+          );
+        `);
+        db.prepare(
+          'INSERT INTO Diagnostics(FileId, Severity, Message, StartLine, StartColumn, EndLine, EndColumn, Provider) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(mainFile!.fileId, 'info', 'parser-backed diagnostic', 4, 10, 4, 16, 'clangd');
+
+        const handle: LoadedCodeIndex = {
+          db: new BetterSqliteCodeIndexDatabase(db as unknown as BetterSqliteDatabaseWithParams),
+          version: Number(metadata.version),
+          fileCount: Number(metadata.fileCount),
+          buildSignature: String(metadata.buildSignature),
+        };
+        const backend = new IndexedLanguageBackend(handle);
+        const context = {
+          filePath: 'src/main.c',
+          content: fs.readFileSync(path.join(repoDir, 'src/main.c'), 'utf8'),
+          workspaceFilePaths: ['include/foo.h', 'src/foo.c', 'src/main.c'],
+        };
+
+        await expect(backend.getDefinition('helper', context)).resolves.toMatchObject({
+          name: 'helper',
+          kind: 'function',
+          file: 'src/foo.c',
+        });
+
+        await expect(
+          backend.getReferences('helper', { ...context, includeDeclaration: true })
+        ).resolves.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ file: 'src/foo.c' }),
+            expect.objectContaining({ file: 'src/main.c' }),
+          ])
+        );
+
+        await expect(backend.getHover('helper', context)).resolves.toMatchObject({
+          markdown: expect.arrayContaining([
+            expect.stringContaining('**helper**'),
+            expect.stringContaining('Line'),
+          ]),
+        });
+
+        await expect(backend.getRelationships(context)).resolves.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: 'dependency',
+              direction: 'outgoing',
+              sourcePath: 'src/main.c',
+              targetPath: 'include/foo.h',
+              symbols: ['foo.h'],
+            }),
+            expect.objectContaining({
+              kind: 'call',
+              direction: 'outgoing',
+              sourcePath: 'src/main.c',
+              targetPath: 'include/foo.h',
+              symbols: ['helper'],
+            }),
+          ])
+        );
+
+        await expect(backend.getDiagnostics(context)).resolves.toEqual([
+          expect.objectContaining({
+            file: 'src/main.c',
+            severity: 'info',
+            message: 'parser-backed diagnostic',
+          }),
+        ]);
+
+        await expect(
+          backend.getDocumentSymbols({
+            ...context,
+            filePath: 'include/foo.h',
+            content: fs.readFileSync(path.join(repoDir, 'include/foo.h'), 'utf8'),
+          })
+        ).resolves.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Config',
+              type: 'struct',
+              members: expect.arrayContaining([
+                expect.objectContaining({ name: 'enabled', type: 'int' }),
+                expect.objectContaining({ name: 'mode', type: 'int' }),
+              ]),
+            }),
+          ])
+        );
+
+        await expect(
+          backend.getTypeMembers('Config', {
+            ...context,
+            filePath: 'include/foo.h',
+            content: fs.readFileSync(path.join(repoDir, 'include/foo.h'), 'utf8'),
+          })
+        ).resolves.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ name: 'enabled', type: 'int' }),
+            expect.objectContaining({ name: 'mode', type: 'int' }),
+          ])
+        );
+
+        await expect(backend.getIncludeChain(context)).resolves.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              sourcePath: 'src/main.c',
+              targetPath: 'include/foo.h',
+              type: 'includes',
+            }),
+          ])
+        );
+      } finally {
+        db.close();
+      }
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('semantic enrichment records C-family analysis as not applicable without C-family sources', async () => {
+    const { tempDir, repoDir } = createSyntheticRepo();
+
+    try {
+      fs.rmSync(path.join(repoDir, 'src'), { recursive: true });
+      buildCodeIndex(
+        repoDir,
+        [
+          {
+            name: 'lib',
+            path: 'lib',
+            type: 'directory',
+            children: [{ name: 'util.py', path: 'lib/util.py', type: 'file' }],
+          },
+        ],
+        'synthetic-semantic-unavailable-signature',
+        { log: () => {}, warn: () => {} }
+      );
+
+      const stats = await enrichCodeIndexWithClangd(
+        repoDir,
+        path.join(repoDir, CODE_INDEX_FILE_NAME),
+        { log: () => {}, warn: () => {} }
+      );
+
+      expect(stats).toMatchObject({
+        status: 'unavailable',
+        filesAnalyzed: 0,
+        callEdges: 0,
+        detail: 'Not applicable: this snapshot contains no C-family compilation units.',
+      });
+
+      const db = new Database(path.join(repoDir, CODE_INDEX_FILE_NAME), {
+        readonly: true,
+        fileMustExist: true,
+      });
+      try {
+        const handle: LoadedCodeIndex = {
+          db: new BetterSqliteCodeIndexDatabase(db as unknown as BetterSqliteDatabaseWithParams),
+          version: CODE_INDEX_VERSION,
+          fileCount: 1,
+          buildSignature: 'synthetic-semantic-unavailable-signature',
+        };
+        expect(getCodeIndexCapabilities(handle)).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              language: 'c-family',
+              feature: 'calls',
+              provider: 'clangd',
+              status: 'unavailable',
+              detail: 'Not applicable: this snapshot contains no C-family compilation units.',
+            }),
+            expect.objectContaining({
+              language: 'c-family',
+              feature: 'includeChains',
+              provider: 'heuristic-indexer',
+              status: 'partial',
+            }),
+          ])
+        );
+        expect(getCodeIndexDiagnostics(handle, 'src/main.c')).toEqual([]);
       } finally {
         db.close();
       }

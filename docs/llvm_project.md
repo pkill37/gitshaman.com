@@ -17,11 +17,11 @@ defaultOpenIds:
 
 ## Understanding LLVM Before Code
 
-> This isn't just a guide to using LLVM. It's an effort to understand how modern compilers think.
+> This isn't a guide to using LLVM. It's an effort to understand how modern compilers think.
 
-LLVM is a collection of modular and reusable compiler and toolchain technologies that has revolutionized how we build compilers. Unlike traditional monolithic compilers, LLVM separates concerns through a carefully designed intermediate representation (IR) that serves as a universal language between frontends and backends.
+LLVM is a collection of modular and reusable compiler and toolchain technologies that has revolutionized how we build compilers. Unlike traditional monolithic compilers, LLVM separates concerns through an intermediate representation (IR) that serves as a universal language between frontends and backends.
 
-Understanding LLVM means understanding the architecture of modern compilation: how source code transforms through multiple representations, how optimizations preserve semantics while improving performance, and how machine-independent code generation enables portability.
+Understanding LLVM means understanding the architecture of modern compilation: how source code transforms through successive representations, how optimizations preserve semantics while improving performance, and how machine-independent code generation enables portability.
 
 **LLVM powers the future of compilation. Let's understand how it works.**
 
@@ -55,7 +55,7 @@ fileRecommendations:
 
 ### The Philosophy: Separation of Concerns Through IR
 
-LLVM's revolutionary insight was to create a universal intermediate representation that completely separates:
+LLVM's revolutionary insight was to create a universal intermediate representation that separates:
 
 - **Frontend concerns**: Parsing, semantic analysis, language-specific optimizations
 - **Middle-end concerns**: Target-independent optimizations
@@ -63,7 +63,7 @@ LLVM's revolutionary insight was to create a universal intermediate representati
 
 This separation enables:
 
-- **Multiple frontends** → Single IR → Multiple backends
+- **Different frontends** → Single IR → Different backends
 - **Reusable optimization infrastructure**
 - **Language-agnostic tooling**
 - **Incremental compilation and JIT**
@@ -135,7 +135,7 @@ entry:
 LLVM optimizations are organized as **passes**:
 
 - **Analysis passes**: Gather information (e.g., dominator tree)
-- **Transform passes**: Modify IR (e.g., dead code elimination)
+- **Transform passes**: Change IR (e.g., dead code elimination)
 - **Utility passes**: Helper functionality
 
 **Pass Categories:**
@@ -154,36 +154,6 @@ Backend phases:
 - **Register Allocation**: Assign virtual registers to physical registers
 - **Code Emission**: Generate object file
 
-### Study Files and Architecture
-
-**Essential Files to Study (In Order):**
-
-**Week 1-2: IR Fundamentals**
-
-1. [llvm/include/llvm/IR/Type.h](llvm/include/llvm/IR/Type.h) - Type system
-2. [llvm/include/llvm/IR/Value.h](llvm/include/llvm/IR/Value.h) - Base class for all values
-3. [llvm/include/llvm/IR/Instruction.h](llvm/include/llvm/IR/Instruction.h) - Instructions
-4. [llvm/include/llvm/IR/BasicBlock.h](llvm/include/llvm/IR/BasicBlock.h) - Basic blocks
-5. [llvm/include/llvm/IR/Function.h](llvm/include/llvm/IR/Function.h) - Functions
-
-**Week 3-4: Core IR Implementation**
-
-1. [llvm/lib/IR/Type.cpp](llvm/lib/IR/Type.cpp) - Type implementation
-2. [llvm/lib/IR/Instructions.cpp](llvm/lib/IR/Instructions.cpp) - Instruction details
-3. [llvm/lib/IR/Verifier.cpp](llvm/lib/IR/Verifier.cpp) - IR validation (learn IR rules!)
-
-**Month 2: Analysis**
-
-1. [llvm/include/llvm/Analysis/CFG.h](llvm/include/llvm/Analysis/CFG.h) - Control flow graph
-2. [llvm/lib/Analysis/ScalarEvolution.cpp](llvm/lib/Analysis/ScalarEvolution.cpp) - Loop analysis
-3. [llvm/lib/Analysis/MemorySSA.cpp](llvm/lib/Analysis/MemorySSA.cpp) - Memory dependencies
-
-**Month 3: Transformations**
-
-1. [llvm/lib/Transforms/Scalar/DCE.cpp](llvm/lib/Transforms/Scalar/DCE.cpp) - Dead code elimination
-2. [llvm/lib/Transforms/Scalar/SCCP.cpp](llvm/lib/Transforms/Scalar/SCCP.cpp) - Constant propagation
-3. [llvm/lib/Transforms/Utils/Mem2Reg.cpp](llvm/lib/Transforms/Utils/Mem2Reg.cpp) - Promote allocas to registers
-
 ---
 id: ch2
 title: Chapter 2 — LLVM IR and Code Generation
@@ -200,19 +170,19 @@ fileRecommendations:
       type: source
     - path: llvm/lib/CodeGen/SelectionDAG/
       description: Instruction selection via SelectionDAG
-      type: source
+      type: directory
     - path: llvm/lib/Target/X86/X86ISelLowering.cpp
       description: x86 IR lowering (about 50,000 lines!)
       type: source
 ---
 
-The LLVM Intermediate Representation (IR) is a low-level programming language similar to assembly, but with higher-level type information and a consistent three-address code representation. It serves as the universal language that enables LLVM's modular architecture.
+The LLVM Intermediate Representation (IR) is a low-level programming language resembling assembly, but with higher-level type information and a consistent three-address code representation. It serves as the universal language that enables LLVM's modular architecture.
 
 ### Understanding LLVM IR - Deep Dive
 
 **Why SSA (Static Single Assignment)?**
 
-SSA form is fundamental to LLVM IR. Each variable is assigned exactly once, which enables:
+SSA form is fundamental to LLVM IR. Each variable is assigned once, which enables:
 
 - **Simpler dataflow analysis**: Definitions and uses are explicit
 - **Efficient optimizations**: Dead code elimination, constant propagation
@@ -318,27 +288,6 @@ recursive_case:
 
 **4. CodeGen** ([clang/lib/CodeGen/](clang/lib/CodeGen/)): AST → LLVM IR
 
-Key CodeGen files:
-- [clang/lib/CodeGen/CodeGenModule.cpp](clang/lib/CodeGen/CodeGenModule.cpp) - Module-level IR generation
-- [clang/lib/CodeGen/CodeGenFunction.cpp](clang/lib/CodeGen/CodeGenFunction.cpp) - Function-level IR generation
-- [clang/lib/CodeGen/CGExpr.cpp](clang/lib/CodeGen/CGExpr.cpp) - Expression code generation
-
-### Study Files for IR and CodeGen
-
-**IR Core ([llvm/lib/IR/](llvm/lib/IR/)):**
-
-- [llvm/lib/IR/Type.cpp](llvm/lib/IR/Type.cpp) (about 860 lines) - Type system implementation
-- [llvm/lib/IR/Value.cpp](llvm/lib/IR/Value.cpp) (about 1,300 lines) - Base value class
-- [llvm/lib/IR/Instructions.cpp](llvm/lib/IR/Instructions.cpp) (about 4,000 lines) - All instruction types
-- [llvm/lib/IR/BasicBlock.cpp](llvm/lib/IR/BasicBlock.cpp) (about 1,200 lines) - Basic block implementation
-- [llvm/lib/IR/Verifier.cpp](llvm/lib/IR/Verifier.cpp) (about 7,200 lines) - IR validity checking
-
-**Target-Specific ([llvm/lib/Target/X86/](llvm/lib/Target/X86/)):**
-
-- [llvm/lib/Target/X86/X86ISelLowering.cpp](llvm/lib/Target/X86/X86ISelLowering.cpp) (about 50,000 lines!) - Lower IR to x86
-- [llvm/lib/Target/X86/X86InstrInfo.td](llvm/lib/Target/X86/X86InstrInfo.td) - x86 instruction descriptions (TableGen)
-- [llvm/lib/Target/X86/X86RegisterInfo.td](llvm/lib/Target/X86/X86RegisterInfo.td) - x86 register descriptions
-
 ---
 id: ch3
 title: Chapter 3 — Clang Frontend
@@ -381,7 +330,7 @@ clang/lib/CodeGen/CodeGenModule.cpp -> clang/lib/CodeGen/CodeGenFunction.cpp : f
 
 ### The Clang AST: A Typed Syntax Tree
 
-Unlike a simple parse tree, Clang's AST carries full type information and represents the semantics of the program, not just its syntax.
+Unlike a simple parse tree, Clang's AST carries full type information and represents the semantics of the program, beyond its syntax.
 
 **Core AST node families:**
 
@@ -402,17 +351,11 @@ DeclStmt
             └── DeclRefExpr 'b' 'int'
 ```
 
-You can dump any C file's AST with:
+Dump any C file's AST with:
 
 ```bash
 clang -Xclang -ast-dump -fsyntax-only file.c
 ```
-
-Key AST header files:
-- [clang/include/clang/AST/Decl.h](clang/include/clang/AST/Decl.h) — Declaration nodes
-- [clang/include/clang/AST/Expr.h](clang/include/clang/AST/Expr.h) — Expression nodes
-- [clang/include/clang/AST/Stmt.h](clang/include/clang/AST/Stmt.h) — Statement nodes
-- [clang/include/clang/AST/Type.h](clang/include/clang/AST/Type.h) — Type representations
 
 ### Parsing: From Tokens to AST
 
@@ -436,11 +379,6 @@ class Parser {
 ```
 
 The parser calls Sema actions as it builds the tree — type checking happens simultaneously with parsing, not in a separate pass.
-
-Key parser files:
-- [clang/lib/Parse/ParseDecl.cpp](clang/lib/Parse/ParseDecl.cpp) — Declaration parsing
-- [clang/lib/Parse/ParseExpr.cpp](clang/lib/Parse/ParseExpr.cpp) — Expression parsing
-- [clang/lib/Parse/ParseStmt.cpp](clang/lib/Parse/ParseStmt.cpp) — Statement parsing
 
 ### Semantic Analysis: Type Checking and Validation
 
@@ -468,11 +406,6 @@ ExprResult Sema::ActOnBinaryOp(Scope *S, SourceLocation OpLoc,
 }
 ```
 
-Key Sema files:
-- [clang/lib/Sema/SemaDecl.cpp](clang/lib/Sema/SemaDecl.cpp) — Declaration semantics
-- [clang/lib/Sema/SemaExpr.cpp](clang/lib/Sema/SemaExpr.cpp) — Expression type checking
-- [clang/lib/Sema/SemaOverload.cpp](clang/lib/Sema/SemaOverload.cpp) — C++ overload resolution
-
 ### IR Generation: AST to LLVM IR
 
 CodeGen traverses the typed AST and emits LLVM IR using `IRBuilder`. Each AST node type has a corresponding `EmitXxx()` method.
@@ -492,13 +425,6 @@ llvm::Value *CodeGenFunction::EmitBinaryOp(const BinaryOperator *E) {
     }
 }
 ```
-
-Key CodeGen files:
-- [clang/lib/CodeGen/CodeGenModule.cpp](clang/lib/CodeGen/CodeGenModule.cpp) — Module-level IR (globals, functions)
-- [clang/lib/CodeGen/CodeGenFunction.cpp](clang/lib/CodeGen/CodeGenFunction.cpp) — Per-function IR generation
-- [clang/lib/CodeGen/CGExpr.cpp](clang/lib/CodeGen/CGExpr.cpp) — Expression code generation
-- [clang/lib/CodeGen/CGStmt.cpp](clang/lib/CodeGen/CGStmt.cpp) — Statement code generation
-- [clang/lib/CodeGen/CGCall.cpp](clang/lib/CodeGen/CGCall.cpp) — Function call lowering
 
 ---
 id: ch4
@@ -522,7 +448,7 @@ fileRecommendations:
       type: source
     - path: llvm/lib/Transforms/InstCombine/
       description: Instruction combining (about 50,000 lines of peepholes)
-      type: source
+      type: directory
     - path: llvm/include/llvm/IR/PassManager.h#L42
       description: New Pass Manager infrastructure
       type: source
@@ -579,18 +505,11 @@ llvm::PassPluginLibraryInfo getPluginInfo() {
 }
 ```
 
-Key infrastructure files:
-- [llvm/include/llvm/IR/PassManager.h](llvm/include/llvm/IR/PassManager.h) — Pass manager interfaces
-- [llvm/include/llvm/Passes/PassBuilder.h](llvm/include/llvm/Passes/PassBuilder.h) — Pipeline construction
-- [llvm/include/llvm/IR/InstVisitor.h](llvm/include/llvm/IR/InstVisitor.h) — Visitor pattern for IR traversal
-
 ### Key Scalar Optimization Passes
 
 **1. Dead Code Elimination (DCE)**
 
 Removes instructions whose results are never used. The simplest transform pass—great for learning the pass framework.
-
-File: [llvm/lib/Transforms/Scalar/DCE.cpp](llvm/lib/Transforms/Scalar/DCE.cpp)
 
 ```cpp
 // DCE core logic (simplified)
@@ -620,8 +539,6 @@ bool eliminateDeadCode(Function &F) {
 
 Propagates constant values through the IR, eliminating conditional branches when the condition is known at compile time.
 
-File: [llvm/lib/Transforms/Scalar/SCCP.cpp](llvm/lib/Transforms/Scalar/SCCP.cpp)
-
 ```llvm
 ; Before SCCP
 %x = add i32 5, 3     ; constant: always 8
@@ -635,8 +552,6 @@ br label %true         ; branch folded — %x = 8, 8 < 10 always true
 **3. Mem2Reg: The Most Important Pass**
 
 Promotes `alloca` (stack) variables to SSA virtual registers. This is the pass that creates PHI nodes and is the foundation for most other optimizations.
-
-File: [llvm/lib/Transforms/Utils/Mem2Reg.cpp](llvm/lib/Transforms/Utils/Mem2Reg.cpp)
 
 ```llvm
 ; Before Mem2Reg (alloca pattern from Clang CodeGen)
@@ -653,8 +568,6 @@ store i32 5, i32* %x
 
 A large collection (about 50,000 lines) of algebraic simplifications and canonicalizations.
 
-Directory: [llvm/lib/Transforms/InstCombine/](llvm/lib/Transforms/InstCombine/)
-
 Examples of what InstCombine does:
 
 ```llvm
@@ -670,7 +583,7 @@ Examples of what InstCombine does:
 
 ### Loop Optimization Passes
 
-Loops are the highest-leverage optimization targets since they execute repeatedly.
+Loops are the highest-leverage optimization targets because their bodies run on each iteration.
 
 **Key loop passes:**
 

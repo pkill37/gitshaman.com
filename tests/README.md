@@ -1,139 +1,57 @@
-# Test Suite for Static Web App
+# Test suite
 
-This directory contains tests for the static web application, including sanity checks, performance metrics, SEO validation, and quality checks.
+The suite has two layers:
 
-## Test Categories
+- **Default Playwright checks**: smoke, repository UI, SEO, accessibility, browser integration, and script-style specs.
+- **Opt-in performance budgets**: Core Web Vitals and bundle checks against the production export.
 
-### 1. Sanity Checks (`sanity.spec.ts`)
-
-Basic functionality tests to ensure the app works correctly:
-
-- Pages load successfully
-- No console errors
-- Repository pages are accessible
-- Static assets (robots.txt, sitemap.xml) are available
-- Manifest files are accessible
-- Images load correctly
-
-### 2. Web Vitals Performance (`web-vitals.spec.ts`)
-
-Performance metrics based on Core Web Vitals:
-
-- **LCP (Largest Contentful Paint)**: Should be < 2.5s
-- **FCP (First Contentful Paint)**: Should be < 1.8s
-- **TTFB (Time to First Byte)**: Should be < 800ms
-- **CLS (Cumulative Layout Shift)**: Should be < 0.1
-- Bundle size checks
-- Layout shift detection
-
-### 3. SEO Tests (`seo.spec.ts`)
-
-Search engine optimization validation:
-
-- Meta tags (title, description, viewport)
-- Open Graph tags
-- Twitter Card tags
-- robots.txt format
-- sitemap.xml validity
-- Canonical URLs
-- Heading hierarchy
-- Semantic HTML
-- Image alt text
-- Language attributes
-
-### 4. Quality Checks (`quality.spec.ts`)
-
-Accessibility and code quality:
-
-- Accessibility violations (using axe-core)
-- Broken links detection
-- Broken images detection
-- Color contrast
-- Keyboard navigation
-- ARIA labels
-- Form labels
-- Console errors
-- Document structure
-
-## Running Tests
+## Commands
 
 ```bash
-# Run All Tests
+# Default suite
 npm test
 
-# Sanity checks only
-npm run test:sanity
+# Same suite without opening the HTML report
+npm run test:e2e
 
-# Performance tests only
-npm run test:performance
+# Production performance budgets
+npm run test:perf
 
-# SEO tests only
-npm run test:seo
-
-# Quality tests only
-npm run test:quality
-
-# Interactive UI Mode
-npm run test:ui
-
-# View Test Report
-npm run test:report
+# One file while iterating
+npx playwright test tests/quality.spec.ts
 ```
 
-## Prerequisites
+## Server behavior
 
-1. Build the static app first:
+`playwright.config.ts` starts the app automatically when a browser-backed spec needs it:
 
-   ```bash
-   npm run build
-   ```
+- default: `tsx scripts/prepare-public-assets.ts --dev --sqljs && next dev --turbopack --port 38080`
+- performance: `serve out -p 38080` when `PERFORMANCE_BUILD=1`
 
-2. The tests will automatically start a local HTTP server on port 8000 to serve the `out/` directory.
+Override the target with `BASE_URL` or `PLAYWRIGHT_PORT`.
 
-## Test Configuration
+## Local corpus tests
 
-Tests are configured in `playwright.config.ts`. The default base URL is `http://localhost:8000`, which can be overridden with the `BASE_URL` environment variable:
+Some tests validate optional local repository data under `repos/`. They skip when the corpus is not present. To exercise them locally, run:
 
 ```bash
-BASE_URL=http://localhost:3000 npm test
+npm run corpus:sync
+npm run test:e2e
 ```
 
-## Quality Thresholds
+## Helpers
 
-- **SEO**: Minimum 70/100
-- **Best Practices**: Minimum 70/100
-- **Total Score**: Minimum 75/100
+Shared browser test helpers live in `tests/helpers/`:
 
-## Continuous Integration
+- `corpus-routing.ts` mocks local/R2 corpus requests.
+- `curated-repos.ts` keeps curated route samples in one place.
+- `debug-logs.ts` reads and waits for browser debug log entries.
+- `page-actions.ts` contains common UI actions such as opening a file from the tree.
 
-These tests are designed to run in CI/CD pipelines. Set the `CI` environment variable to enable CI-specific settings:
+Prefer helpers over duplicating route setup, debug-log polling, or file-tree navigation in specs.
 
-```bash
-CI=true npm test
-```
+## Notes
 
-In CI mode:
-
-- Tests will retry up to 2 times on failure
-- Only 1 worker will be used
-- Existing server won't be reused
-
-## Troubleshooting
-
-### Tests fail with "Server not ready"
-
-- Ensure the build completed successfully: `npm run build`
-- Check that the `out/` directory exists
-- Verify port 8000 is not in use
-
-### Performance tests fail
-
-- Run tests on a clean system (close other applications)
-- Ensure network conditions are stable
-- Some metrics may vary based on system load
-
-### Accessibility tests fail
-
-- Review the HTML report for specific violations
-- Fix issues in the source code
-- Re-run tests to verify fixes
+- Performance tests are skipped unless `PERFORMANCE_BUILD=1`; dev-server timings are too noisy for budgets.
+- CI uses Playwright retries and a single worker through `playwright.config.ts`.
+- Test output and reports are written under `out/`.

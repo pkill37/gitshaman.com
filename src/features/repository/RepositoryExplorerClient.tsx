@@ -1,17 +1,22 @@
 'use client';
 
 import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties } from 'react';
-import { notFound, useRouter, useSearchParams } from 'next/navigation';
-import RepositoryWorkspaceExplorer from './components/RepositoryWorkspaceExplorer';
-import { EntityView } from './components/EntityView';
+import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import RepositoryWorkspaceExplorer, {
+  type InitialFileTarget,
+} from './components/RepositoryWorkspaceExplorer';
 import GuidePanel from './components/GuidePanel';
+import RepositoryRightPanel from './components/RepositoryRightPanel';
 import StatusBar from './components/StatusBar';
-import LoadingScreen from '@/components/LoadingScreen';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
-import { loadGuideFromMarkdown } from '@/features/guides/guide-loader';
+import { parseGuideMarkdown } from '@/features/guides/parser';
 import { debugLog } from '@/lib/browser-debug';
 import { useRepository } from '@/contexts/RepositoryContext';
 import { getCuratedRepoAccent, getCuratedRepoPath } from '@/lib/curated-repos';
+import type { GitHubUrlTarget } from '@/lib/github-url';
+import { resolveRepositoryNavigation } from '@/lib/github-url';
 import {
   getDefaultCuratedRepoSourceMode,
   hasConfiguredR2BucketBaseUrl,
@@ -31,6 +36,11 @@ const GUIDE_SIDEBAR_OPEN_STORAGE_KEY = 'repository-explorer-guide-sidebar-open';
 const WORKSPACE_THEME_STORAGE_KEY = 'repository-workspace-explorer-theme';
 let navigationNonceCounter = 0;
 
+const EntityView = dynamic(
+  () => import('./components/EntityView').then((module) => module.EntityView),
+  { loading: () => null }
+);
+
 type WorkspaceTheme = 'dark' | 'light';
 
 function createNavigationNonce(): number {
@@ -41,39 +51,53 @@ function createNavigationNonce(): number {
 interface RepositoryExplorerClientProps {
   owner: string;
   repo: string;
+  directTarget?: GitHubUrlTarget;
+  guideContent?: string;
+  guideDefaultOpenIds?: string[];
+  loadingTitle?: string;
+  loadingDescription?: string;
 }
 
-type InitialFileTarget =
-  | string
-  | string[]
-  | {
-      kind?: 'repo-file';
-      path: string;
-      searchPattern?: string;
-      scrollToLine?: number;
-      searchScope?: string[];
-      navigationNonce?: number;
-    }
-  | {
-      kind: 'man-page';
-      name: string;
-      section: string;
-      navigationNonce?: number;
-    };
-
-export default function RepositoryExplorerClient({ owner, repo }: RepositoryExplorerClientProps) {
+export default function RepositoryExplorerClient({
+  owner,
+  repo,
+  directTarget,
+  guideContent,
+  guideDefaultOpenIds,
+  loadingTitle: _loadingTitle,
+  loadingDescription: _loadingDescription,
+}: RepositoryExplorerClientProps) {
   const projectConfig = getProjectConfig(owner, repo);
-  if (!projectConfig) notFound();
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
+  const browserTarget = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return resolveRepositoryNavigation(window.location.pathname, queryString, window.location.hash);
+  }, [queryString]);
+  const effectiveDirectTarget = directTarget ?? browserTarget ?? undefined;
+  // Curated routes always use their seeded revision. Arbitrary routes keep
+  // the explicit URL ref and resolve a default branch only when absent.
+  const requestedBranch = projectConfig
+    ? undefined
+    : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch } = useRepository();
-  const [isMounted, setIsMounted] = useState(false);
-  const [mode, setMode] = useState<'editor' | 'search' | 'entities'>('editor');
-  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(() =>
-    getDefaultCuratedRepoSourceMode()
-  );
+  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
+  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
+    let nextSourceMode = getDefaultCuratedRepoSourceMode();
+    try {
+      if (typeof window !== 'undefined') {
+        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
+        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
+          nextSourceMode = savedSourceMode;
+        }
+      }
+    } catch {
+      // Keep the environment default.
+    }
+    return normalizeCuratedRepoSourceMode(nextSourceMode);
+  });
   const [workspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
     try {
       if (typeof window === 'undefined') return 'dark';
@@ -86,7 +110,34 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
     }
     return 'dark';
   });
-  const [initialFile, setInitialFile] = useState<InitialFileTarget | null>(null);
+  const [initialFile, setInitialFile] = useState<InitialFileTarget | null>(() => {
+    const requestedDirectory = searchParams.get('dir')?.trim();
+    const requestedFile = searchParams.get('file')?.trim();
+    const filePath = requestedFile || effectiveDirectTarget?.filePath;
+    const directoryPath =
+      requestedDirectory ||
+      (effectiveDirectTarget?.targetType === 'directory'
+        ? effectiveDirectTarget.filePath
+        : undefined) ||
+      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
+    if (directoryPath) {
+      return {
+        kind: 'directory',
+        path: directoryPath,
+        navigationNonce: createNavigationNonce(),
+      };
+    }
+    if (!filePath) return null;
+    const lineValue = searchParams.get('line');
+    const parsedLine = lineValue ? parseInt(lineValue, 10) : Number.NaN;
+    return {
+      path: filePath,
+      exactPath: true,
+      searchPattern: searchParams.get('search') || undefined,
+      scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
+      navigationNonce: createNavigationNonce(),
+    };
+  });
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [isGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
     try {
@@ -100,8 +151,22 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
     }
     return true;
   });
+  const [showShareMenu, setShowShareMenu] = useState(false);
   // Keep EntityView mounted once first activated to preserve per-chapter cache
   const [entitiesMounted, setEntitiesMounted] = useState(false);
+  const urlInitialFile = useMemo<InitialFileTarget | null>(() => {
+    const requestedFile = searchParams.get('file')?.trim() || effectiveDirectTarget?.filePath;
+    if (!requestedFile) return null;
+    const lineValue = searchParams.get('line');
+    const parsedLine = lineValue ? parseInt(lineValue, 10) : Number.NaN;
+    return {
+      path: requestedFile,
+      exactPath: true,
+      searchPattern: searchParams.get('search') || undefined,
+      scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
+      navigationNonce: createNavigationNonce(),
+    };
+  }, [effectiveDirectTarget?.filePath, effectiveDirectTarget?.line, searchParams]);
 
   const navigateToRepoTarget = useCallback(
     (
@@ -171,16 +236,6 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
     [navigateToRepoTarget]
   );
 
-  const handleEnterManPage = useCallback((name: string, section: string) => {
-    setInitialFile({
-      kind: 'man-page',
-      name,
-      section,
-      navigationNonce: createNavigationNonce(),
-    });
-    setMode('editor');
-  }, []);
-
   const handleOpenFileInCurrentMode = useCallback(
     (
       fileId: string,
@@ -216,7 +271,25 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
   );
 
   useEffect(() => {
-    const filePath = searchParams.get('file')?.trim();
+    const requestedDirectory = searchParams.get('dir')?.trim();
+    const requestedFile = searchParams.get('file')?.trim();
+    const filePath = requestedFile || effectiveDirectTarget?.filePath;
+    const directoryPath =
+      requestedDirectory ||
+      (effectiveDirectTarget?.targetType === 'directory'
+        ? effectiveDirectTarget.filePath
+        : undefined) ||
+      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
+    if (directoryPath) {
+      const timeoutId = window.setTimeout(() => {
+        setInitialFile({
+          kind: 'directory',
+          path: directoryPath,
+          navigationNonce: createNavigationNonce(),
+        });
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
     if (!filePath) {
       return;
     }
@@ -226,40 +299,45 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
     const timeoutId = window.setTimeout(() => {
       setInitialFile({
         path: filePath,
+        exactPath: true,
         searchPattern: searchParams.get('search') || undefined,
-        scrollToLine: Number.isFinite(parsedLine) ? parsedLine : undefined,
+        scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
         navigationNonce: createNavigationNonce(),
       });
       setMode('editor');
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [queryString, searchParams]);
+  }, [
+    effectiveDirectTarget?.filePath,
+    effectiveDirectTarget?.line,
+    effectiveDirectTarget?.targetType,
+    queryString,
+    searchParams,
+  ]);
 
   // ── Guide sections ──────────────────────────────────────────────────────────
-  // loadGuideFromMarkdown is synchronous (all guide docs are bundled at build time),
-  // so it's safe to call inside useMemo.
   const guideSections = useMemo(() => {
-    const guideId = projectConfig?.guides[0]?.id;
-    if (guideId) {
+    if (guideContent) {
       try {
-        return loadGuideFromMarkdown(guideId, handleEnterFile, handleEnterManPage);
+        return parseGuideMarkdown(guideContent, handleEnterFile);
       } catch {
         // fall through to generic
       }
     }
     return createGenericGuide(owner, repo);
-  }, [projectConfig, owner, repo, handleEnterFile, handleEnterManPage]);
+  }, [guideContent, owner, repo, handleEnterFile]);
 
   const defaultOpenIds = useMemo(
     () =>
+      guideDefaultOpenIds ||
       projectConfig?.guides?.[0]?.defaultOpenIds ||
       (guideSections.length > 0 ? [guideSections[0].id] : []),
-    [projectConfig, guideSections]
+    [guideDefaultOpenIds, projectConfig, guideSections]
   );
   const repoLabel = `${owner}/${repo}`;
   const repoAccent = getCuratedRepoAccent(owner, repo);
-  const statusBranch = currentBranch || projectConfig.defaultRevision;
+  const statusBranch = currentBranch || projectConfig?.defaultRevision || requestedBranch || 'main';
   const showDevSourceMode = isLocalFilesystemCorpusAvailable();
   const isR2SourceConfigured = hasConfiguredR2BucketBaseUrl();
 
@@ -293,17 +371,13 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
   }, []);
 
   const handleSourceModeChange = useCallback((sourceMode: CuratedRepoSourceMode) => {
-    setFileSourceMode(normalizeCuratedRepoSourceMode(sourceMode));
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setIsMounted(true);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+    const normalizedSourceMode = normalizeCuratedRepoSourceMode(sourceMode);
+    setFileSourceMode(normalizedSourceMode);
+    try {
+      localStorage.setItem(CORPUS_SOURCE_MODE_STORAGE_KEY, normalizedSourceMode);
+    } catch {
+      // Ignore storage failures.
+    }
   }, []);
 
   useEffect(() => {
@@ -321,6 +395,38 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
       // Ignore storage failures.
     }
   }, [workspaceTheme]);
+
+  const handleShare = useCallback((platform: string) => {
+    const shareText = 'Explore source code with interactive learning on GitShaman.';
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const encodedText = encodeURIComponent(shareText);
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedTextWithUrl = encodeURIComponent(`${shareText} ${shareUrl}`);
+
+    let shareLink = '';
+    switch (platform) {
+      case 'twitter':
+        shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+        break;
+      case 'linkedin':
+        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+        break;
+      case 'reddit':
+        shareLink = `https://reddit.com/submit?title=${encodedText}&url=${encodedUrl}`;
+        break;
+      case 'whatsapp':
+        shareLink = `https://wa.me/?text=${encodedTextWithUrl}`;
+        break;
+      case 'hackernews':
+        shareLink = `https://news.ycombinator.com/submitlink?u=${encodedUrl}&t=${encodedText}`;
+        break;
+    }
+
+    if (shareLink) {
+      window.open(shareLink, '_blank', 'width=550,height=420');
+      setShowShareMenu(false);
+    }
+  }, []);
 
   // ── Guide panel resize ──────────────────────────────────────────────────────
   const [guideWidth, setGuideWidth] = useState(GUIDE_DEFAULT_WIDTH);
@@ -371,13 +477,9 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
     };
   }, []);
 
-  if (!isMounted) {
-    return <LoadingScreen />;
-  }
-
   return (
     <main
-      className={`vscode-theme-${workspaceTheme}`}
+      className={`vscode-theme-${workspaceTheme} shaman-workspace-enter`}
       suppressHydrationWarning
       style={
         {
@@ -410,6 +512,77 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
       >
         {owner}/{repo} Explorer
       </h1>
+      {_loadingDescription && (
+        <p
+          style={{
+            position: 'absolute',
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: 'hidden',
+            clip: 'rect(0,0,0,0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+          }}
+        >
+          {_loadingDescription}
+        </p>
+      )}
+      <header className="shaman-brandbar">
+        <div className="shaman-brandbar-primary">
+          <Link className="shaman-wordmark" href="/" aria-label="gitshaman.com home">
+            <span>git</span>
+            <span className="shaman-wordmark-sha">sha</span>
+            <span>man</span>
+            <span className="shaman-wordmark-domain">.com</span>
+            <span className="shaman-wordmark-path">
+              /{owner}/{repo}
+            </span>
+          </Link>
+          <span className="shaman-brandbar-ref">@ {statusBranch}</span>
+        </div>
+        <div className="shaman-brandbar-context shaman-brandbar-actions">
+          <span className="shaman-sigil" aria-hidden="true">
+            ◈
+          </span>
+          <div className="shaman-share-menu-wrap">
+            <button
+              type="button"
+              className="shaman-header-action"
+              aria-haspopup="menu"
+              aria-expanded={showShareMenu}
+              onClick={() => setShowShareMenu((open) => !open)}
+            >
+              Share
+            </button>
+            {showShareMenu && (
+              <div
+                className="shaman-share-menu"
+                role="menu"
+                onMouseLeave={() => setShowShareMenu(false)}
+              >
+                {(['hackernews', 'twitter', 'reddit', 'linkedin', 'whatsapp'] as const).map(
+                  (platform) => (
+                    <button
+                      key={platform}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleShare(platform)}
+                    >
+                      {platform === 'hackernews' && 'Hacker News'}
+                      {platform === 'twitter' && 'Twitter'}
+                      {platform === 'reddit' && 'Reddit'}
+                      {platform === 'linkedin' && 'LinkedIn'}
+                      {platform === 'whatsapp' && 'WhatsApp'}
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
         {/* ── Activity bar ── */}
         <div
@@ -440,6 +613,11 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
               id: 'entities',
               title: 'Entities',
               label: '{}',
+            },
+            {
+              id: 'semantic',
+              title: 'Semantic Graph',
+              label: '⌬',
             },
           ].map((tab) => {
             const isActive = mode === tab.id;
@@ -503,9 +681,18 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
             <RepositoryWorkspaceExplorer
               owner={owner}
               repo={repo}
-              initialFile={initialFile}
+              branch={requestedBranch}
+              initialFile={initialFile ?? urlInitialFile}
               hideGuidePanel
-              layoutMode={mode === 'search' ? 'search' : mode === 'entities' ? 'viewer' : 'editor'}
+              layoutMode={
+                mode === 'search'
+                  ? 'search'
+                  : mode === 'entities'
+                    ? 'viewer'
+                    : mode === 'semantic'
+                      ? 'semantic'
+                      : 'editor'
+              }
               sourceMode={fileSourceMode}
               onSourceModeChange={handleSourceModeChange}
               workspaceTheme={workspaceTheme}
@@ -584,26 +771,30 @@ export default function RepositoryExplorerClient({ owner, repo }: RepositoryExpl
             transition: 'width 0.18s ease',
           }}
         >
-          {isGuideSidebarOpen ? (
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
+          <div
+            hidden={!isGuideSidebarOpen}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+              display: isGuideSidebarOpen ? 'flex' : 'none',
+              flexDirection: 'column',
+            }}
+          >
+            <RepositoryRightPanel
+              owner={owner}
+              repo={repo}
+              theme={workspaceTheme}
+              onClose={() => setIsGuideSidebarOpen(false)}
             >
               <GuidePanel
                 sections={guideSections}
                 activeChapterId={activeChapterId}
                 onActiveChapterChange={setActiveChapterId}
-                onSidebarToggle={() => setIsGuideSidebarOpen(false)}
-                sidebarToggleLabel="Hide guide sidebar"
-                sidebarToggleIcon="›"
               />
-            </div>
-          ) : (
+            </RepositoryRightPanel>
+          </div>
+          {!isGuideSidebarOpen && (
             <div
               style={{
                 height: '100%',

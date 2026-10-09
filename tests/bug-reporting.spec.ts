@@ -28,6 +28,8 @@ async function readGeneratedIssue(page: Page) {
 }
 
 test.describe('Static bug reporting', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test('opens a GitHub issue with diagnostics, console logs, and screenshot preview', async ({
     page,
   }) => {
@@ -37,18 +39,22 @@ test.describe('Static bug reporting', () => {
     await page.waitForFunction(() => window.__explorarBugReportConsoleCaptureReady === true);
 
     await page.evaluate(() => {
-      window.__explorarBugReportConsoleLogs?.push(
-        {
-          level: 'warn',
-          message: 'bug report test warning',
-          timestamp: new Date().toISOString(),
-        },
-        {
-          level: 'error',
-          message: 'bug report test error',
-          timestamp: new Date().toISOString(),
-        }
-      );
+      console.debug = () => undefined;
+      if (window.__explorarBugReportConsoleLogs) {
+        window.__explorarBugReportConsoleLogs.length = 0;
+        window.__explorarBugReportConsoleLogs.push(
+          {
+            level: 'warn',
+            message: 'bug report test warning',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            level: 'error',
+            message: 'bug report test error',
+            timestamp: new Date().toISOString(),
+          }
+        );
+      }
     });
 
     await reportButton.click();
@@ -69,7 +75,7 @@ test.describe('Static bug reporting', () => {
       .getByRole('link', { name: 'Open GitHub Issue' })
       .getAttribute('href');
 
-    expect(issueHref).toContain('https://github.com/pkill37/explorar.dev/issues/new');
+    expect(issueHref).toContain('https://github.com/pkill37/gitshaman.com/issues/new');
     expect(issueHref).toContain('Bug+report%3A+%2Flinux-kernel');
     expect(issueHref).toContain('The+repository+cards+did+not+respond');
     expect(issueHref).toContain('bug+report+test+warning');
@@ -86,8 +92,9 @@ test.describe('Static bug reporting', () => {
     await reportButton.click();
 
     const issue = await readGeneratedIssue(page);
+    const sanitizedUrl = new URL(BUG_REPORT_ROUTE, page.url()).toString();
 
-    expect(issue.body).toContain('- URL: http://localhost:8000/linux-kernel');
+    expect(issue.body).toContain(`- URL: ${sanitizedUrl}`);
     expect(issue.body).not.toContain('access_token=secret-token');
     expect(issue.body).not.toContain('private-fragment');
   });
@@ -128,7 +135,7 @@ test.describe('Static bug reporting', () => {
 
     const issue = await readGeneratedIssue(page);
 
-    expect(issue.href).toContain('https://github.com/pkill37/explorar.dev/issues/new');
+    expect(issue.href).toContain('https://github.com/pkill37/gitshaman.com/issues/new');
     expect(issue.title).toBe('Bug report: /linux-kernel/');
     expect(issue.labels).toBe('bug,user-report');
     expect(issue.body).toContain('## What happened?');

@@ -1,8 +1,9 @@
 // Dynamic project guide configuration system using docs/ markdown files
-import React from 'react';
+import React, { type CSSProperties } from 'react';
 import { getCuratedGuideByRepo } from '@/features/guides/docs-loader';
 import { parseRepoNavigationTarget } from '@/lib/markdown-navigation';
 import { getCuratedRepoAccent, getCuratedRepoDisplayName } from '@/lib/curated-repos';
+import { SOURCE_REPOSITORY_URL } from '@/lib/site';
 
 export interface FileRecommendation {
   path: string;
@@ -144,155 +145,65 @@ export function createFileRecommendationsComponent(
   };
 
   return (
-    <div style={{ marginTop: '12px', marginBottom: '12px' }}>
+    <div className="guide-recommendations">
       {groups.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div className="guide-recommendations-stack">
           {groups.map((group) => (
             <section
               key={group.type}
-              style={{
-                border: `1px solid ${group.accent}33`,
-                borderRadius: '6px',
-                overflow: 'hidden',
-                background: 'var(--vscode-editor-background, #1e1e1e)',
-              }}
+              className={`guide-recommendation-group guide-recommendation-group--${group.type}`}
+              style={{ '--guide-rec-accent': group.accent } as CSSProperties}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                  padding: '5px 8px',
-                  background: `${group.accent}14`,
-                  borderBottom: `1px solid ${group.accent}26`,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: 'var(--vscode-foreground, #d4d4d4)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                  }}
-                >
-                  {group.title}
+              <div className="guide-recommendation-header">
+                <div className="guide-recommendation-heading">
+                  <div className="guide-recommendation-title">{group.title}</div>
                 </div>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--vscode-descriptionForeground, #999)',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {group.items.length}
-                </div>
+                <div className="guide-recommendation-count">{group.items.length}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px' }}>
-                {group.items.map((file, index) => (
-                  <button
-                    key={`${group.type}-${index + 1}-${file.path}`}
-                    onClick={() => {
-                      const target = getItemTarget(file);
-                      if (target) {
-                        onFileClick(
-                          target.path,
-                          target.searchPattern,
-                          target.scrollToLine,
-                          undefined,
-                          target.owner && target.repo
-                            ? { owner: target.owner, repo: target.repo }
-                            : undefined
-                        );
-                        return;
+              <div className="guide-recommendation-list">
+                {group.items.map((file, index) => {
+                  const itemAccent = getItemAccent(file);
+                  return (
+                    <button
+                      key={`${group.type}-${index + 1}-${file.path}`}
+                      className="guide-recommendation-item"
+                      onClick={() => {
+                        const target = getItemTarget(file);
+                        if (target) {
+                          onFileClick(
+                            target.path,
+                            target.searchPattern,
+                            target.scrollToLine,
+                            undefined,
+                            target.owner && target.repo
+                              ? { owner: target.owner, repo: target.repo }
+                              : undefined
+                          );
+                          return;
+                        }
+                        onFileClick(getItemPath(file));
+                      }}
+                      style={
+                        itemAccent
+                          ? ({ '--guide-rec-badge-accent': itemAccent } as CSSProperties)
+                          : undefined
                       }
-                      onFileClick(getItemPath(file));
-                    }}
-                    style={{
-                      textAlign: 'left',
-                      padding: '4px 8px',
-                      fontSize: '12px',
-                      background: 'transparent',
-                      border: 0,
-                      borderRadius: 0,
-                      color: 'var(--vscode-foreground, #d4d4d4)',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background =
-                        'var(--vscode-list-hoverBackground, #2a2d2e)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <span
-                        style={{
-                          minWidth: '17px',
-                          color: 'var(--vscode-descriptionForeground, #999)',
-                          fontFamily: 'monospace',
-                          fontSize: '11px',
-                          lineHeight: '17px',
-                        }}
-                      >
-                        {index + 1}.
-                      </span>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              lineHeight: 1.3,
-                              color: 'var(--vscode-foreground, #d4d4d4)',
-                            }}
-                          >
-                            {file.description || getItemPath(file)}
+                    >
+                      <div className="guide-recommendation-item-inner">
+                        <span className="guide-recommendation-index">{index + 1}.</span>
+                        <div className="guide-recommendation-item-main">
+                          <div className="guide-recommendation-item-heading">
+                            <div className="guide-recommendation-item-title">
+                              {file.description || getItemPath(file)}
+                            </div>
+                            <span className="guide-recommendation-badge">{getItemBadge(file)}</span>
                           </div>
-                          <span
-                            style={{
-                              fontSize: '10px',
-                              color:
-                                getItemAccent(file) ?? 'var(--vscode-descriptionForeground, #999)',
-                              border: `1px solid ${
-                                getItemAccent(file) ?? 'var(--vscode-panel-border, #3e3e3e)'
-                              }`,
-                              borderRadius: '999px',
-                              padding: '0 5px',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                              lineHeight: '15px',
-                            }}
-                          >
-                            {getItemBadge(file)}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: '10.5px',
-                            color: 'var(--vscode-textPreformat-foreground, #d4d4d4)',
-                            marginTop: '2px',
-                            fontFamily: 'monospace',
-                            wordBreak: 'break-word',
-                            lineHeight: 1.25,
-                          }}
-                        >
-                          {getItemPath(file)}
+                          <div className="guide-recommendation-path">{getItemPath(file)}</div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </section>
           ))}
@@ -338,203 +249,41 @@ export function getProjectConfig(owner: string, repo: string): ProjectConfig | n
 
 // Create a generic guide for unsupported repositories
 export function createGenericGuide(owner: string, repo: string): GuideSection[] {
-  const repoUrl = `https://github.com/${owner}/${repo}`;
-  const explorarRepoUrl = 'https://github.com/pkill37/explorar.dev';
+  const requestTitle = encodeURIComponent(`Add a guide for ${owner}/${repo}`);
 
   return [
     {
       id: 'contribute',
-      title: 'Help Us Support This Repository',
+      title: 'Repository guide',
       body: (
-        <div>
-          <div
-            style={{
-              background: 'var(--vscode-textBlockQuote-background, rgba(100, 150, 200, 0.1))',
-              border: '1px solid var(--vscode-textBlockQuote-border, rgba(100, 150, 200, 0.3))',
-              borderRadius: '8px',
-              padding: '20px',
-              marginBottom: '16px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '16px',
-                fontWeight: 600,
-                color: 'var(--vscode-textLink-foreground, #4a9eff)',
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <span>💡</span>
-              <span>Learning Experience Coming Soon</span>
-            </div>
-            <p
-              style={{ marginBottom: '16px', lineHeight: '1.6', color: 'var(--vscode-foreground)' }}
-            >
-              We're working on building great learning experiences for repositories like{' '}
-              <strong style={{ color: 'var(--vscode-textLink-foreground)' }}>
-                {owner}/{repo}
-              </strong>
-              . While we're building automated ways to generate these experiences, you can help us
-              prioritize this repository!
-            </p>
-            <div
-              style={{
-                background: 'var(--vscode-editor-background, rgba(30, 30, 30, 0.5))',
-                border: '1px solid var(--vscode-panel-border, rgba(62, 62, 62, 0.5))',
-                borderRadius: '6px',
-                padding: '16px',
-                marginBottom: '16px',
-              }}
-            >
-              <p
-                style={{
-                  marginBottom: '12px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  color: 'var(--vscode-foreground)',
-                }}
-              >
-                <strong>How you can help:</strong>
-              </p>
-              <ul
-                style={{
-                  margin: 0,
-                  paddingLeft: '20px',
-                  lineHeight: '1.8',
-                  color: 'var(--vscode-foreground)',
-                }}
-              >
-                <li>
-                  Create a markdown guide in the <code>docs/</code> folder from the{' '}
-                  <a
-                    href={`${explorarRepoUrl}/blob/main/docs/_template.md`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: 'var(--vscode-textLink-foreground, #4a9eff)',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    template
-                  </a>
-                  )
-                </li>
-                <li>
-                  Add YAML frontmatter with curatedRepoId, owner, repo, revision, guideId, name, and
-                  description
-                </li>
-                <li>
-                  Run <code>npm run guides:validate</code> before opening a pull request
-                </li>
-                <li>
-                  Submit a pull request to{' '}
-                  <a
-                    href={explorarRepoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: 'var(--vscode-textLink-foreground, #4a9eff)',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    our repository
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <a
-                href={`${explorarRepoUrl}/issues/new?title=Request%20support%20for%20${encodeURIComponent(owner + '/' + repo)}&body=Please%20add%20learning%20experience%20support%20for%20${encodeURIComponent(owner + '/' + repo)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 16px',
-                  background: 'var(--vscode-button-background, #0e639c)',
-                  color: 'var(--vscode-button-foreground, #ffffff)',
-                  borderRadius: '4px',
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background =
-                    'var(--vscode-button-hoverBackground, #1177bb)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--vscode-button-background, #0e639c)';
-                }}
-              >
-                <span>📝</span>
-                <span>Request Support</span>
-              </a>
-              <a
-                href={`${explorarRepoUrl}/blob/main/CONTRIBUTING.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 16px',
-                  background: 'transparent',
-                  color: 'var(--vscode-textLink-foreground, #4a9eff)',
-                  border: '1px solid var(--vscode-textLink-foreground, #4a9eff)',
-                  borderRadius: '4px',
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background =
-                    'var(--vscode-textBlockQuote-background, rgba(100, 150, 200, 0.2))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span>📖</span>
-                <span>Contribution Guide</span>
-              </a>
-            </div>
-          </div>
-          <p
-            style={{
-              fontSize: '12px',
-              color: 'var(--vscode-descriptionForeground, #999)',
-              fontStyle: 'italic',
-              marginTop: '16px',
-              lineHeight: '1.5',
-            }}
-          >
-            In the meantime, you can still explore the source code of{' '}
+        <div
+          style={{
+            fontSize: '12px',
+            lineHeight: '1.5',
+            color: 'var(--vscode-descriptionForeground, #999)',
+          }}
+        >
+          <p style={{ margin: '0 0 8px' }}>
+            No guide yet. Browse the files in the explorer or help add one.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <a
-              href={repoUrl}
+              href={`${SOURCE_REPOSITORY_URL}/issues/new?title=${requestTitle}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                color: 'var(--vscode-textLink-foreground, #4a9eff)',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.textDecoration = 'underline';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.textDecoration = 'none';
-              }}
+              style={{ color: 'inherit', textUnderlineOffset: '3px' }}
             >
-              {owner}/{repo}
-            </a>{' '}
-            using our code explorer. The guides are contributor-driven - all you need to do is add a
-            markdown file to the docs/ folder!
-          </p>
+              Request a guide
+            </a>
+            <a
+              href={`${SOURCE_REPOSITORY_URL}/blob/main/CONTRIBUTING.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'inherit', textUnderlineOffset: '3px' }}
+            >
+              Contribute
+            </a>
+          </div>
         </div>
       ),
     },

@@ -17,8 +17,8 @@ import {
   parseGitHubRepoIdentifier,
 } from '@/lib/repo-storage';
 import { DownloadProgress, BranchDownloadStatus } from '@/lib/github-archive';
-import { getTrustedVersion } from '@/lib/github-api';
-import { isCuratedRepo, getRepositoryMode as getRepoMode } from '@/lib/repo-static';
+import { getGitHubDefaultBranch, getTrustedVersion } from '@/lib/github-api';
+import { getRepositoryMode as getRepoMode } from '@/lib/repo-static';
 
 export interface RepositoryState {
   // Current repository
@@ -46,7 +46,8 @@ export interface RepositoryActions {
   setRepository: (
     source: 'github' | 'uploaded',
     identifier: string,
-    displayName: string
+    displayName: string,
+    preferredBranch?: string
   ) => Promise<void>;
   clearRepository: () => void;
   checkSetupStatus: () => Promise<boolean>;
@@ -102,24 +103,21 @@ export function RepositoryProvider({ children }: RepositoryProviderProps) {
     async (
       source: 'github' | 'uploaded',
       identifier: string,
-      displayName: string
+      displayName: string,
+      preferredBranch?: string
     ): Promise<void> => {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
       try {
-        if (source === 'github') {
-          const { owner, repo } = parseGitHubRepoIdentifier(identifier);
-          if (!isCuratedRepo(owner, repo)) {
-            throw new Error(`Repository ${displayName} is not curated and is no longer supported`);
-          }
-        }
-
         // Get available branches
         let branches: string[] = [];
         if (source === 'github') {
           const { owner, repo } = parseGitHubRepoIdentifier(identifier);
           const trustedVersion = getTrustedVersion(owner, repo);
-          branches = trustedVersion ? [trustedVersion] : [];
+          branches =
+            trustedVersion && !preferredBranch
+              ? [trustedVersion]
+              : [preferredBranch || (await getGitHubDefaultBranch(owner, repo))];
         }
 
         if (branches.length === 0) {
@@ -137,7 +135,7 @@ export function RepositoryProvider({ children }: RepositoryProviderProps) {
 
         // Set default branch (first trusted branch if available, otherwise first available stable branch)
         const defaultBranch =
-          source === 'github' && trustedBranches.length > 0
+          source === 'github' && trustedBranches.length > 0 && !preferredBranch
             ? trustedBranches.find((branch) => branches.includes(branch)) || branches[0]
             : branches[0];
 

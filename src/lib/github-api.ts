@@ -7,6 +7,7 @@ import {
   getTreeStructureFromStatic,
   getRepositoryMode,
   resolveCorpusPathFromTree,
+  isCuratedRepo,
   type CuratedRepoSourceMode,
 } from './repo-static';
 import { getDefaultCuratedRepoSourceMode } from './curated-content-url';
@@ -51,6 +52,20 @@ export function getTrustedVersion(owner: string, repo: string): string {
   return getCuratedRepoRevision(owner, repo);
 }
 
+export async function getGitHubDefaultBranch(owner: string, repo: string): Promise<string> {
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'gitshaman.com' },
+  });
+  if (!response.ok) {
+    throw new GitHubApiError(`Unable to load repository ${owner}/${repo}`, response.status);
+  }
+  const data = (await response.json()) as { default_branch?: string };
+  if (!data.default_branch) {
+    throw new GitHubApiError(`Repository ${owner}/${repo} has no default branch`, 404);
+  }
+  return data.default_branch;
+}
+
 /**
  * Set GitHub repository and automatically detect default branch if 'master' or unstable branch is specified
  * Main/master branches are never allowed - will be replaced with first trusted version
@@ -58,8 +73,13 @@ export function getTrustedVersion(owner: string, repo: string): string {
 export async function setGitHubRepoWithDefaultBranch(
   owner: string,
   repo: string,
-  branch: string = 'v6.1'
+  branch: string = 'v6.1',
+  options?: { preserveBranch?: boolean }
 ): Promise<void> {
+  if (options?.preserveBranch) {
+    currentConfig = { ...currentConfig, owner, repo, branch };
+    return;
+  }
   // Never allow main/master branches - they are unstable
   if (isUnstableBranch(branch)) {
     const trusted = getTrustedVersion(owner, repo);
@@ -67,8 +87,7 @@ export async function setGitHubRepoWithDefaultBranch(
       currentConfig = { ...currentConfig, owner, repo, branch: trusted };
       return;
     }
-    // Fallback to a safe default if no trusted version
-    currentConfig = { ...currentConfig, owner, repo, branch: 'v6.1' };
+    currentConfig = { ...currentConfig, owner, repo, branch };
     return;
   }
 
@@ -182,16 +201,50 @@ export async function fetchRepositoryFile(
   path: string,
   options?: {
     sourceMode?: CuratedRepoSourceMode;
+    allowGitHubFallback?: boolean;
   }
 ): Promise<FileFetchResult> {
   const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
-  try {
-    const staticResult = await tryFetchFileFromStorage(owner, repo, branch, path, sourceMode);
-    if (staticResult) {
-      return staticResult;
+  if (path.endsWith('/')) {
+    throw new GitHubApiError(
+      `Failed to load "${path}" from ${sourceMode} for ${owner}/${repo}@${branch}.`,
+      404
+    );
+  }
+
+  if (isCuratedRepo(owner, repo)) {
+    try {
+      const staticResult = await tryFetchFileFromStorage(owner, repo, branch, path, sourceMode);
+      if (staticResult) {
+        return staticResult;
+      }
+    } catch (error) {
+      throw error;
     }
-  } catch (error) {
-    throw error;
+  }
+
+  // Curated repositories are intentionally served only from their selected
+  // corpus source. Runtime raw GitHub loading is for arbitrary repositories.
+  if (!isCuratedRepo(owner, repo) || options?.allowGitHubFallback) {
+    const rawPath = path.split('/').map(encodeURIComponent).join('/');
+    const rawBranch = branch.split('/').map(encodeURIComponent).join('/');
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${rawBranch}/${rawPath}`;
+    try {
+      const response = await fetch(rawUrl);
+      if (response.ok) {
+        return {
+          content: await response.text(),
+          debugInfo: {
+            enabled: false,
+            source: 'github-api',
+            requestUrl: rawUrl,
+            responseStatus: response.status,
+          },
+        };
+      }
+    } catch {
+      // Normalize network failures below so callers receive a stable error.
+    }
   }
 
   throw new GitHubApiError(

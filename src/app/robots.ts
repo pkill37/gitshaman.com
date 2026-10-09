@@ -1,8 +1,9 @@
 import { MetadataRoute } from 'next';
+import { getSiteUrl } from '@/lib/site';
 
 export const dynamic = 'force-static';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://explorar.dev';
+const siteUrl = getSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {

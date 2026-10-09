@@ -4,6 +4,8 @@ import {
   routeCorpusRepository,
   type RoutedCorpusRequests,
 } from './helpers/corpus-routing';
+import { readDebugLogs, resetDebugLogs } from './helpers/debug-logs';
+import { openGuideFile } from './helpers/page-actions';
 
 const OWNER = 'littlekernel';
 const REPO = 'lk';
@@ -32,28 +34,12 @@ void r2_entity_marker(void) {
 }
 `;
 
-async function resetDebugLogs(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    window.__explorarDebugLogs = [];
-  });
+function storageSourceSelector(page: Page) {
+  return page.getByRole('main').getByRole('combobox', { name: 'Storage source' });
 }
 
-async function readDebugLogs(page: Page) {
-  return page.evaluate(() => window.__explorarDebugLogs ?? []);
-}
-
-async function openGuideFile(page: Page, path: string): Promise<void> {
-  const segments = path.split('/');
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const directoryPath = segments.slice(0, index + 1).join('/');
-    const directoryItem = page.locator(`[data-file-path="${directoryPath}"]`);
-    await expect(directoryItem).toBeVisible();
-    await directoryItem.click();
-  }
-
-  const fileItem = page.locator(`[data-file-path="${path}"]`);
-  await expect(fileItem).toBeVisible();
-  await fileItem.click();
+function storageSourceStatus(page: Page, title: string) {
+  return page.getByRole('main').locator(`.cursor-statusbar-item[title="${title}"]`);
 }
 
 async function expectFileFetchFromSource(
@@ -122,10 +108,8 @@ test.describe('repository source mode browser behavior', () => {
     const response = await page.goto('/littlekernel/lk', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
-    await expect(page.getByLabel('Storage source')).toHaveValue('local-filesystem');
-    await expect(
-      page.locator('.cursor-statusbar-item[title="Storage source: Local staged corpus"]')
-    ).toBeVisible();
+    await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
+    await expect(storageSourceStatus(page, 'Storage source: Local staged corpus')).toBeVisible();
 
     requests.local = [];
     requests.r2 = [];
@@ -153,9 +137,11 @@ test.describe('repository source mode browser behavior', () => {
     const response = await page.goto('/littlekernel/lk', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
-    await page.getByLabel('Storage source').selectOption('r2-bucket');
-    await expect(page.getByLabel('Storage source')).toHaveValue('r2-bucket');
-    await expect(page.locator('.cursor-statusbar-item[title="Storage source: R2"]')).toBeVisible();
+    await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
+
+    await storageSourceSelector(page).selectOption('r2-bucket');
+    await expect(storageSourceSelector(page)).toHaveValue('r2-bucket');
+    await expect(storageSourceStatus(page, 'Storage source: R2')).toBeVisible();
     await resetDebugLogs(page);
     await openGuideFile(page, TEST_FILE_PATH);
 
@@ -172,10 +158,10 @@ test.describe('repository source mode browser behavior', () => {
       .toBe('r2-bucket');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByLabel('Storage source')).toHaveValue('r2-bucket');
+    await expect(storageSourceSelector(page)).toHaveValue('r2-bucket');
 
-    await page.getByLabel('Storage source').selectOption('local-filesystem');
-    await expect(page.getByLabel('Storage source')).toHaveValue('local-filesystem');
+    await storageSourceSelector(page).selectOption('local-filesystem');
+    await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
     await page.getByRole('button', { name: 'Close all files' }).click();
     await resetDebugLogs(page);
     await openGuideFile(page, TEST_FILE_PATH);
@@ -197,13 +183,15 @@ test.describe('repository source mode browser behavior', () => {
     const response = await page.goto('/littlekernel/lk', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
 
+    await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
+
     await page.getByRole('button', { name: 'Entities' }).click();
     await expect(page.getByText('local_entity_marker')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('r2_entity_marker')).not.toBeVisible();
 
     await page.getByRole('button', { name: 'File editor' }).click();
-    await page.getByLabel('Storage source').selectOption('r2-bucket');
-    await expect(page.locator('.cursor-statusbar-item[title="Storage source: R2"]')).toBeVisible();
+    await storageSourceSelector(page).selectOption('r2-bucket');
+    await expect(storageSourceStatus(page, 'Storage source: R2')).toBeVisible();
     await page.getByRole('button', { name: 'Entities' }).click();
 
     await expect(page.getByText('r2_entity_marker')).toBeVisible({ timeout: 30000 });

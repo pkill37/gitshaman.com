@@ -1,0 +1,85 @@
+.repository-right-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  color: var(--vscode-text-primary);
+}
+.repository-panel-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--vscode-border);
+  flex-shrink: 0;
+}
+.repository-panel-header [role='tablist'] {
+  display: flex;
+}
+.repository-panel-header button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--vscode-text-secondary);
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.repository-panel-header [aria-selected='true'] {
+  color: var(--vscode-text-primary);
+  border-bottom-color: var(--repo-accent, var(--vscode-text-accent));
+}
+.repository-right-panel button:focus-visible,
+.repository-right-panel a:focus-visible {
+  outline: 2px solid var(--repo-accent, var(--vscode-text-accent));
+  outline-offset: -2px;
+}
+.repository-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.repository-panel-body[hidden] {
+  display: none;
+}
+.repository-panel-chat {
+  overflow-y: auto;
+}
+.repository-chat {
+  padding: 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.repository-chat h2 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+.repository-chat h3 {
+  font-size: 14px;
+}
+.repository-chat p {
+  color: var(--vscode-text-secondary);
+  line-height: 1.6;
+  margin: 8px 0 12px;
+}
+.repository-chat .repository-chat-repo {
+  color: var(--vscode-text-primary);
+  font-family: monospace;
+}
+.repository-chat a {
+  color: var(--repo-accent, var(--vscode-text-accent));
+}
+.repository-chat button {
+  background: var(--vscode-bg-tertiary);
+  color: var(--vscode-text-primary);
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.repository-chat-setup {
+  border: 1px solid var(--vscode-border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 16px;
+}

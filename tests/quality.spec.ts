@@ -16,7 +16,7 @@ test.describe('Quality Checks', () => {
 
   test('repository page has no accessibility violations', async ({ page }) => {
     await page.goto('/linux-kernel', { waitUntil: 'domcontentloaded' });
-    const loadedMain = page.locator('main').filter({ hasText: 'Open a file from the explorer' });
+    const loadedMain = page.getByRole('main').filter({ hasText: 'Open a file from the explorer' });
     await expect(loadedMain).toBeVisible({ timeout: 30000 });
     // color-contrast is disabled: the dark VS Code-like UI intentionally uses
     // low-contrast muted labels (same design trade-off as VS Code's own dark theme)
@@ -55,14 +55,12 @@ test.describe('Quality Checks', () => {
 
   test('all internal links are valid', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const links = page.locator('a[href^="/"]');
-
-    const linkCount = await links.count();
+    const hrefs = await page.$$eval('main a[href^="/"]', (links) =>
+      links.map((link) => link.getAttribute('href'))
+    );
     const brokenLinks: string[] = [];
 
-    for (let i = 0; i < linkCount; i++) {
-      const link = links.nth(i);
-      const href = await link.getAttribute('href');
+    for (const href of hrefs) {
       if (href && !href.startsWith('#')) {
         const response = await page.request.get(href);
         if (response.status() >= 400) {
@@ -76,14 +74,12 @@ test.describe('Quality Checks', () => {
 
   test('has no broken images', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const images = page.locator('img');
-
-    const count = await images.count();
+    const imageSources = await page.$$eval('main img', (images) =>
+      images.map((img) => img.getAttribute('src'))
+    );
     const brokenImages: string[] = [];
 
-    for (let i = 0; i < count; i++) {
-      const img = images.nth(i);
-      const src = await img.getAttribute('src');
+    for (const src of imageSources) {
       if (src && !src.startsWith('data:') && !src.startsWith('http')) {
         const publicPath = path.join(process.cwd(), 'public', src.replace(/^\/+/, ''));
         if (!fs.existsSync(publicPath)) {
@@ -133,48 +129,40 @@ test.describe('Quality Checks', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Check buttons without text have aria-label
-    const buttons = page.locator('button');
-    const buttonCount = await buttons.count();
+    const unlabeledButtonCount = await page.$$eval(
+      'main button',
+      (buttons) =>
+        buttons.filter(
+          (button) =>
+            !button.textContent?.trim() &&
+            !button.getAttribute('aria-label') &&
+            !button.getAttribute('aria-labelledby')
+        ).length
+    );
 
-    for (let i = 0; i < buttonCount; i++) {
-      const button = buttons.nth(i);
-      const text = await button.textContent();
-      const ariaLabel = await button.getAttribute('aria-label');
-      const ariaLabelledBy = await button.getAttribute('aria-labelledby');
-
-      if (!text?.trim() && !ariaLabel && !ariaLabelledBy) {
-        throw new Error('Button without text or aria-label found');
-      }
-    }
+    expect(unlabeledButtonCount).toBe(0);
   });
 
   test('forms have proper labels', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    const inputs = page.locator('input, select, textarea');
-    const inputCount = await inputs.count();
+    const unlabeledInputCount = await page.$$eval(
+      'main input, main select, main textarea',
+      (inputs) =>
+        inputs.filter((input) => {
+          if (input.getAttribute('type') === 'hidden') return false;
 
-    for (let i = 0; i < inputCount; i++) {
-      const input = inputs.nth(i);
-      const type = await input.getAttribute('type');
-      const id = await input.getAttribute('id');
-      const ariaLabel = await input.getAttribute('aria-label');
-      const ariaLabelledBy = await input.getAttribute('aria-labelledby');
+          const id = input.getAttribute('id');
+          const hasLabel = id
+            ? Boolean(document.querySelector(`label[for="${CSS.escape(id)}"]`))
+            : false;
+          return (
+            !hasLabel && !input.getAttribute('aria-label') && !input.getAttribute('aria-labelledby')
+          );
+        }).length
+    );
 
-      // Skip hidden inputs
-      if (type === 'hidden') continue;
-
-      // Input should have label, aria-label, or aria-labelledby
-      if (id) {
-        const label = page.locator(`label[for="${id}"]`);
-        const labelCount = await label.count();
-        if (labelCount > 0) continue;
-      }
-
-      if (!ariaLabel && !ariaLabelledBy) {
-        throw new Error('Form input without proper label found');
-      }
-    }
+    expect(unlabeledInputCount).toBe(0);
   });
 
   test('has no console errors', async ({ page }) => {

@@ -49,6 +49,47 @@ let initPromise: Promise<void> | null = null;
 const metadataUpdateQueue = new Map<string, ReturnType<typeof setTimeout>>();
 const METADATA_UPDATE_DELAY = 1000; // Update metadata at most once per second per repository
 
+function resetDatabaseConnection(database?: IDBDatabase): void {
+  if (!database || database === db) {
+    db = null;
+    initPromise = null;
+  }
+}
+
+function isClosedDatabaseError(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    error.name === 'InvalidStateError' &&
+    error.message.includes('closed database')
+  );
+}
+
+function attachDatabaseLifecycleHandlers(database: IDBDatabase): void {
+  database.onversionchange = () => {
+    database.close();
+    resetDatabaseConnection(database);
+  };
+
+  database.addEventListener('close', () => {
+    resetDatabaseConnection(database);
+  });
+}
+
+async function withOpenDatabase<T>(operation: (database: IDBDatabase) => Promise<T>): Promise<T> {
+  const database = await ensureDB();
+
+  try {
+    return await operation(database);
+  } catch (error) {
+    if (!isClosedDatabaseError(error)) {
+      throw error;
+    }
+
+    resetDatabaseConnection(database);
+    return operation(await ensureDB());
+  }
+}
+
 /**
  * Initialize IndexedDB database
  */
@@ -77,6 +118,7 @@ export async function initStorage(): Promise<void> {
         };
 
         request.onsuccess = () => {
+          attachDatabaseLifecycleHandlers(request.result);
           resolve(request.result);
         };
 
@@ -675,59 +717,60 @@ async function calculateRepositorySize(
  */
 export async function getStorageUsage(): Promise<StorageUsage> {
   try {
-    const database = await ensureDB();
-    const transaction = database.transaction([METADATA_STORE], 'readonly');
-    const store = transaction.objectStore(METADATA_STORE);
+    return await withOpenDatabase((database) => {
+      const transaction = database.transaction([METADATA_STORE], 'readonly');
+      const store = transaction.objectStore(METADATA_STORE);
 
-    const repositories: RepositoryMetadata[] = [];
-    let totalSize = 0;
+      const repositories: RepositoryMetadata[] = [];
+      let totalSize = 0;
 
-    return new Promise<StorageUsage>((resolve, reject) => {
-      const request = store.openCursor();
+      return new Promise<StorageUsage>((resolve, reject) => {
+        const request = store.openCursor();
 
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-        if (cursor) {
-          const metadata = cursor.value as RepositoryMetadata;
-          repositories.push(metadata);
-          totalSize += metadata.totalSize;
-          cursor.continue();
-        } else {
-          // Get available space if supported
-          let availableSpace: number | undefined;
-          if ('storage' in navigator && 'estimate' in navigator.storage) {
-            navigator.storage
-              .estimate()
-              .then((estimate) => {
-                if (estimate.quota && estimate.usage) {
-                  availableSpace = estimate.quota - estimate.usage;
-                }
-                resolve({
-                  totalSize,
-                  repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
-                  availableSpace,
-                });
-              })
-              .catch(() => {
-                resolve({
-                  totalSize,
-                  repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
-                  availableSpace: undefined,
-                });
-              });
+        request.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+          if (cursor) {
+            const metadata = cursor.value as RepositoryMetadata;
+            repositories.push(metadata);
+            totalSize += metadata.totalSize;
+            cursor.continue();
           } else {
-            resolve({
-              totalSize,
-              repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
-              availableSpace: undefined,
-            });
+            // Get available space if supported
+            let availableSpace: number | undefined;
+            if ('storage' in navigator && 'estimate' in navigator.storage) {
+              navigator.storage
+                .estimate()
+                .then((estimate) => {
+                  if (estimate.quota && estimate.usage) {
+                    availableSpace = estimate.quota - estimate.usage;
+                  }
+                  resolve({
+                    totalSize,
+                    repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
+                    availableSpace,
+                  });
+                })
+                .catch(() => {
+                  resolve({
+                    totalSize,
+                    repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
+                    availableSpace: undefined,
+                  });
+                });
+            } else {
+              resolve({
+                totalSize,
+                repositories: repositories.sort((a, b) => b.lastAccessed - a.lastAccessed),
+                availableSpace: undefined,
+              });
+            }
           }
-        }
-      };
+        };
 
-      request.onerror = () => {
-        reject(request.error);
-      };
+        request.onerror = () => {
+          reject(request.error);
+        };
+      });
     });
   } catch (error) {
     console.error('Failed to get storage usage:', error);
@@ -934,29 +977,29 @@ export async function getTreeStructure(
   branch: string
 ): Promise<FileNode[] | null> {
   try {
-    const database = await ensureDB();
+    return await withOpenDatabase((database) => {
+      // Check if TREE_STRUCTURE_STORE exists
+      if (!database.objectStoreNames.contains(TREE_STRUCTURE_STORE)) {
+        console.warn('TREE_STRUCTURE_STORE not found in database - database may need upgrade');
+        return Promise.resolve(null);
+      }
 
-    // Check if TREE_STRUCTURE_STORE exists
-    if (!database.objectStoreNames.contains(TREE_STRUCTURE_STORE)) {
-      console.warn('TREE_STRUCTURE_STORE not found in database - database may need upgrade');
-      return null;
-    }
+      const key = getTreeStructureKey(source, identifier, branch);
 
-    const key = getTreeStructureKey(source, identifier, branch);
+      return new Promise<FileNode[] | null>((resolve, reject) => {
+        const transaction = database.transaction([TREE_STRUCTURE_STORE], 'readonly');
+        const treeStore = transaction.objectStore(TREE_STRUCTURE_STORE);
+        const request = treeStore.get(key);
 
-    return new Promise<FileNode[] | null>((resolve, reject) => {
-      const transaction = database.transaction([TREE_STRUCTURE_STORE], 'readonly');
-      const treeStore = transaction.objectStore(TREE_STRUCTURE_STORE);
-      const request = treeStore.get(key);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => {
-          const result = request.result as TreeStructure | undefined;
-          resolve(result ? result.tree : null);
+        request.onsuccess = () => {
+          transaction.oncomplete = () => {
+            const result = request.result as TreeStructure | undefined;
+            resolve(result ? result.tree : null);
+          };
+          transaction.onerror = () => reject(transaction.error);
         };
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
+        request.onerror = () => reject(request.error);
+      });
     });
   } catch (error) {
     console.warn('Failed to get tree structure:', error);

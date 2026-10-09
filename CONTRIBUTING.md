@@ -1,6 +1,6 @@
 # Contributing
 
-Explorar is a static Next.js application for browsing curated source repositories through guides,
+GitShaman is a static Next.js application for browsing curated source repositories through guides,
 indexed search, cross-references, diagrams, and knowledge checks. Guide content lives in `docs/`.
 
 ## Development
@@ -16,11 +16,31 @@ repository snapshots used by the local corpus.
 Run these checks before submitting changes:
 
 ```bash
-npm run guides:validate  # validate guide markdown and repository references
-npm run lint             # types, ESLint, Prettier, markdownlint, and dependency checks
+npm run guides:validate  # validate guide markdown, prose, and repository references
+npm run lint             # types, ESLint, Prettier, Markdown, prose, and dependencies
 npm run build            # create the static export in out/
-npm test                 # run Playwright tests
+npm test                 # run prose regression tests and Playwright tests
 ```
+
+Guide prose should read like a calm field manual. Prefer direct verbs such as "open", "trace",
+"inspect", "compare", and "verify". Avoid hedged instructions such as "you can", "you should",
+"try to", and "you may want to"; write the action itself instead.
+
+`npm run lint:guide-prose` enforces these rules plus `write-good` checks for wordiness, adverbs,
+weasel words, repeated words, and cliches. All findings fail the command; no environment variable
+opts out. The check runs in `guides:validate`, `lint` (including pre-commit), and production builds.
+`npm test` runs its regression tests before Playwright.
+
+The linter reads rendered paragraphs, headings, lists, blockquotes, and table cells across `docs/`,
+including nested directories. Emphasis, link labels, and wrapped lines remain subject to the rules.
+Code blocks, inline code, link destinations, HTML blocks/comments, and document/chapter YAML metadata
+are excluded; `_template.md` is a scaffold rather than a guide. Diagnostics use original file lines
+and columns. An empty guide corpus fails validation.
+
+Passive voice and the opt-in ban on forms of “to be” remain disabled: technical descriptions can
+use them to identify state and ownership. The exact vocabulary exceptions are `read-only`,
+`user-space`, `kernel-space`, `single`, `only`, `simple`, `simply-typed`, and `Objective-C`.
+Exceptions match whole terms, including at the start of a sentence; they do not exempt other prose.
 
 Configuration is read from `.env.development`, `.env.production`, `.env.example`, and an optional
 uncommitted `.env.local`. Public client-side variables use the `NEXT_PUBLIC_` prefix.
@@ -94,7 +114,6 @@ Supported navigation syntax includes:
 - `path/to/file.c:123` to open near a line
 - `path/to/file.c:symbol_name` to search for a symbol
 - `path/to/doc.rst#heading` to preserve a documentation anchor
-- `man:futex(2)` or `futex(2)` to open a manual page when available
 
 Chapter diagrams use `chapter-graph` fenced blocks. Every edge must use
 `source -> target : label`.

@@ -103,7 +103,7 @@ export default function BugReportWidget({
         aria-label="Report a bug"
         className={
           trigger
-            ? undefined
+            ? 'rounded border border-[var(--vscode-border,#3e3e3e)] bg-[var(--vscode-bg-secondary,#252526)] text-[var(--vscode-text-secondary,#cccccc)] shadow-sm transition-colors hover:border-[var(--repo-accent,var(--vscode-text-accent,#63d8c9))] hover:bg-[var(--vscode-bg-hover,#2a2d2e)] hover:text-[var(--vscode-text-primary,#ffffff)] focus:ring-2 focus:ring-[var(--repo-accent,var(--vscode-text-accent,#63d8c9))] focus:outline-none'
             : variant === 'sidebar'
               ? 'flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--vscode-border)] bg-[var(--vscode-bg-tertiary)] text-sm font-semibold text-[var(--vscode-text-secondary)] transition-colors hover:border-[var(--repo-accent,var(--vscode-text-accent))] hover:bg-[var(--vscode-bg-hover)] hover:text-[var(--vscode-text-primary)] focus:ring-2 focus:ring-[var(--repo-accent,var(--vscode-text-accent))] focus:outline-none'
               : variant === 'statusbar'

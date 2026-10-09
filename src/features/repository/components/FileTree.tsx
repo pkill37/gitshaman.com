@@ -9,8 +9,10 @@ import {
   sortFileNodes,
   getCurrentRepoLabel,
   getCurrentBranch,
+  getTrustedVersion,
 } from '@/lib/github-api';
 import { getTreeStructure, getGitHubRepoIdentifier } from '@/lib/repo-storage';
+import { isCuratedRepo } from '@/lib/repo-static';
 
 interface FileTreeProps {
   onFileSelect: (path: string) => void;
@@ -393,7 +395,10 @@ const FileTree: React.FC<FileTreeProps> = ({
             const branch = getCurrentBranch();
             const identifier = getGitHubRepoIdentifier(owner, repo);
 
-            const storedTree = await getTreeStructure('github', identifier, branch);
+            const storedTree =
+              isCuratedRepo(owner, repo) && getCurrentBranch() === getTrustedVersion(owner, repo)
+                ? await getTreeStructure('github', identifier, branch)
+                : null;
 
             if (storedTree && storedTree.length > 0) {
               // Mark all directories as loaded since we have the complete structure
@@ -669,6 +674,8 @@ const FileTree: React.FC<FileTreeProps> = ({
                 const matchTypeLabel = placeholderMatch
                   ? placeholderMatch.preview.replace(' match', '').toLowerCase()
                   : null;
+                const matchTypeBadge = primaryMatch.matchType;
+                const relevanceLabel = `${Math.round(primaryMatch.relevanceScore)}%`;
 
                 return (
                   <section key={group.file} className="vscode-tree-search-group">
@@ -682,10 +689,20 @@ const FileTree: React.FC<FileTreeProps> = ({
                         📄
                       </span>
                       <span className="name">{group.fileName}</span>
+                      <span className="vscode-tree-search-relevance" title="Relevance score">
+                        {relevanceLabel}
+                      </span>
                       <span className="size">
                         {group.directory || 'root'}
                         {matchTypeLabel ? ` · ${matchTypeLabel}` : ''}
                       </span>
+                      {matchTypeBadge && matchTypeBadge !== 'content' && (
+                        <span
+                          className={`vscode-tree-search-match-badge vscode-tree-search-match-${matchTypeBadge}`}
+                        >
+                          {matchTypeBadge === 'filename' ? 'name' : 'quote'}
+                        </span>
+                      )}
                     </button>
                     {visibleMatches.length > 0 && (
                       <div className="vscode-tree-search-group-list">

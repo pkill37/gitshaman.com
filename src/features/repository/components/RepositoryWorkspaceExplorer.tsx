@@ -4,8 +4,9 @@ import { notFound, useRouter } from 'next/navigation';
 import FileTree from './FileTree';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
-import ManualPagePreview from './ManualPagePreview';
 import GuidePanel from './GuidePanel';
+import RepositoryRightPanel from './RepositoryRightPanel';
+import SemanticGraphTab from './SemanticGraphTab';
 import { EditorTab, FileNode, WorkspaceSearchResult } from '@/types';
 import {
   buildFileTree,
@@ -15,6 +16,7 @@ import {
   setGitHubRepoWithDefaultBranch,
   getTrustedVersion,
   getRepoIdentifier,
+  getGitHubDefaultBranch,
 } from '@/lib/github-api';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
 import { getCuratedRepoPath } from '@/lib/curated-repos';
@@ -40,14 +42,22 @@ import {
   type LoadedCodeIndex,
 } from '@/lib/code-index';
 import { debugLog } from '@/lib/browser-debug';
-import { buildManualPageTabPath, getManPageLabel } from '@/lib/man-pages';
+import { downloadDirectoryContents } from '@/lib/github-archive';
+import { resolveRepositoryNavigation } from '@/lib/github-url';
 import '@/app/vscode.css';
 
 // Helper functions for safe localStorage operations
 const saveToLocalStorage = (key: string, value: unknown) => {
   try {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(key, JSON.stringify(value));
+      const serialized = JSON.stringify(value);
+      try {
+        localStorage.setItem(key, serialized);
+      } catch (error) {
+        localStorage.removeItem(key);
+        localStorage.setItem(key, serialized);
+        console.warn(`Reclaimed localStorage space while saving ${key}:`, error);
+      }
     }
   } catch (error) {
     console.warn(`Failed to save ${key} to localStorage:`, error);
@@ -80,6 +90,9 @@ const EXPLORER_STORAGE_KEY_PREFIX = 'repository-workspace-explorer';
 const CORPUS_SOURCE_MODE_STORAGE_KEY = `${EXPLORER_STORAGE_KEY_PREFIX}-corpus-source-mode`;
 
 type WorkspaceTheme = 'dark' | 'light';
+type StoredEditorTab = Omit<EditorTab, 'content' | 'isLoading'> & {
+  isLoading?: boolean;
+};
 
 const isPreviewableMarkupFile = (path: string) => /\.(md|rst)$/i.test(path);
 
@@ -103,6 +116,20 @@ function flattenFilePaths(nodes: FileNode[]): string[] {
 
 function resolveWorkspaceFilePath(filePath: string, workspaceFilePaths: string[]): string | null {
   return resolveCorpusPathFromKnownFiles(filePath, workspaceFilePaths);
+}
+
+function stripTabContentForStorage(tab: EditorTab): StoredEditorTab {
+  const storedTab = { ...tab, isLoading: false };
+  delete storedTab.content;
+  return { ...storedTab, isLoading: false };
+}
+
+function normalizeStoredTabs(tabs: EditorTab[]): EditorTab[] {
+  return tabs.map((tab) => ({
+    ...stripTabContentForStorage(tab),
+    content: undefined,
+    isLoading: false,
+  }));
 }
 
 function findPedagogicalLandingLine(filePath: string, content: string): number | undefined {
@@ -156,31 +183,34 @@ function findPedagogicalLandingLine(filePath: string, content: string): number |
   return firstCodeLine >= 0 ? firstCodeLine + 1 : undefined;
 }
 
+export type InitialFileTarget =
+  | string
+  | string[]
+  | {
+      kind?: 'repo-file';
+      path: string;
+      exactPath?: boolean;
+      searchPattern?: string;
+      scrollToLine?: number;
+      searchScope?: string[];
+      navigationNonce?: number;
+    }
+  | {
+      kind: 'directory';
+      path: string;
+      navigationNonce?: number;
+    }
+  | null;
+
 interface RepositoryWorkspaceExplorerProps {
   owner?: string;
   repo?: string;
   branch?: string;
-  initialFile?:
-    | string
-    | string[]
-    | {
-        kind?: 'repo-file';
-        path: string;
-        searchPattern?: string;
-        scrollToLine?: number;
-        searchScope?: string[];
-        navigationNonce?: number;
-      }
-    | {
-        kind: 'man-page';
-        name: string;
-        section: string;
-        navigationNonce?: number;
-      }
-    | null;
+  initialFile?: InitialFileTarget;
   /** When true, suppresses the internal right guide panel (guide is shown by parent layout) */
   hideGuidePanel?: boolean;
-  layoutMode?: 'editor' | 'search' | 'viewer';
+  onSelectedFileChange?: (path: string) => void;
+  layoutMode?: 'editor' | 'search' | 'viewer' | 'semantic';
   sourceMode?: CuratedRepoSourceMode;
   onSourceModeChange?: (sourceMode: CuratedRepoSourceMode) => void;
   workspaceTheme: WorkspaceTheme;
@@ -194,6 +224,7 @@ export default function RepositoryWorkspaceExplorer({
   branch,
   initialFile,
   hideGuidePanel = false,
+  onSelectedFileChange,
   layoutMode = 'editor',
   sourceMode,
   onSourceModeChange,
@@ -204,7 +235,6 @@ export default function RepositoryWorkspaceExplorer({
   const router = useRouter();
   const {
     setRepository,
-    switchBranch,
     currentBranch,
     error: repoError,
     identifier: repoIdentifier,
@@ -213,6 +243,9 @@ export default function RepositoryWorkspaceExplorer({
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string>('');
+  useEffect(() => {
+    onSelectedFileChange?.(selectedFile);
+  }, [selectedFile, onSelectedFileChange]);
   const [directoryExpandRequest, setDirectoryExpandRequest] = useState<{
     path: string;
     id: number;
@@ -230,6 +263,9 @@ export default function RepositoryWorkspaceExplorer({
     const config = owner && repo ? getProjectConfig(owner, repo) : null;
     const trusted = owner && repo ? getTrustedVersion(owner, repo) : '';
     const defaultBranch = config?.defaultRevision || trusted || 'main';
+    // Curated repositories have one local corpus revision. GitHub links may
+    // point at main, master, or a tag, but the file focus remains useful on the
+    // trusted local revision.
     const effectiveBranch = branch || defaultBranch;
     if (owner && repo) {
       void setGitHubRepoWithDefaultBranch(owner, repo, effectiveBranch);
@@ -249,10 +285,22 @@ export default function RepositoryWorkspaceExplorer({
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(400);
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const [tabsRestored, setTabsRestored] = useState<boolean>(false);
 
-  const [localFileSourceMode, setLocalFileSourceMode] = useState<CuratedRepoSourceMode>(() =>
-    getDefaultCuratedRepoSourceMode()
-  );
+  const [localFileSourceMode, setLocalFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
+    let nextSourceMode = getDefaultCuratedRepoSourceMode();
+    try {
+      if (typeof window !== 'undefined') {
+        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
+        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
+          nextSourceMode = savedSourceMode;
+        }
+      }
+    } catch {
+      // Keep the environment default.
+    }
+    return normalizeCuratedRepoSourceMode(nextSourceMode);
+  });
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
 
@@ -283,14 +331,27 @@ export default function RepositoryWorkspaceExplorer({
   const [workspaceSearchError, setWorkspaceSearchError] = useState<string | null>(null);
   const [workspaceSearchHasMore, setWorkspaceSearchHasMore] = useState<boolean>(false);
   const [workspaceSearchIndex, setWorkspaceSearchIndex] = useState<LoadedCodeIndex | null>(null);
-  const [workspaceSearchIndexLoading, setWorkspaceSearchIndexLoading] = useState(false);
+  const [workspaceSearchIndexLoading, setWorkspaceSearchIndexLoading] = useState(true);
   const [workspaceSearchIndexError, setWorkspaceSearchIndexError] = useState<string | null>(null);
   const [workspaceSearchIndexProgress, setWorkspaceSearchIndexProgress] = useState<number>(0);
   const [workspaceSearchIndexCached, setWorkspaceSearchIndexCached] = useState(false);
+  const workspaceSearchIndexLoadKey = `${fileSourceMode}:${owner || ''}/${repo || ''}@${selectedVersion}`;
+  const [previousSearchIndexLoadKey, setPreviousSearchIndexLoadKey] = useState(
+    workspaceSearchIndexLoadKey
+  );
+
+  // Reset before rendering children so they never receive the previous repository's index.
+  if (previousSearchIndexLoadKey !== workspaceSearchIndexLoadKey) {
+    setPreviousSearchIndexLoadKey(workspaceSearchIndexLoadKey);
+    setWorkspaceSearchIndex(null);
+    setWorkspaceSearchIndexError(null);
+    setWorkspaceSearchIndexLoading(true);
+    setWorkspaceSearchIndexProgress(0);
+    setWorkspaceSearchIndexCached(false);
+  }
   // Refs for cleanup
   const workspaceSearchIndexRequestIdRef = useRef(0);
   const workspaceSearchResultsRequestIdRef = useRef(0);
-  const workspaceSearchLoadKeyRef = useRef<string | null>(null);
   const workspaceSearchIndexProgressRef = useRef<number>(0);
   const workspaceSearchIndexPendingProgressRef = useRef<number | null>(null);
   const workspaceSearchIndexProgressFrameRef = useRef<number | null>(null);
@@ -385,51 +446,48 @@ export default function RepositoryWorkspaceExplorer({
 
       try {
         const isCurated = isCuratedRepo(owner, repo);
-        if (!isCurated) {
-          notFound();
-          return;
-        }
+        const usesRuntimeBranch = Boolean(branch);
         const identifier = getRepoIdentifier(owner, repo);
+        const config = getProjectConfig(owner, repo);
+        const trustedBranch = isCurated ? getTrustedVersion(owner, repo) : '';
+        const defaultBranch =
+          (usesRuntimeBranch
+            ? branch
+            : isCurated
+              ? config?.defaultRevision || trustedBranch
+              : branch) || (isCurated ? trustedBranch : await getGitHubDefaultBranch(owner, repo));
+        const targetBranch = branch || defaultBranch;
 
         // Repository exists, set it in context
-        await setRepository('github', identifier, `${owner}/${repo}`);
+        await setRepository('github', identifier, `${owner}/${repo}`, targetBranch);
 
         // Set GitHub API config for backward compatibility
-        const config = getProjectConfig(owner, repo);
-        const defaultBranch = config?.defaultRevision || branch || 'main';
-        await setGitHubRepoWithDefaultBranch(owner, repo, branch || defaultBranch);
+        await setGitHubRepoWithDefaultBranch(owner, repo, targetBranch, {
+          preserveBranch: usesRuntimeBranch,
+        });
         setRepoLabel(`${owner}/${repo}`);
 
-        // Switch to requested branch if specified and different from current
-        let branchToUse = defaultBranch;
-        if (branch && branch !== currentBranch) {
-          try {
-            await switchBranch(branch);
-            if (selectedVersion !== branch) {
-              setSelectedVersion(branch);
-            }
-            branchToUse = branch;
-          } catch (error) {
-            console.warn('Failed to switch to requested branch:', error);
-            // Use current branch instead
-            branchToUse = currentBranch || defaultBranch;
-            if (selectedVersion !== branchToUse) {
-              setSelectedVersion(branchToUse);
-            }
-          }
-        } else {
-          branchToUse = currentBranch || defaultBranch;
-          if (selectedVersion !== branchToUse) {
-            setSelectedVersion(branchToUse);
-          }
+        // Curated repositories always use their trusted local revision. For
+        // runtime repositories, the requested URL ref is authoritative.
+        // setRepository initialized the context with the URL ref (when one
+        // was supplied), so do not route it through local branch validation.
+        if (selectedVersion !== targetBranch) {
+          setSelectedVersion(targetBranch);
         }
 
-        const staticTree = await getTreeStructureFromStatic(owner, repo, branchToUse, {
-          sourceMode: fileSourceMode,
-        });
-        const treeExists = staticTree !== null && staticTree.length > 0;
-        setIsTreeStructureReady(treeExists);
-        setWorkspaceFilePaths(staticTree ? flattenFilePaths(staticTree) : []);
+        if (isCurated && !usesRuntimeBranch) {
+          const staticTree = await getTreeStructureFromStatic(owner, repo, targetBranch, {
+            sourceMode: fileSourceMode,
+          });
+          setIsTreeStructureReady(staticTree !== null && staticTree.length > 0);
+          setWorkspaceFilePaths(staticTree ? flattenFilePaths(staticTree) : []);
+        } else {
+          // FileTree fetches the root listing immediately. Do not recursively
+          // download or duplicate that request here; directories and files are
+          // fetched lazily as the user explores them.
+          setIsTreeStructureReady(true);
+          setWorkspaceFilePaths([]);
+        }
       } catch (error) {
         console.error('Failed to setup repository:', error);
         // Redirect to home on error
@@ -438,37 +496,13 @@ export default function RepositoryWorkspaceExplorer({
     };
 
     checkRepositorySetup();
-  }, [
-    owner,
-    repo,
-    branch,
-    router,
-    setRepository,
-    switchBranch,
-    currentBranch,
-    selectedVersion,
-    fileSourceMode,
-  ]);
+  }, [owner, repo, branch, router, setRepository, currentBranch, selectedVersion, fileSourceMode]);
 
   useEffect(() => {
-    if (layoutMode !== 'search') {
-      workspaceSearchIndexRequestIdRef.current += 1;
-      workspaceSearchLoadKeyRef.current = null;
-      queueMicrotask(() => {
-        setWorkspaceSearchLoading(false);
-      });
-      return;
-    }
-
     let cancelled = false;
     const loadKey = `${fileSourceMode}:${owner || ''}/${repo || ''}@${selectedVersion}`;
-    if (workspaceSearchLoadKeyRef.current === loadKey) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    workspaceSearchLoadKeyRef.current = loadKey;
+    // Every effect setup must subscribe, including Strict Mode's setup/cleanup replay.
+    // getCodeIndexFromStatic already deduplicates the underlying index load.
     workspaceSearchIndexRequestIdRef.current += 1;
     const requestId = workspaceSearchIndexRequestIdRef.current;
     debugLog('[explorar:search-index] load-start', {
@@ -477,13 +511,7 @@ export default function RepositoryWorkspaceExplorer({
       repo,
       branch: selectedVersion,
       loadKey,
-      layoutMode,
     });
-    setWorkspaceSearchIndex(null);
-    setWorkspaceSearchIndexError(null);
-    setWorkspaceSearchIndexLoading(true);
-    setWorkspaceSearchIndexProgress(0);
-    setWorkspaceSearchIndexCached(false);
     workspaceSearchIndexProgressRef.current = 0;
     workspaceSearchIndexPendingProgressRef.current = null;
     if (workspaceSearchIndexProgressFrameRef.current !== null) {
@@ -637,7 +665,7 @@ export default function RepositoryWorkspaceExplorer({
         workspaceSearchIndexProgressFrameRef.current = null;
       }
     };
-  }, [layoutMode, owner, repo, selectedVersion, fileSourceMode]);
+  }, [owner, repo, selectedVersion, fileSourceMode]);
 
   useEffect(() => {
     // Use setTimeout to avoid synchronous setState in effect
@@ -669,17 +697,24 @@ export default function RepositoryWorkspaceExplorer({
 
   // Load repository-specific tabs when repository changes
   useEffect(() => {
+    const scheduledTimers: number[] = [];
+    const scheduleStateUpdate = (callback: () => void) => {
+      scheduledTimers.push(window.setTimeout(callback, 0));
+    };
+
+    scheduleStateUpdate(() => setTabsRestored(false));
+
     if (!isHydrated || !repoIdentifier) {
       // Clear tabs if no repository is set
       if (!repoIdentifier) {
-        // Use setTimeout to avoid synchronous setState in effect
-        setTimeout(() => {
+        scheduleStateUpdate(() => {
           setTabs([]);
           setActiveTabId(null);
           setSelectedFile('');
-        }, 0);
+          setTabsRestored(true);
+        });
       }
-      return;
+      return () => scheduledTimers.forEach((timer) => window.clearTimeout(timer));
     }
 
     // Load tabs for this specific repository
@@ -693,50 +728,62 @@ export default function RepositoryWorkspaceExplorer({
       repoIdentifier
     );
 
-    const savedTabs = loadFromLocalStorage(tabsKey, []) as EditorTab[];
+    const savedTabs = normalizeStoredTabs(loadFromLocalStorage(tabsKey, []) as EditorTab[]);
     const savedActiveTabId = loadFromLocalStorage(activeTabKey, null) as string | null;
     const savedSelectedFile = loadFromLocalStorage(selectedFileKey, '') as string;
+    const hasExplicitInitialFile =
+      Boolean(initialFile) ||
+      (() => {
+        if (typeof window === 'undefined') return false;
+        const urlTarget = resolveRepositoryNavigation(
+          window.location.pathname,
+          window.location.search.slice(1),
+          window.location.hash
+        );
+        return Boolean(
+          urlTarget && urlTarget.owner === owner && urlTarget.repo === repo && urlTarget.filePath
+        );
+      })();
 
-    // Use setTimeout to avoid synchronous setState in effect
-    setTimeout(() => {
+    scheduleStateUpdate(() => {
       if (savedTabs.length > 0) {
         setTabs(savedTabs);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setTabs([]);
       }
       if (savedActiveTabId) {
         setActiveTabId(savedActiveTabId);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setActiveTabId(null);
       }
       if (savedSelectedFile) {
         setSelectedFile(savedSelectedFile);
-      } else {
+      } else if (!hasExplicitInitialFile) {
         setSelectedFile('');
       }
-    }, 0);
-  }, [repoIdentifier, isHydrated]);
+      setTabsRestored(true);
+    });
+
+    return () => scheduledTimers.forEach((timer) => window.clearTimeout(timer));
+  }, [repoIdentifier, isHydrated, initialFile, owner, repo]);
 
   // Save state to localStorage (only after hydration)
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem(`${EXPLORER_STORAGE_KEY_PREFIX}-sidebar-width`, sidebarWidth.toString());
+      saveToLocalStorage(`${EXPLORER_STORAGE_KEY_PREFIX}-sidebar-width`, sidebarWidth);
     }
   }, [sidebarWidth, isHydrated]);
 
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem(
-        `${EXPLORER_STORAGE_KEY_PREFIX}-right-panel-width`,
-        rightPanelWidth.toString()
-      );
+      saveToLocalStorage(`${EXPLORER_STORAGE_KEY_PREFIX}-right-panel-width`, rightPanelWidth);
     }
   }, [rightPanelWidth, isHydrated]);
 
   useEffect(() => {
     if (isHydrated && repoIdentifier) {
       const tabsKey = getRepoScopedKey(`${EXPLORER_STORAGE_KEY_PREFIX}-tabs`, repoIdentifier);
-      saveToLocalStorage(tabsKey, tabs);
+      saveToLocalStorage(tabsKey, tabs.map(stripTabContentForStorage));
     }
   }, [tabs, isHydrated, repoIdentifier]);
 
@@ -809,21 +856,38 @@ export default function RepositoryWorkspaceExplorer({
       return;
     }
 
-    void setGitHubRepoWithDefaultBranch(owner, repo, selectedVersion);
+    void setGitHubRepoWithDefaultBranch(owner, repo, selectedVersion, {
+      preserveBranch: Boolean(branch),
+    });
     setCurrentCorpusSourceMode(fileSourceMode);
-  }, [owner, repo, selectedVersion, fileSourceMode]);
+  }, [branch, owner, repo, selectedVersion, fileSourceMode]);
 
   const listDirectoryFromSelectedSource = useCallback(
-    (path: string) => buildFileTree(path, { sourceMode: fileSourceMode }),
-    [fileSourceMode]
+    async (path: string) => {
+      if (owner && repo && (Boolean(branch) || !isCuratedRepo(owner, repo))) {
+        const entries = await downloadDirectoryContents(owner, repo, selectedVersion, path);
+        return entries.map((entry) => ({
+          name: entry.name,
+          path: entry.path,
+          type: entry.type,
+          size: entry.size,
+          isExpanded: false,
+          isLoaded: false,
+          children: undefined,
+        }));
+      }
+      return buildFileTree(path, { sourceMode: fileSourceMode });
+    },
+    [branch, fileSourceMode, owner, repo, selectedVersion]
   );
 
   const fetchFileFromSelectedSource = useCallback(
     (path: string) =>
       fetchRepositoryFile(owner || '', repo || '', selectedVersion, path, {
         sourceMode: fileSourceMode,
+        allowGitHubFallback: Boolean(branch),
       }),
-    [owner, repo, selectedVersion, fileSourceMode]
+    [branch, owner, repo, selectedVersion, fileSourceMode]
   );
 
   // Resize handlers
@@ -995,7 +1059,8 @@ export default function RepositoryWorkspaceExplorer({
       searchPattern?: string,
       scrollToLine?: number,
       searchScope?: string[],
-      repoTarget?: { owner: string; repo: string }
+      repoTarget?: { owner: string; repo: string },
+      options?: { exactPath?: boolean }
     ) => {
       if (repoTarget && (repoTarget.owner !== owner || repoTarget.repo !== repo)) {
         const params = new URLSearchParams({ file: filePath });
@@ -1005,7 +1070,11 @@ export default function RepositoryWorkspaceExplorer({
         return;
       }
 
-      const resolvedWorkspacePath = resolveWorkspaceFilePath(filePath, workspaceFilePaths);
+      // Sidebar entries and URL targets contain exact repository-relative paths, even when
+      // a lazy repository has no complete workspace file list.
+      const resolvedWorkspacePath = options?.exactPath
+        ? filePath
+        : resolveWorkspaceFilePath(filePath, workspaceFilePaths);
       if (!resolvedWorkspacePath && !filePath.includes('/') && !filePath.endsWith('/')) {
         debugLog('[explorar:open-file] unresolved-bare-path', {
           filePath,
@@ -1039,8 +1108,18 @@ export default function RepositoryWorkspaceExplorer({
         return;
       }
 
-      const { resolvedFilePath, resolvedSearchPattern, resolvedScrollToLine } =
-        await resolveSymbolNavigationLine(normalizedPath, searchPattern, scrollToLine, searchScope);
+      const { resolvedFilePath, resolvedSearchPattern, resolvedScrollToLine } = options?.exactPath
+        ? {
+            resolvedFilePath: normalizedPath,
+            resolvedSearchPattern: searchPattern,
+            resolvedScrollToLine: scrollToLine,
+          }
+        : await resolveSymbolNavigationLine(
+            normalizedPath,
+            searchPattern,
+            scrollToLine,
+            searchScope
+          );
       normalizedPath = resolvedFilePath.replace(/\/+$/, '');
       const navigationNonce = ++navigationNonceRef.current;
       debugLog('[explorar:open-file] request', {
@@ -1103,39 +1182,6 @@ export default function RepositoryWorkspaceExplorer({
     [owner, repo, router, tabs, resolveSymbolNavigationLine, workspaceFilePaths]
   );
 
-  const openManPageInTab = useCallback(
-    (name: string, section: string) => {
-      const normalizedName = name.trim();
-      const normalizedSection = section.trim();
-      const tabPath = buildManualPageTabPath(normalizedName, normalizedSection);
-      const existing = tabs.find((t) => t.kind === 'man-page' && t.path === tabPath);
-
-      if (existing) {
-        setActiveTabId(existing.id);
-        setTabs((prev) => prev.map((t) => ({ ...t, isActive: t.id === existing.id })));
-        return;
-      }
-
-      const newTab: EditorTab = {
-        id: generateTabId(tabPath),
-        title: getManPageLabel(normalizedName, normalizedSection),
-        path: tabPath,
-        kind: 'man-page',
-        manPage: {
-          name: normalizedName,
-          section: normalizedSection,
-        },
-        isActive: true,
-        isDirty: false,
-        isLoading: false,
-      };
-
-      setTabs((prev) => [...prev.map((t) => ({ ...t, isActive: false })), newTab]);
-      setActiveTabId(newTab.id);
-    },
-    [tabs]
-  );
-
   const guideOpenFileInTab = useCallback(
     (
       filePath: string,
@@ -1151,7 +1197,9 @@ export default function RepositoryWorkspaceExplorer({
 
   const handleOpenFileFromExplorer = useCallback(
     (filePath: string, searchPattern?: string, scrollToLine?: number, searchScope?: string[]) => {
-      openFileInTab(filePath, searchPattern, scrollToLine, searchScope);
+      void openFileInTab(filePath, searchPattern, scrollToLine, searchScope, undefined, {
+        exactPath: true,
+      });
     },
     [openFileInTab]
   );
@@ -1165,20 +1213,20 @@ export default function RepositoryWorkspaceExplorer({
     if (guideId) {
       try {
         // eslint-disable-next-line react-hooks/refs -- guide callbacks are invoked from user actions, not during render.
-        return loadGuideFromMarkdown(guideId, guideOpenFileInTab, openManPageInTab);
+        return loadGuideFromMarkdown(guideId, guideOpenFileInTab);
       } catch (error) {
         console.error(`Failed to load guide ${guideId}:`, error);
       }
     }
 
     return createGenericGuide(projectConfig.owner, projectConfig.repo);
-  }, [projectConfig, owner, repo, guideOpenFileInTab, openManPageInTab]);
+  }, [projectConfig, owner, repo, guideOpenFileInTab]);
 
   const onTabSelect = (tabId: string) => {
     setActiveTabId(tabId);
     setTabs((prev) => prev.map((t) => ({ ...t, isActive: t.id === tabId })));
     const t = tabs.find((x) => x.id === tabId);
-    if (t) setSelectedFile(t.kind === 'man-page' ? '' : t.path);
+    if (t) setSelectedFile(t.path);
   };
 
   const toggleMarkdownPreview = useCallback(() => {
@@ -1207,7 +1255,7 @@ export default function RepositoryWorkspaceExplorer({
           const newIdx = Math.max(0, idx - 1);
           const nextActive = nextTabs[newIdx] || null;
           setActiveTabId(nextActive ? nextActive.id : null);
-          setSelectedFile(nextActive && nextActive.kind !== 'man-page' ? nextActive.path : '');
+          setSelectedFile(nextActive ? nextActive.path : '');
         }
         return nextTabs;
       });
@@ -1296,6 +1344,8 @@ export default function RepositoryWorkspaceExplorer({
             column: 1,
             preview: entry.isDocumentation ? 'Documentation match' : 'Source match',
             key: `${entry.path}:1:1`,
+            matchType: entry.matchType,
+            relevanceScore: entry.relevanceScore,
           }));
 
           setWorkspaceSearchResults(immediateResults);
@@ -1314,6 +1364,8 @@ export default function RepositoryWorkspaceExplorer({
                     column: preview.column,
                     preview: preview.preview,
                     key: `${entry.path}:${preview.line}:${preview.column}`,
+                    matchType: entry.matchType,
+                    relevanceScore: entry.relevanceScore,
                   } satisfies WorkspaceSearchResult;
                 }
                 return null;
@@ -1332,6 +1384,8 @@ export default function RepositoryWorkspaceExplorer({
                   column: preview.column,
                   preview: preview.preview,
                   key: `${entry.path}:${preview.line}:${preview.column}`,
+                  matchType: entry.matchType,
+                  relevanceScore: entry.relevanceScore,
                 } satisfies WorkspaceSearchResult;
               } catch (error) {
                 debugLog('[explorar:workspace-search] preview-enrich-failed', {
@@ -1456,32 +1510,44 @@ export default function RepositoryWorkspaceExplorer({
   // Tree readiness is useful for directory expansion/highlighting, but should
   // not block the editor from opening and fetching a file.
   useEffect(() => {
-    if (!initialFile) return;
-    const isManualPageTarget =
-      typeof initialFile === 'object' &&
-      !Array.isArray(initialFile) &&
-      initialFile.kind === 'man-page';
-
-    if (isManualPageTarget) {
-      const key = `man:${initialFile.name}(${initialFile.section})|||${initialFile.navigationNonce || ''}`;
+    // Restore persisted tabs before opening a URL target so restoration cannot erase it.
+    if (!tabsRestored) return;
+    let repoInitialFile = initialFile;
+    if (!repoInitialFile && typeof window !== 'undefined') {
+      const urlTarget = resolveRepositoryNavigation(
+        window.location.pathname,
+        window.location.search.slice(1),
+        window.location.hash
+      );
+      if (urlTarget && urlTarget.owner === owner && urlTarget.repo === repo && urlTarget.filePath) {
+        repoInitialFile = {
+          path: urlTarget.filePath,
+          exactPath: true,
+          scrollToLine: urlTarget.line,
+          navigationNonce: Date.now(),
+        };
+      }
+    }
+    if (!repoInitialFile) return;
+    const isDirectoryTarget =
+      typeof repoInitialFile === 'object' &&
+      !Array.isArray(repoInitialFile) &&
+      repoInitialFile.kind === 'directory';
+    if (isDirectoryTarget) {
+      const directoryTarget = repoInitialFile as Extract<InitialFileTarget, { kind: 'directory' }>;
+      const key = `directory:${directoryTarget.path}|||${directoryTarget.navigationNonce || ''}`;
       if (key === lastOpenedInitialFileRef.current) return;
-      debugLog('[explorar:open-file] initial-file-trigger', {
-        key,
-        initialFile,
-        isTreeStructureReady,
-      });
       lastOpenedInitialFileRef.current = key;
       setTimeout(() => {
-        openManPageInTab(initialFile.name, initialFile.section);
+        setDirectoryExpandRequest({ path: directoryTarget.path, id: Date.now() });
       }, 0);
       return;
     }
 
-    const repoInitialFile = initialFile;
     if (
       typeof repoInitialFile === 'object' &&
       !Array.isArray(repoInitialFile) &&
-      !('path' in repoInitialFile)
+      (!('path' in repoInitialFile) || repoInitialFile.kind === 'directory')
     ) {
       return;
     }
@@ -1494,7 +1560,7 @@ export default function RepositoryWorkspaceExplorer({
     const key =
       typeof repoInitialFile === 'string' || Array.isArray(repoInitialFile)
         ? paths.join('|||')
-        : `${repoInitialFile.path}|||${repoInitialFile.searchPattern || ''}|||${repoInitialFile.scrollToLine || ''}|||${repoInitialFile.searchScope?.join(':::') || ''}|||${repoInitialFile.navigationNonce || ''}`;
+        : `${repoInitialFile.path}|||${repoInitialFile.exactPath || false}|||${repoInitialFile.searchPattern || ''}|||${repoInitialFile.scrollToLine || ''}|||${repoInitialFile.searchScope?.join(':::') || ''}|||${repoInitialFile.navigationNonce || ''}`;
     if (key === lastOpenedInitialFileRef.current) return;
     debugLog('[explorar:open-file] initial-file-trigger', {
       key,
@@ -1517,12 +1583,14 @@ export default function RepositoryWorkspaceExplorer({
             repoInitialFile.path,
             repoInitialFile.searchPattern,
             repoInitialFile.scrollToLine,
-            repoInitialFile.searchScope
+            repoInitialFile.searchScope,
+            undefined,
+            { exactPath: repoInitialFile.exactPath }
           );
         }
       })();
     }, 0);
-  }, [initialFile, isTreeStructureReady, openFileInTab, openManPageInTab]);
+  }, [initialFile, tabsRestored, isTreeStructureReady, openFileInTab, owner, repo]);
 
   // Repository error
   if (repoError) {
@@ -1536,7 +1604,7 @@ export default function RepositoryWorkspaceExplorer({
       style={{ position: 'relative' }}
     >
       <div style={{ display: 'flex', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }}>
-        {layoutMode !== 'viewer' && (
+        {layoutMode !== 'viewer' && layoutMode !== 'semantic' && (
           <div
             className={`vscode-sidebar ${isSidebarOpen && (isMobile ? mobileView === 'explorer' : true) ? 'mobile-open' : ''} ${isMobile && mobileView !== 'explorer' ? 'mobile-hidden' : ''}`}
             suppressHydrationWarning
@@ -1641,33 +1709,43 @@ export default function RepositoryWorkspaceExplorer({
           </>
         )}
 
-        <div
-          className={`vscode-editor-container ${isMobile && mobileView !== 'editor' ? 'mobile-hidden' : ''}`}
-          style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column' }}
-        >
-          <TabBar
-            tabs={tabs}
-            activeTabId={activeTabId}
-            onTabSelect={onTabSelect}
-            onTabClose={onTabClose}
-            onCloseAllTabs={onCloseAllTabs}
-            onMarkdownPreviewToggle={toggleMarkdownPreview}
-          />
-          {activeTab ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              {activeTab.kind === 'man-page' && activeTab.manPage ? (
-                <ManualPagePreview
-                  name={activeTab.manPage.name}
-                  section={activeTab.manPage.section}
-                  sourceMode={fileSourceMode}
-                />
-              ) : (
+        {layoutMode === 'semantic' ? (
+          <div
+            className="vscode-editor-container"
+            style={{ flex: 1, minWidth: 0, display: 'flex' }}
+          >
+            <SemanticGraphTab
+              isActive={layoutMode === 'semantic'}
+              codeIndex={workspaceSearchIndex}
+              indexLoading={workspaceSearchIndexLoading}
+              indexReady={!!workspaceSearchIndex}
+              indexError={workspaceSearchIndexError}
+              indexProgress={workspaceSearchIndexProgress}
+              indexCached={workspaceSearchIndexCached}
+              repoLabel={repoLabel}
+              onOpenFile={openFileInTab}
+            />
+          </div>
+        ) : (
+          <div
+            className={`vscode-editor-container ${isMobile && mobileView !== 'editor' ? 'mobile-hidden' : ''}`}
+            style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column' }}
+          >
+            <TabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onTabSelect={onTabSelect}
+              onTabClose={onTabClose}
+              onCloseAllTabs={onCloseAllTabs}
+              onMarkdownPreviewToggle={toggleMarkdownPreview}
+            />
+            {activeTab ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <CodeEditorContainer
                   key={fileSourceMode}
                   filePath={activeTab.path}
                   onContentLoad={onEditorContentLoad}
                   onOpenFile={openFileInTab}
-                  onOpenManPage={openManPageInTab}
                   fetchFile={fetchFileFromSelectedSource}
                   workspaceFilePaths={workspaceFilePaths}
                   workspaceId={`${fileSourceMode}:${repoLabel}@${selectedVersion}`}
@@ -1679,15 +1757,14 @@ export default function RepositoryWorkspaceExplorer({
                   navigationNonce={activeTab.navigationNonce}
                   editorTheme={editorTheme}
                 />
-              )}
-            </div>
-          ) : (
-            <div className="vscode-empty-state">
-              <div className="vscode-empty-icon">🐧</div>
-              <div>Open a file from the explorer to begin</div>
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              <div className="vscode-empty-state">
+                <div>Open a file from the explorer to begin</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {!hideGuidePanel && (
           <div
@@ -1758,14 +1835,14 @@ export default function RepositoryWorkspaceExplorer({
                 overflow: 'hidden',
               }}
             >
-              {(!isMobile || mobileView === 'guide') && (
+              <RepositoryRightPanel owner={owner || ''} repo={repo || ''} theme={workspaceTheme}>
                 <GuidePanel
                   key={`guide-${guideStorageScope}`}
                   sections={guideSections}
                   activeChapterId={activeChapterId}
                   onActiveChapterChange={setActiveChapterId}
                 />
-              )}
+              </RepositoryRightPanel>
             </div>
           </div>
         )}
@@ -1860,10 +1937,10 @@ export default function RepositoryWorkspaceExplorer({
               fontSize: '12px',
               transition: 'color 0.2s',
             }}
-            aria-label="Guide"
+            aria-label="Guide and chat"
           >
             <span style={{ fontSize: '20px' }}>📚</span>
-            <span>Guide</span>
+            <span>Guide / Chat</span>
           </button>
         </div>
       )}

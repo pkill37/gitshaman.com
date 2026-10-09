@@ -18,7 +18,6 @@ interface CodeEditorContainerProps {
     searchScope?: string[],
     repoTarget?: { owner: string; repo: string }
   ) => void;
-  onOpenManPage?: (name: string, section: string) => void;
   fetchFile?: (path: string) => Promise<FileFetchResult>;
   markdownViewMode?: 'source' | 'preview';
   onToggleMarkdownPreview?: () => void;
@@ -38,7 +37,6 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
   filePath,
   onContentLoad,
   onOpenFile,
-  onOpenManPage,
   fetchFile,
   markdownViewMode = 'source',
   onToggleMarkdownPreview,
@@ -209,7 +207,6 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
         content={content}
         isLoading={isLoading}
         onOpenFile={onOpenFile}
-        onOpenManPage={onOpenManPage}
       />
     );
   }

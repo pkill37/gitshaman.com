@@ -19,8 +19,7 @@ export function loadGuideFromMarkdown(
     scrollToLine?: number,
     searchScope?: string[],
     repoTarget?: { owner: string; repo: string }
-  ) => void,
-  openManPageInTab?: (name: string, section: string) => void
+  ) => void
 ): GuideSection[] {
   const guideDoc = getGuideDocument(guideId);
 
@@ -29,5 +28,5 @@ export function loadGuideFromMarkdown(
     throw new Error(`Guide not found: ${guideId}. Available guides: ${availableGuides.join(', ')}`);
   }
 
-  return parseGuideMarkdown(guideDoc.content, openFileInTab, openManPageInTab);
+  return parseGuideMarkdown(guideDoc.content, openFileInTab);
 }

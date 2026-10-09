@@ -1,14 +1,15 @@
 /**
- * Next.js plugin to copy Monaco Editor worker files into public/.
+ * Next.js plugin to bundle Monaco Editor workers into public/.
  *
- * Only the worker .js files need to be served statically — Monaco's main API
- * is bundled by webpack from node_modules. Copying the entire ESM tree was
- * wasteful (~thousands of files) and inflated the Cloudflare file count.
+ * Monaco's ESM worker entries import other modules, so copying just the entries
+ * leaves unresolved browser imports. Bundle each worker with its dependencies
+ * to keep the static file count small. Next.js bundles the main API separately.
  */
 
 import type { NextConfig } from 'next';
-import { copyFileSync, mkdirSync, existsSync, rmSync } from 'fs';
-import { join, dirname } from 'path';
+import { buildSync } from 'esbuild';
+import { existsSync, rmSync } from 'fs';
+import { join } from 'path';
 
 const MONACO_SOURCE = join(process.cwd(), 'node_modules/monaco-editor/esm/vs');
 const MONACO_DEST = join(process.cwd(), 'public/monaco-editor/vs');
@@ -27,46 +28,32 @@ const WORKER_FILES = [
   'language/typescript/ts.worker.js',
 ];
 
-function copyMonacoFiles(): void {
-  try {
-    if (!existsSync(MONACO_SOURCE)) {
-      console.warn(`Monaco Editor not found in node_modules. Run 'npm install' first.`);
-      return;
-    }
+function bundleMonacoWorkers(): void {
+  console.log('Bundling Monaco Editor workers...');
+  const startTime = Date.now();
 
-    console.log('Copying Monaco Editor worker files...');
-    const startTime = Date.now();
-
-    if (existsSync(MONACO_DEST)) {
-      rmSync(MONACO_DEST, { recursive: true, force: true });
-    }
-
-    let copied = 0;
-    for (const workerFile of WORKER_FILES) {
-      const src = join(MONACO_SOURCE, workerFile);
-      const dest = join(MONACO_DEST, workerFile);
-      if (existsSync(src)) {
-        mkdirSync(dirname(dest), { recursive: true });
-        copyFileSync(src, dest);
-        copied++;
-      } else {
-        console.warn(`Worker not found: ${workerFile}`);
-      }
-    }
-
-    const duration = Date.now() - startTime;
-    console.log(`Monaco workers copied (${copied}/${WORKER_FILES.length} files, ${duration}ms)`);
-  } catch (error) {
-    console.error('Error copying Monaco worker files:', error);
-    if (process.env.NODE_ENV === 'production') {
-      throw error;
-    }
+  if (existsSync(MONACO_DEST)) {
+    rmSync(MONACO_DEST, { recursive: true, force: true });
   }
+
+  buildSync({
+    entryPoints: WORKER_FILES.map((workerFile) => join(MONACO_SOURCE, workerFile)),
+    outbase: MONACO_SOURCE,
+    outdir: MONACO_DEST,
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    minify: true,
+  });
+
+  const duration = Date.now() - startTime;
+  console.log(`Monaco workers bundled (${WORKER_FILES.length} files, ${duration}ms)`);
 }
 
 export function withMonacoEditor(nextConfig: NextConfig = {}): NextConfig {
   if (process.env.NODE_ENV !== 'test') {
-    copyMonacoFiles();
+    bundleMonacoWorkers();
   }
   return nextConfig;
 }

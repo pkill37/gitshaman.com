@@ -1,9 +1,9 @@
 /**
  * Monaco Editor configuration
- * Configures Monaco to use local ESM files instead of CDN
- * This must be imported before any Monaco Editor components
+ * Configures local ESM workers before Monaco initialization.
+ * The editor's lazy loader supplies the installed Monaco module to loader.config().
  *
- * Workers are automatically copied to public/monaco-editor/vs by the Next.js plugin
+ * Workers are automatically bundled into public/monaco-editor/vs by the Next.js plugin
  * Workers are ESM modules that need to be loaded with type: 'module'
  */
 
@@ -43,30 +43,4 @@ export function configureMonacoEnvironment(): void {
       },
     };
   }
-}
-
-// Early setup when module is imported
-if (typeof window !== 'undefined') {
-  // Configure @monaco-editor/loader to use local files
-  // This prevents CDN loading
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).__MONACO_LOADER_CONFIG__ = {
-    paths: {
-      vs: '/monaco-editor/vs',
-    },
-  };
-
-  // Also configure require.js paths if available (used by Monaco loader)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const require = (window as any).require;
-  if (require && typeof require.config === 'function') {
-    require.config({
-      paths: {
-        vs: '/monaco-editor/vs',
-      },
-    });
-  }
-
-  // Configure MonacoEnvironment early as a fallback
-  configureMonacoEnvironment();
 }

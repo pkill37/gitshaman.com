@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { marked } from 'marked';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { marked, type Tokens } from 'marked';
+import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
 import {
   decodeHtmlEntities,
   escapeHtml,
   getExternalRepoIconHtml,
-  getManualPageLinkAttributes,
   getRepoLinkAttributes,
   hasUnsafeScheme,
   isExternalHref,
@@ -26,7 +26,6 @@ interface MarkdownPreviewProps {
     searchScope?: string[],
     repoTarget?: { owner: string; repo: string }
   ) => void;
-  onOpenManPage?: (name: string, section: string) => void;
 }
 
 const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
@@ -34,22 +33,33 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   filePath,
   isLoading,
   onOpenFile,
-  onOpenManPage,
 }) => {
+  const articleRef = useRef<HTMLElement | null>(null);
+
   const html = useMemo(() => {
     const renderer = new marked.Renderer();
 
-    renderer.html = (html) => escapeHtml(html);
+    renderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
 
-    renderer.link = (href, title, text) => {
+    renderer.code = ({ text, lang }: Tokens.Code) => {
+      const language = lang?.match(/^\S+/)?.[0].toLowerCase();
+      if (language === 'mermaid') {
+        return `<div class="mermaid" data-mermaid-diagram>${escapeHtml(text)}</div>`;
+      }
+
+      return renderHighlightedCodeBlock(text, language);
+    };
+
+    renderer.link = function ({ href, title, tokens }: Tokens.Link) {
       const safeHref = href?.trim() || '#';
       // Avoid invalid nested anchors for markdown links around inline-code
       // navigation links (for example, [`symbol`](path:symbol)).
-      const linkText = text.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
+      const renderedText = this.parser.parseInline(tokens);
+      const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
 
       if (hasUnsafeScheme(safeHref)) {
-        return `<span>${text}</span>`;
+        return `<span>${renderedText}</span>`;
       }
 
       if (safeHref.startsWith('#')) {
@@ -60,9 +70,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         linkText,
         title: title ?? undefined,
       });
-      if (navigationTarget?.kind === 'man-page') {
-        return `<a href="#" ${getManualPageLinkAttributes(navigationTarget)}${titleAttr}>${linkText}</a>`;
-      }
       if (navigationTarget?.kind === 'repo-file') {
         return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
       }
@@ -71,13 +78,8 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return `<a href="${escapeHtml(safeHref)}"${titleAttr}${targetAttr}>${linkText}</a>`;
     };
 
-    renderer.codespan = (code) => {
+    renderer.codespan = ({ text: code }: Tokens.Codespan) => {
       const decodedCode = decodeHtmlEntities(code);
-      const navigationTarget = parseMarkdownNavigationTarget(decodedCode, filePath);
-      if (navigationTarget?.kind === 'man-page') {
-        return `<a href="#" class="inline-code-link" ${getManualPageLinkAttributes(navigationTarget)}><code>${escapeHtml(decodedCode)}</code></a>`;
-      }
-
       const repoTarget = parseRepoNavigationTarget(decodedCode, filePath);
       const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
       if (!repoTarget) {
@@ -87,7 +89,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return `<a href="#" class="inline-code-link" ${getRepoLinkAttributes(repoTarget)}>${getExternalRepoIconHtml(repoTarget)}${codeHtml}</a>`;
     };
 
-    renderer.image = (href, title, text) => {
+    renderer.image = function ({ href, title, text, tokens }: Tokens.Image) {
       const safeHref = href?.trim() || '';
       if (!safeHref || hasUnsafeScheme(safeHref)) {
         return '';
@@ -97,7 +99,8 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       const src = repoPath ? '#' : escapeHtml(safeHref);
       const repoAttr = repoPath ? ` data-repo-path="${escapeHtml(repoPath)}"` : '';
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-      const altAttr = escapeHtml(text || '');
+      const altText = tokens ? this.parser.parseInline(tokens, this.parser.textRenderer) : text;
+      const altAttr = escapeHtml(altText || '');
       return `<img src="${src}" alt="${altAttr}"${titleAttr}${repoAttr} />`;
     };
 
@@ -109,6 +112,43 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     return marked.parse(content) as string;
   }, [content, filePath]);
+
+  useEffect(() => {
+    const root = articleRef.current;
+    const diagrams = root
+      ? Array.from(root.querySelectorAll<HTMLElement>('[data-mermaid-diagram]'))
+      : [];
+    if (diagrams.length === 0) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    import('mermaid')
+      .then(({ default: mermaid }) => {
+        if (isCancelled) {
+          return;
+        }
+
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: 'dark',
+        });
+
+        return mermaid.run({ nodes: diagrams });
+      })
+      .catch((error) => {
+        for (const diagram of diagrams) {
+          diagram.setAttribute('data-mermaid-error', 'true');
+        }
+        console.error('Failed to render Mermaid diagram', error);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [html]);
 
   if (isLoading) {
     return (
@@ -145,22 +185,13 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
           Markdown Preview
         </div>
         <article
+          ref={articleRef}
           data-markdown-preview={filePath}
           dangerouslySetInnerHTML={{ __html: html }}
           onClick={(event) => {
             const target = event.target as HTMLElement;
-            const anchor = target.closest(
-              'a[data-repo-path], img[data-repo-path], a[data-man-page-name]'
-            );
+            const anchor = target.closest('a[data-repo-path], img[data-repo-path]');
             if (!anchor) {
-              return;
-            }
-
-            const manPageName = anchor.getAttribute('data-man-page-name');
-            const manPageSection = anchor.getAttribute('data-man-page-section');
-            if (manPageName && manPageSection && onOpenManPage) {
-              event.preventDefault();
-              onOpenManPage(manPageName, manPageSection);
               return;
             }
 

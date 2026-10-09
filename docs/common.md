@@ -2,11 +2,11 @@
 
 ## Understanding Software Systems Before Code
 
-> This isn't just a guide to reading code. It's an effort to understand how great software systems think.
+> This isn't a guide to reading code. It's an effort to understand how great software systems think.
 
 Every significant software project—whether it's an operating system kernel, a compiler, a runtime, or a framework—is built on foundational principles that transcend implementation details. Understanding these principles is the key to mastering any software system.
 
-This document serves as the foundational knowledge base from which all future learning will fork. It establishes the universal methodology, principles, and mental models that apply across all software project exploration.
+This document serves as the foundational knowledge base from which all future learning will fork. It establishes the universal approach, principles, and mental models that apply across all software project exploration.
 
 **Great software runs everything. Let's understand how it runs.**
 
@@ -16,7 +16,7 @@ This document serves as the foundational knowledge base from which all future le
 
 ### Mental Models Before Syntax
 
-The most effective approach to learning complex software systems is to build mental models first, then validate and refine them through code exploration. This means:
+The most effective approach to learning complex software systems is to build mental models first, then test and refine them through code exploration. This means:
 
 1. **Understand the "Why" Before the "How"**: Know what problem the system solves and why it exists
 2. **Grasp the Architecture Before Implementation**: See the big picture before diving into functions
@@ -77,7 +77,7 @@ All software project learning follows a progressive path:
 
 **Goal**: Connect concepts to implementation
 
-1. **Deep Dive into Core Components**: Study key subsystems in detail
+1. **Inspect Core Components**: Study key subsystems in detail
 2. **Data Structure Mastery**: Understand the fundamental data structures
 3. **Control Flow Analysis**: Trace execution paths
 4. **Practical Projects**: Build something using the system
@@ -87,7 +87,7 @@ All software project learning follows a progressive path:
 
 - Read source code with documentation in hand
 - Trace execution through key paths
-- Implement small modifications or extensions
+- Make small changes or extensions
 - Study how the system handles common scenarios
 
 ### Advanced Path (Months 7-12)
@@ -140,7 +140,7 @@ Great systems separate concerns cleanly:
 
 - Clear directory/module structure
 - Well-defined APIs between components
-- Minimal coupling, maximum cohesion
+- Minimal coupling, high cohesion
 - Each component can be understood independently
 
 ### 2. Indirection and Abstraction
@@ -150,7 +150,7 @@ Complex systems use indirection to manage complexity:
 - **Virtualization**: Abstracting hardware or resources
 - **Interfaces**: Abstracting implementation details
 - **Layers**: Building higher-level abstractions on lower ones
-- **Polymorphism**: One interface, multiple implementations
+- **Polymorphism**: One interface, distinct implementations
 
 **How to Recognize It:**
 
@@ -161,7 +161,7 @@ Complex systems use indirection to manage complexity:
 
 ### 3. State Management
 
-All systems manage state carefully:
+Trace how the system manages state:
 
 - **Ownership**: Who owns what data
 - **Lifetime**: When data is created and destroyed
@@ -177,7 +177,7 @@ All systems manage state carefully:
 
 ### 4. Error Handling and Resilience
 
-Robust systems handle errors gracefully:
+Check how the system detects and recovers from errors:
 
 - **Failure Modes**: How the system fails
 - **Recovery**: How the system recovers
@@ -203,13 +203,13 @@ Production systems optimize for performance:
 **How to Recognize It:**
 
 - Special fast paths for common cases
-- Caches at multiple levels
+- Caches at different levels
 - Optimized data structures
 - Profiling and measurement tools
 
 ---
 
-## Universal Exploration Methodology
+## Universal Exploration Approach
 
 ### The Four-Step Exploration Process
 
@@ -234,11 +234,11 @@ Production systems optimize for performance:
 - What data structures are used?
 - How do components interact?
 
-**4. Validate**
+**4. Verify**
 
 - Does your understanding match reality?
 - Can you predict system behavior?
-- Can you modify it correctly?
+- Can you change it and pass its tests?
 - Can you explain it to others?
 
 ### Essential Exploration Tools
@@ -296,7 +296,7 @@ Production systems optimize for performance:
 
 **5. Identify Patterns**
 
-- What patterns are used repeatedly?
+- Which patterns recur?
 - What idioms are common?
 - What abstractions are built?
 - How are problems solved?
@@ -360,7 +360,7 @@ Every project guide should include:
 
 ### The System as a State Machine
 
-Many systems can be understood as state machines:
+Use a state-machine model to identify:
 
 - **States**: What are the possible states?
 - **Transitions**: What causes state changes?
@@ -369,7 +369,7 @@ Many systems can be understood as state machines:
 
 ### The System as a Pipeline
 
-Many systems process data through pipelines:
+For systems that process data through pipelines, trace:
 
 - **Stages**: What are the processing stages?
 - **Data Flow**: How does data move through stages?
@@ -378,7 +378,7 @@ Many systems process data through pipelines:
 
 ### The System as a Layered Architecture
 
-Many systems are organized in layers:
+For systems organized in layers, identify:
 
 - **Layer Responsibilities**: What does each layer do?
 - **Layer Interfaces**: How do layers communicate?
@@ -387,7 +387,7 @@ Many systems are organized in layers:
 
 ### The System as a Reactive System
 
-Many systems respond to events:
+For systems that respond to events, trace:
 
 - **Event Sources**: What generates events?
 - **Event Handlers**: How are events processed?
@@ -401,26 +401,26 @@ Many systems respond to events:
 ### For Learning
 
 1. **Start Broad, Then Narrow**: Understand the whole before the parts
-2. **Use Multiple Sources**: Code, docs, tests, examples
+2. **Compare Sources**: Code, docs, tests, examples
 3. **Build Mental Models**: Draw diagrams, write summaries
-4. **Validate Understanding**: Explain to others, modify code
+4. **Verify Understanding**: Explain to others, change code
 5. **Follow Curiosity**: Let questions guide exploration
 
 ### For Exploration
 
-1. **Use Tools**: Don't just read, use the system
+1. **Use Tools**: Run the system as you read
 2. **Trace Execution**: Follow real execution paths
-3. **Modify and Observe**: Make small changes, see what happens
+3. **Change and Observe**: Make small changes, see what happens
 4. **Read Tests**: Tests show expected behavior
 5. **Study History**: Git history shows evolution
 
 ### For Documentation
 
 1. **Write for Your Future Self**: You'll forget details
-2. **Include Context**: Why, not just what
+2. **Include Context**: Why as well as what
 3. **Link Everything**: Connect concepts and code
 4. **Use Examples**: Concrete examples clarify abstractions
-5. **Keep It Updated**: Documentation ages quickly
+5. **Keep It Updated**: Update documentation when behavior changes
 
 ---
 
@@ -430,7 +430,7 @@ Many systems respond to events:
 
 1. **Syntax First**: Don't memorize APIs before understanding purpose
 2. **Random Exploration**: Don't jump around without structure
-3. **Surface Reading**: Don't just read code without understanding
+3. **Surface Reading**: Trace behavior instead of skimming code
 4. **Skipping Fundamentals**: Don't skip basics to get to advanced topics
 5. **Isolated Learning**: Don't learn in isolation from the community
 
@@ -446,7 +446,7 @@ Many systems respond to events:
 
 1. **Copy-Paste Without Understanding**: Don't copy without comprehension
 2. **Outdated Information**: Keep documentation current
-3. **Missing Context**: Always explain why, not just what
+3. **Missing Context**: Always explain why as well as what
 4. **No Examples**: Abstractions need concrete examples
 5. **Poor Organization**: Structure matters for navigation
 
@@ -494,11 +494,11 @@ This cycle repeats at every level:
 
 You know you're making progress when:
 
-1. **You Can Predict Behavior**: You can predict what the system will do
-2. **You Can Explain Simply**: You can explain concepts to others
-3. **You Can Modify Safely**: You can make changes without breaking things
-4. **You Can Debug Effectively**: You can find and fix problems
-5. **You Can Extend Confidently**: You can add new features correctly
+1. **Predict Behavior**: Predict what the system will do
+2. **Explain the Model**: Explain concepts to others
+3. **Test Changes**: Keep existing behavior covered by tests
+4. **Debug Effectively**: Find and fix problems
+5. **Extend Confidently**: Add new features with tests for their expected behavior
 
 ---
 
@@ -510,7 +510,7 @@ When approaching a new software system:
 2. **Find the System's "In The Mind" Guide**: Look for project-specific guides
 3. **Follow the Learning Path**: Don't skip steps
 4. **Build Mental Models**: Draw, write, explain
-5. **Validate Continuously**: Test your understanding
+5. **Verify Continuously**: Test your understanding
 6. **Contribute Back**: Document your learnings
 
 ---
@@ -531,7 +531,7 @@ Every project-specific guide builds on these foundations, adding:
 - Technology-specific details
 - Domain-specific knowledge
 
-But the core methodology remains the same: **Understand the system's mind before reading its code.**
+But the core approach remains the same: **Understand the system's mind before reading its code.**
 
 ---
 
@@ -563,7 +563,7 @@ Each major software project should have its own "In The Mind" guide:
 This document serves as the **holy grail** of software project learning—the foundational knowledge that makes all other learning possible. It establishes:
 
 1. **Universal Principles**: What applies to all systems
-2. **Universal Methodology**: How to approach any system
+2. **Universal Approach**: How to approach any system
 3. **Universal Mental Models**: How to think about systems
 4. **Universal Best Practices**: How to learn effectively
 

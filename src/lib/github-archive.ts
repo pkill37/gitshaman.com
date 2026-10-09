@@ -164,7 +164,7 @@ async function downloadCompleteTreeStructure(
     const commitResponse = await fetch(commitUrl, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'Explorar.dev',
+        'User-Agent': 'gitshaman.com',
       },
     });
 
@@ -191,7 +191,7 @@ async function downloadCompleteTreeStructure(
     const treeResponse = await fetch(treeUrl, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'Explorar.dev',
+        'User-Agent': 'gitshaman.com',
       },
     });
 
@@ -312,8 +312,9 @@ async function downloadCompleteTreeStructure(
 }
 
 /**
- * Download directory contents metadata for a curated repository path
- * Called when user expands a directory - only downloads metadata, not file contents
+ * Download one directory's metadata from GitHub. This intentionally avoids the
+ * recursive Trees API so arbitrary repositories can render the root quickly and
+ * expand deeper directories only when the user asks for them.
  */
 export async function downloadDirectoryContents(
   owner: string,
@@ -346,7 +347,7 @@ export async function downloadDirectoryContents(
     const response = await fetch(url, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'Explorar.dev',
+        'User-Agent': 'gitshaman.com',
       },
     });
 

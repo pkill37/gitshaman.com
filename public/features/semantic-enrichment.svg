@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Semantic enrichment illustration</title>
+  <desc id="desc">A semantic graph connecting symbols, files, guides, and relationships.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffdf7e"/>
+      <stop offset="0.32" stop-color="#a78bfa"/>
+      <stop offset="0.68" stop-color="#63d8c9"/>
+      <stop offset="1" stop-color="#b9f97d"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="#111017"/>
+  <path d="M148 206l126-92 126 70 94-82M148 206l100 116 152-138M400 184l94 96M274 114l-26 208" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round" opacity="0.78"/>
+  <g filter="url(#glow)">
+    <circle cx="148" cy="206" r="42" fill="#17171f" stroke="#ffdf7e" stroke-width="6"/>
+    <circle cx="274" cy="114" r="46" fill="#17171f" stroke="#a78bfa" stroke-width="6"/>
+    <circle cx="400" cy="184" r="52" fill="#17171f" stroke="#63d8c9" stroke-width="6"/>
+    <circle cx="494" cy="102" r="38" fill="#17171f" stroke="#b9f97d" stroke-width="6"/>
+    <circle cx="248" cy="322" r="40" fill="#17171f" stroke="#ff8fb8" stroke-width="6"/>
+    <circle cx="494" cy="280" r="44" fill="#17171f" stroke="#efc66f" stroke-width="6"/>
+  </g>
+  <path d="M126 206h44M252 114h44M372 184h56M474 102h40M228 322h40M470 280h48" stroke="#aaa4b3" stroke-width="8" stroke-linecap="round" opacity="0.62"/>
+  <path d="M400 147v74M363 184h74" stroke="#63d8c9" stroke-width="7" stroke-linecap="round"/>
+</svg>

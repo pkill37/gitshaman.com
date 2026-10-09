@@ -1,4 +1,4 @@
-// Explorar.dev - Type Definitions
+// GitShaman - Type Definitions
 
 export interface FileNode {
   name: string;
@@ -14,11 +14,7 @@ export interface EditorTab {
   id: string;
   title: string;
   path: string;
-  kind?: 'repo-file' | 'man-page';
-  manPage?: {
-    name: string;
-    section: string;
-  };
+  kind?: 'repo-file';
   isActive: boolean;
   isDirty: boolean;
   viewMode?: 'source' | 'preview';
@@ -29,12 +25,16 @@ export interface EditorTab {
   navigationNonce?: number; // Bumped for repeated navigation to same target
 }
 
+export type WorkspaceSearchMatchType = 'filename' | 'quoted' | 'content';
+
 export interface WorkspaceSearchResult {
   file: string;
   line: number;
   column: number;
   preview: string;
   key: string;
+  matchType: WorkspaceSearchMatchType;
+  relevanceScore: number;
 }
 
 export interface GitHubApiResponse {

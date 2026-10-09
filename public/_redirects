@@ -1,0 +1,4 @@
+# Keep arbitrary GitHub-shaped URLs on the static app shell. The client parses
+# the original pathname and loads the repository directly from GitHub.
+/:owner/:repo /index.html 200
+/:owner/:repo/* /index.html 200

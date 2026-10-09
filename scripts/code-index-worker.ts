@@ -9,6 +9,7 @@ import {
   type CodeIndexBuildLogger,
 } from './code-index-builder';
 import { CODE_INDEX_FILE_NAME } from '../src/lib/code-index';
+import { enrichCodeIndexWithClangd } from './clangd-semantic-index';
 
 type ManifestNode = {
   name: string;
@@ -43,7 +44,7 @@ function toFileNode(node: ManifestNode, parentPath = ''): FileNode {
   return result;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const repoDir = process.argv[2];
   const statsPath = process.argv[3];
   if (!repoDir || !statsPath) {
@@ -67,6 +68,10 @@ function main(): void {
     logger
   );
 
+  if (process.env.EXPLORAR_SKIP_SEMANTIC_ENRICHMENT !== '1') {
+    await enrichCodeIndexWithClangd(repoDir, stats.dbPath, logger);
+  }
+
   fs.writeFileSync(statsPath, `${JSON.stringify(stats)}\n`);
   // Keep the output path meaningful in process listings and validate that the
   // expected index was produced before reporting success.
@@ -78,7 +83,7 @@ function main(): void {
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   try {
-    main();
+    await main();
   } catch (error) {
     console.error(error instanceof Error ? error.stack || error.message : String(error));
     process.exit(1);
