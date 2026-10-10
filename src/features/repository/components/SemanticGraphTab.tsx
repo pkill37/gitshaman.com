@@ -33,6 +33,19 @@ function classifyRelationship(type: string): SemanticRelationshipKind {
   return 'other';
 }
 
+function scheduleIdleWork(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+
+  const idleScheduler = window.requestIdleCallback;
+  if (idleScheduler) {
+    const idleId = idleScheduler(callback, { timeout: 600 });
+    return () => window.cancelIdleCallback?.(idleId);
+  }
+
+  const timeoutId = window.setTimeout(callback, 16);
+  return () => window.clearTimeout(timeoutId);
+}
+
 export default function SemanticGraphTab({
   isActive,
   codeIndex,
@@ -60,7 +73,10 @@ export default function SemanticGraphTab({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
+    let cancelled = false;
+    const cancelScheduledWork = scheduleIdleWork(() => {
+      if (cancelled) return;
+      const startedAt = performance.now();
       try {
         const nextRelationships = getCodeIndexGraphEdges(
           codeIndex,
@@ -76,18 +92,25 @@ export default function SemanticGraphTab({
           confidence: edge.confidence,
         }));
 
+        if (cancelled) return;
+        console.debug('[explorar:semantic-graph] built relationships', {
+          relationshipCount: nextRelationships.length,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
         setGraphResult({ codeIndex, relationships: nextRelationships, error: null });
       } catch (error) {
+        if (cancelled) return;
         setGraphResult({
           codeIndex,
           relationships: [],
           error: error instanceof Error ? error.message : 'Failed to load semantic graph',
         });
       }
-    }, 0);
+    });
 
     return () => {
-      window.clearTimeout(timeoutId);
+      cancelled = true;
+      cancelScheduledWork();
     };
   }, [codeIndex, currentGraphResult, isActive]);
 

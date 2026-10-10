@@ -40,7 +40,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = `${config.displayName} Source Explorer`;
+  const title = config.displayName;
   const imageUrl = `${siteUrl}/opengraph-image`;
 
   return {

@@ -351,23 +351,6 @@ export default function RepositoryExplorerClient({
       })),
     [guideSections]
   );
-  useEffect(() => {
-    let nextSourceMode = getDefaultCuratedRepoSourceMode();
-    try {
-      const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
-      if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
-        nextSourceMode = savedSourceMode;
-      }
-    } catch {
-      // Keep the environment default.
-    }
-    nextSourceMode = normalizeCuratedRepoSourceMode(nextSourceMode);
-    const timeoutId = window.setTimeout(() => {
-      setFileSourceMode(nextSourceMode);
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
   const handleSourceModeChange = useCallback((sourceMode: CuratedRepoSourceMode) => {
     const normalizedSourceMode = normalizeCuratedRepoSourceMode(sourceMode);
     setFileSourceMode(normalizedSourceMode);
@@ -606,7 +589,6 @@ export default function RepositoryExplorerClient({
                       : 'editor'
               }
               sourceMode={fileSourceMode}
-              onSourceModeChange={handleSourceModeChange}
               workspaceTheme={workspaceTheme}
               workspaceSearchQuery={sidebarSearchQuery}
               onWorkspaceSearchQueryChange={setSidebarSearchQuery}

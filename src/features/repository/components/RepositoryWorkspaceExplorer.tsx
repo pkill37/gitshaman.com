@@ -212,7 +212,6 @@ interface RepositoryWorkspaceExplorerProps {
   onSelectedFileChange?: (path: string) => void;
   layoutMode?: 'editor' | 'search' | 'viewer' | 'semantic';
   sourceMode?: CuratedRepoSourceMode;
-  onSourceModeChange?: (sourceMode: CuratedRepoSourceMode) => void;
   workspaceTheme: WorkspaceTheme;
   workspaceSearchQuery?: string;
   onWorkspaceSearchQueryChange?: (query: string) => void;
@@ -227,7 +226,6 @@ export default function RepositoryWorkspaceExplorer({
   onSelectedFileChange,
   layoutMode = 'editor',
   sourceMode,
-  onSourceModeChange,
   workspaceTheme,
   workspaceSearchQuery: controlledWorkspaceSearchQuery,
   onWorkspaceSearchQueryChange,
@@ -287,7 +285,7 @@ export default function RepositoryWorkspaceExplorer({
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [tabsRestored, setTabsRestored] = useState<boolean>(false);
 
-  const [localFileSourceMode, setLocalFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
+  const [localFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
     let nextSourceMode = getDefaultCuratedRepoSourceMode();
     try {
       if (typeof window !== 'undefined') {
@@ -331,24 +329,19 @@ export default function RepositoryWorkspaceExplorer({
   const [workspaceSearchError, setWorkspaceSearchError] = useState<string | null>(null);
   const [workspaceSearchHasMore, setWorkspaceSearchHasMore] = useState<boolean>(false);
   const [workspaceSearchIndex, setWorkspaceSearchIndex] = useState<LoadedCodeIndex | null>(null);
-  const [workspaceSearchIndexLoading, setWorkspaceSearchIndexLoading] = useState(true);
+  const [workspaceSearchIndexLoading, setWorkspaceSearchIndexLoading] = useState(false);
   const [workspaceSearchIndexError, setWorkspaceSearchIndexError] = useState<string | null>(null);
   const [workspaceSearchIndexProgress, setWorkspaceSearchIndexProgress] = useState<number>(0);
   const [workspaceSearchIndexCached, setWorkspaceSearchIndexCached] = useState(false);
   const workspaceSearchIndexLoadKey = `${fileSourceMode}:${owner || ''}/${repo || ''}@${selectedVersion}`;
-  const [previousSearchIndexLoadKey, setPreviousSearchIndexLoadKey] = useState(
-    workspaceSearchIndexLoadKey
+  const shouldLoadWorkspaceSearchIndex = Boolean(
+    owner &&
+    repo &&
+    selectedVersion &&
+    (layoutMode === 'search' || layoutMode === 'semantic' || activeTabId)
   );
+  const previousSearchIndexLoadKeyRef = useRef(workspaceSearchIndexLoadKey);
 
-  // Reset before rendering children so they never receive the previous repository's index.
-  if (previousSearchIndexLoadKey !== workspaceSearchIndexLoadKey) {
-    setPreviousSearchIndexLoadKey(workspaceSearchIndexLoadKey);
-    setWorkspaceSearchIndex(null);
-    setWorkspaceSearchIndexError(null);
-    setWorkspaceSearchIndexLoading(true);
-    setWorkspaceSearchIndexProgress(0);
-    setWorkspaceSearchIndexCached(false);
-  }
   // Refs for cleanup
   const workspaceSearchIndexRequestIdRef = useRef(0);
   const workspaceSearchResultsRequestIdRef = useRef(0);
@@ -362,33 +355,22 @@ export default function RepositoryWorkspaceExplorer({
   // Track which initialFile has already been opened so we don't re-open on re-renders
   const lastOpenedInitialFileRef = useRef<string | null>(null);
 
-  const setActiveFileSourceMode = useCallback(
-    (nextSourceMode: CuratedRepoSourceMode) => {
-      const normalizedSourceMode = normalizeCuratedRepoSourceMode(nextSourceMode);
-      setLocalFileSourceMode(normalizedSourceMode);
-      onSourceModeChange?.(normalizedSourceMode);
-    },
-    [onSourceModeChange]
-  );
-
   useEffect(() => {
-    let nextSourceMode = getDefaultCuratedRepoSourceMode();
-    try {
-      const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
-      if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
-        nextSourceMode = savedSourceMode;
-      }
-    } catch {
-      // Keep the environment default.
+    if (previousSearchIndexLoadKeyRef.current === workspaceSearchIndexLoadKey) {
+      return;
     }
 
-    nextSourceMode = normalizeCuratedRepoSourceMode(nextSourceMode);
-
+    previousSearchIndexLoadKeyRef.current = workspaceSearchIndexLoadKey;
+    workspaceSearchIndexRequestIdRef.current += 1;
+    workspaceSearchPreviewCacheRef.current.clear();
     queueMicrotask(() => {
-      setActiveFileSourceMode(nextSourceMode);
-      setCurrentCorpusSourceMode(nextSourceMode);
+      setWorkspaceSearchIndex(null);
+      setWorkspaceSearchIndexError(null);
+      setWorkspaceSearchIndexLoading(false);
+      setWorkspaceSearchIndexProgress(0);
+      setWorkspaceSearchIndexCached(false);
     });
-  }, [setActiveFileSourceMode]);
+  }, [workspaceSearchIndexLoadKey]);
 
   // Check if mobile on mount and resize
   // Using 1024px as breakpoint for "small laptop" - below this is mobile/tablet
@@ -499,6 +481,12 @@ export default function RepositoryWorkspaceExplorer({
   }, [owner, repo, branch, router, setRepository, currentBranch, selectedVersion, fileSourceMode]);
 
   useEffect(() => {
+    if (!shouldLoadWorkspaceSearchIndex) {
+      workspaceSearchIndexRequestIdRef.current += 1;
+      queueMicrotask(() => setWorkspaceSearchIndexLoading(false));
+      return;
+    }
+
     let cancelled = false;
     const loadKey = `${fileSourceMode}:${owner || ''}/${repo || ''}@${selectedVersion}`;
     // Every effect setup must subscribe, including Strict Mode's setup/cleanup replay.
@@ -522,6 +510,11 @@ export default function RepositoryWorkspaceExplorer({
     workspaceSearchIndexCacheHitRef.current = false;
     workspaceSearchIndexProgressSeenRef.current = false;
     workspaceSearchPreviewCacheRef.current.clear();
+    queueMicrotask(() => {
+      if (!cancelled && workspaceSearchIndexRequestIdRef.current === requestId) {
+        setWorkspaceSearchIndexLoading(true);
+      }
+    });
 
     void (async () => {
       const scheduleProgressUpdate = (nextProgress: number): void => {
@@ -665,7 +658,7 @@ export default function RepositoryWorkspaceExplorer({
         workspaceSearchIndexProgressFrameRef.current = null;
       }
     };
-  }, [owner, repo, selectedVersion, fileSourceMode]);
+  }, [owner, repo, selectedVersion, fileSourceMode, shouldLoadWorkspaceSearchIndex]);
 
   useEffect(() => {
     // Use setTimeout to avoid synchronous setState in effect
@@ -941,6 +934,10 @@ export default function RepositoryWorkspaceExplorer({
 
   // Tabs helpers
   const activeTab = tabs.find((t) => t.id === activeTabId) || null;
+  const shouldRenderRestoredTabs = isHydrated && tabsRestored;
+  const renderedTabs = shouldRenderRestoredTabs ? tabs : [];
+  const renderedActiveTabId = shouldRenderRestoredTabs ? activeTabId : null;
+  const renderedActiveTab = shouldRenderRestoredTabs ? activeTab : null;
   const generateTabId = (path: string) => `tab-${path.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
   const navigationNonceRef = useRef(0);
 
@@ -1732,29 +1729,29 @@ export default function RepositoryWorkspaceExplorer({
             style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column' }}
           >
             <TabBar
-              tabs={tabs}
-              activeTabId={activeTabId}
+              tabs={renderedTabs}
+              activeTabId={renderedActiveTabId}
               onTabSelect={onTabSelect}
               onTabClose={onTabClose}
               onCloseAllTabs={onCloseAllTabs}
               onMarkdownPreviewToggle={toggleMarkdownPreview}
             />
-            {activeTab ? (
+            {renderedActiveTab ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <CodeEditorContainer
                   key={fileSourceMode}
-                  filePath={activeTab.path}
+                  filePath={renderedActiveTab.path}
                   onContentLoad={onEditorContentLoad}
                   onOpenFile={openFileInTab}
                   fetchFile={fetchFileFromSelectedSource}
                   workspaceFilePaths={workspaceFilePaths}
                   workspaceId={`${fileSourceMode}:${repoLabel}@${selectedVersion}`}
                   codeIndex={workspaceSearchIndex}
-                  markdownViewMode={activeTab.viewMode}
+                  markdownViewMode={renderedActiveTab.viewMode}
                   onToggleMarkdownPreview={toggleMarkdownPreview}
-                  scrollToLine={activeTab.scrollToLine}
-                  searchPattern={activeTab.searchPattern}
-                  navigationNonce={activeTab.navigationNonce}
+                  scrollToLine={renderedActiveTab.scrollToLine}
+                  searchPattern={renderedActiveTab.searchPattern}
+                  navigationNonce={renderedActiveTab.navigationNonce}
                   editorTheme={editorTheme}
                 />
               </div>

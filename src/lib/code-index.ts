@@ -244,8 +244,7 @@ export function searchCodeIndexFiles(
     LIMIT ?
   `);
 
-  try {
-    statement.bind([...bindValues, limit]);
+  const collectRows = (statement: CodeIndexStatementLike): void => {
     while (statement.step()) {
       const row = statement.getAsObject();
       const path = String(row.path ?? '');
@@ -287,6 +286,11 @@ export function searchCodeIndexFiles(
         }),
       });
     }
+  };
+
+  try {
+    statement.bind([...bindValues, limit]);
+    collectRows(statement);
   } finally {
     statement.free();
   }

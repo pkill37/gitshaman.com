@@ -18,7 +18,7 @@ function WorkspaceBootFallback({ title, description }: { title: string; descript
     <div className="shaman-workspace-enter shaman-workspace-boot vscode-theme-dark" role="status">
       <div className="shaman-workspace-boot-panel">
         <p className="shaman-workspace-boot-kicker">Loading source workspace</p>
-        <h1>{title}</h1>
+        <p className="shaman-workspace-boot-title">{title}</p>
         <p>{description}</p>
         <div className="shaman-workspace-boot-steps" aria-hidden="true">
           <span />
@@ -34,7 +34,7 @@ function NoScriptRepositorySummary({ title, description }: { title: string; desc
   return (
     <noscript>
       <section style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
-        <h1>{title}</h1>
+        <h2>{title}</h2>
         <p>{description}</p>
       </section>
     </noscript>

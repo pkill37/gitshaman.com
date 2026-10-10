@@ -645,6 +645,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   codeIndex = null,
   editorTheme = 'vs-dark',
 }) => {
+  const codeLensReferenceCountCacheRef = useRef<Map<string, number>>(new Map());
   const editorRef = useRef<unknown>(null);
   const monacoRef = useRef<unknown>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -2527,7 +2528,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       providerDisposablesRef.current.push(
         monaco.languages.registerCodeLensProvider(lang, {
-          provideCodeLenses: async (_model: MonacoModelLike) => {
+          provideCodeLenses: (_model: MonacoModelLike) => {
             const lenses: Array<{
               range: unknown;
               id: string;
@@ -2540,14 +2541,18 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
               }
 
               const normalizedSymbol = normalizeSymbolQuery(symbol.name);
-              const cachedWorkspaceReferences = workspaceReferencesCache.get(
-                `${workspaceId}:${normalizedSymbol}:refs-only`
-              );
+              const referenceCacheKey = `${workspaceId}:${normalizedSymbol}:refs-only`;
+              const cachedWorkspaceReferences = workspaceReferencesCache.get(referenceCacheKey);
+              const cachedCount = codeLensReferenceCountCacheRef.current.get(referenceCacheKey);
               const refCount =
-                cachedWorkspaceReferences?.length ??
-                (symbol.references.length > 0
-                  ? symbol.references.length
-                  : (await findReferencesAcrossWorkspace(symbol.name, false)).length);
+                cachedWorkspaceReferences?.length ?? cachedCount ?? symbol.references.length;
+
+              if (cachedWorkspaceReferences) {
+                codeLensReferenceCountCacheRef.current.set(
+                  referenceCacheKey,
+                  cachedWorkspaceReferences.length
+                );
+              }
 
               if (refCount > 0) {
                 lenses.push({
@@ -2562,6 +2567,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
               filePath,
               lensCount: lenses.length,
               symbolCount: symbolsRef.current.length,
+              scanStrategy: 'cached-only',
             });
 
             return {
@@ -2580,6 +2586,10 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             }
 
             const references = await findReferencesAcrossWorkspace(symbol.name, false);
+            codeLensReferenceCountCacheRef.current.set(
+              `${workspaceId}:${normalizeSymbolQuery(symbol.name)}:refs-only`,
+              references.length
+            );
             debugLog('[explorar:xref] resolve-code-lens', {
               filePath,
               symbolName: symbol.name,
