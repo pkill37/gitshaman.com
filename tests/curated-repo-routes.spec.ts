@@ -31,7 +31,7 @@ test.describe('curated repo routes', () => {
     const canonical = resolveCuratedRepoRoute([repo.slug]);
     expect(canonical).toEqual({
       config: repo,
-      canonicalPath: `/${repo.slug}`,
+      canonicalPath: getCuratedRepoPath(repo.owner, repo.repo),
       isLegacyPath: false,
     });
 

@@ -79,7 +79,7 @@ function getGitHubUrlParts(
 }
 
 function buildGitShamanUrl(source: URL, target: GitHubUrlTarget): string {
-  const result = new URL(`https://gitshaman.com/${target.owner}/${target.repo}`);
+  const result = new URL(`https://gitshaman.com/${target.owner}/${target.repo}/`);
   if (target.branch) result.searchParams.set('ref', target.branch);
   if (target.branch && target.filePath) {
     result.searchParams.set(target.targetType === 'directory' ? 'dir' : 'file', target.filePath);

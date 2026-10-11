@@ -620,7 +620,7 @@ export function getCuratedRepoDisplayName(owner: string, repo: string): string {
 
 export function getCuratedRepoPath(owner: string, repo: string): string {
   const config = getCuratedRepo(owner, repo);
-  return config ? `/${config.slug}` : `/${owner}/${repo}`;
+  return config ? `/${config.slug}/` : `/${owner}/${repo}/`;
 }
 
 export interface CuratedRepoRouteResolution {
@@ -649,7 +649,7 @@ export function resolveCuratedRepoRoute(pathSegments: string[]): CuratedRepoRout
 
     return {
       config,
-      canonicalPath: `/${config.slug}`,
+      canonicalPath: getCuratedRepoPath(config.owner, config.repo),
       isLegacyPath: false,
     };
   }

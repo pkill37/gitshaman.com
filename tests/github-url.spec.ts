@@ -32,7 +32,13 @@ test.describe('GitHub URL hacking', () => {
         'https://github.com/torvalds/linux/blob/v6.1/kernel/sched/core.c?tab=readme#L42-L48'
       )
     ).toBe(
-      'https://gitshaman.com/torvalds/linux?ref=v6.1&file=kernel%2Fsched%2Fcore.c&line=42&tab=readme'
+      'https://gitshaman.com/torvalds/linux/?ref=v6.1&file=kernel%2Fsched%2Fcore.c&line=42&tab=readme'
+    );
+  });
+
+  test('translates repository URLs to trailing-slash GitShaman paths', () => {
+    expect(githubUrlToGitShamanUrl('https://github.com/torvalds/linux')).toBe(
+      'https://gitshaman.com/torvalds/linux/'
     );
   });
 
@@ -53,7 +59,7 @@ test.describe('GitHub URL hacking', () => {
       targetType: 'directory',
     });
     expect(githubUrlToGitShamanUrl('https://github.com/owner/repo/tree/main/src')).toBe(
-      'https://gitshaman.com/owner/repo?ref=main&dir=src'
+      'https://gitshaman.com/owner/repo/?ref=main&dir=src'
     );
   });
 
