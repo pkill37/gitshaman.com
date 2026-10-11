@@ -43,18 +43,18 @@ fileRecommendations:
     - path: iokit/Kernel/IOStartIOKit.cpp
       description: I/O Kit startup — C++ runtime and driver matching begins
       type: source
-    - path: osfmk/kern/task.c:task_create
-      description: Mach task — the fundamental unit of resource ownership
+    - path: osfmk/kern/task.c:task_create_internal
+      description: Mach task creation — the fundamental unit of resource ownership
       type: source
   directories:
     - path: osfmk/
-      description: Mach kernel core: tasks, threads, IPC, VM, scheduler, and architecture glue.
+      description: "Mach kernel core: tasks, threads, IPC, VM, scheduler, and architecture glue."
       type: directory
     - path: bsd/
-      description: POSIX and Unix layer: processes, syscalls, networking, VFS, credentials, and signals.
+      description: "POSIX and Unix layer: processes, syscalls, networking, VFS, credentials, and signals."
       type: directory
     - path: iokit/
-      description: Driver framework: C++ service objects, matching, driver lifecycle, and device abstractions.
+      description: "Driver framework: C++ service objects, matching, driver lifecycle, and device abstractions."
       type: directory
     - path: libkern/
       description: Shared kernel runtime support used by I/O Kit and lower-level kernel code.

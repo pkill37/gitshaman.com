@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
   // Trailing slash ensures python http.server serves index.html from directories
   trailingSlash: true,
 
+  // GitShaman routes include repository-like segments and curated slugs such as
+  // `/nt5.1-kernel/`. Next treats a dot in the final segment as a file and
+  // otherwise emits automatic 308 trailing-slash redirects, which can break
+  // static-host fallback routes and image consumers in production.
+  skipTrailingSlashRedirect: true,
+
   // Disable image optimization for static export (or use unoptimized: true)
   images: {
     unoptimized: true,

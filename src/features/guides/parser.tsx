@@ -521,6 +521,10 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
               .replace(/^-|-$/g, '');
           sectionContent = fullContent;
         } else {
+          if (index === 0 && /^#\s+/m.test(fullContent)) {
+            return null;
+          }
+
           console.warn(
             `Section at index ${index} is missing required fields (id or title) and no ## heading found.`
           );

@@ -11,6 +11,10 @@ export async function generateStaticParams() {
 
 const siteUrl = getSiteUrl();
 
+function absoluteSiteUrl(path: string): string {
+  return `${siteUrl}${path}`;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -24,7 +28,7 @@ export async function generateMetadata({
   }
 
   const { config, canonicalPath, isLegacyPath } = resolved;
-  const canonicalUrl = `${siteUrl}${canonicalPath}/`;
+  const canonicalUrl = absoluteSiteUrl(canonicalPath);
 
   if (isLegacyPath) {
     return {
@@ -41,7 +45,7 @@ export async function generateMetadata({
   }
 
   const title = config.displayName;
-  const imageUrl = `${siteUrl}/opengraph-image`;
+  const imageUrl = absoluteSiteUrl('/opengraph-image');
 
   return {
     title,
@@ -103,7 +107,7 @@ export default async function RepositoryRouteLayout({
   }
 
   const { config, canonicalPath } = resolved;
-  const repoUrl = `${siteUrl}${canonicalPath}/`;
+  const repoUrl = absoluteSiteUrl(canonicalPath);
   const githubUrl = `https://github.com/${config.owner}/${config.repo}`;
 
   const softwareSourceCodeSchema = {
