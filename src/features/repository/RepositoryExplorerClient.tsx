@@ -524,11 +524,6 @@ export default function RepositoryExplorerClient({
               title: 'Entities',
               label: '{}',
             },
-            {
-              id: 'semantic',
-              title: 'Semantic Graph',
-              label: '⌬',
-            },
           ].map((tab) => {
             const isActive = mode === tab.id;
             return (

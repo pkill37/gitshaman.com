@@ -14,11 +14,13 @@ export default function CuratedRepositoryPortalLink({
   githubUrl,
   className,
   children,
+  tabIndex,
 }: {
   href: string;
   githubUrl: string;
   className: string;
   children: ReactNode;
+  tabIndex?: number;
 }) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     if (
@@ -40,7 +42,13 @@ export default function CuratedRepositoryPortalLink({
   };
 
   return (
-    <Link href={href} prefetch={false} className={className} onClick={handleClick}>
+    <Link
+      href={href}
+      prefetch={false}
+      className={className}
+      onClick={handleClick}
+      tabIndex={tabIndex}
+    >
       {children}
     </Link>
   );

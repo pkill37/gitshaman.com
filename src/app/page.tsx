@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import CuratedRepositoryPortalLink from './CuratedRepositoryPortalLink';
 import HeroInputSection from './HeroInputSection';
+import RepositoryMarquee from './RepositoryMarquee';
 import HomeRoute from './HomeRoute';
 import {
   CURATED_REPOS,
@@ -24,7 +25,6 @@ const INDEX_REPO_SLUG_ORDER = [
   'reactos',
   'lineageos-android',
   'grapheneos-platform-manifest',
-  'miniageos',
   'cpython',
   'gnu-c-library',
   'llvm-project',
@@ -48,7 +48,7 @@ const CURATED_REPO_CATEGORIES = [
   {
     id: 'aosp',
     title: 'AOSP',
-    slugs: ['lineageos-android', 'grapheneos-platform-manifest', 'miniageos'],
+    slugs: ['lineageos-android', 'grapheneos-platform-manifest'],
   },
   {
     id: 'languages',
@@ -57,13 +57,19 @@ const CURATED_REPO_CATEGORIES = [
   },
 ] as const;
 
-function CompactRepositoryPortal({ repo }: { repo: CuratedRepoConfig }) {
+function CompactRepositoryPortal({
+  repo,
+  duplicate = false,
+}: {
+  repo: CuratedRepoConfig;
+  duplicate?: boolean;
+}) {
   const avatarUrl = getCuratedRepoAvatarUrl(repo);
   const content = (
     <>
       <span className="shaman-compact-portal-avatar" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={avatarUrl} alt="" width={24} height={24} loading="lazy" decoding="async" />
+        <img src={avatarUrl} alt="" width={32} height={32} loading="lazy" decoding="async" />
       </span>
       <span className="min-w-0 flex-1 truncate">{repo.displayName}</span>
     </>
@@ -79,6 +85,7 @@ function CompactRepositoryPortal({ repo }: { repo: CuratedRepoConfig }) {
       href={getCuratedRepoPath(repo.owner, repo.repo)}
       githubUrl={`https://github.com/${repo.owner}/${repo.repo}`}
       className={className}
+      tabIndex={duplicate ? -1 : undefined}
     >
       {content}
     </CuratedRepositoryPortalLink>
@@ -86,7 +93,7 @@ function CompactRepositoryPortal({ repo }: { repo: CuratedRepoConfig }) {
 }
 
 function LandingPage() {
-  const indexedRepos = [...CURATED_REPOS].sort((a, b) => {
+  const indexedRepos = CURATED_REPOS.filter((repo) => repo.slug !== 'miniageos').sort((a, b) => {
     const aIndex = INDEX_REPO_SLUG_ORDER.indexOf(a.slug as (typeof INDEX_REPO_SLUG_ORDER)[number]);
     const bIndex = INDEX_REPO_SLUG_ORDER.indexOf(b.slug as (typeof INDEX_REPO_SLUG_ORDER)[number]);
     return (
@@ -149,7 +156,7 @@ function LandingPage() {
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 flex-col items-center px-4 pt-8 pb-10 sm:pt-10">
+      <main className="shaman-landing-main relative z-10 flex flex-1 flex-col items-center px-4 pt-8 pb-10 sm:pt-10">
         <div className="mx-auto w-full max-w-5xl">
           <section className="shaman-url-panel mx-auto mb-14 max-w-3xl rounded-xl p-6 text-center sm:p-8">
             <HeroInputSection>
@@ -159,18 +166,27 @@ function LandingPage() {
                     Curated with care for important free and open-source projects
                   </span>
                 </div>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {repoCategories.map((category) => (
-                    <div key={category.id} className="shaman-hero-portal-group rounded-lg p-3">
-                      <h2 className="shaman-hero-portal-title">{category.title}</h2>
-                      <div className="flex flex-wrap gap-2">
-                        {category.repos.map((repo) => (
-                          <CompactRepositoryPortal key={`${repo.owner}/${repo.repo}`} repo={repo} />
-                        ))}
+                <RepositoryMarquee>
+                  <div className="shaman-repo-marquee-track">
+                    {[false, true].map((duplicate) => (
+                      <div
+                        key={String(duplicate)}
+                        className="shaman-repo-marquee-group"
+                        aria-hidden={duplicate || undefined}
+                      >
+                        {repoCategories.flatMap((category) =>
+                          category.repos.map((repo) => (
+                            <CompactRepositoryPortal
+                              key={`${repo.owner}/${repo.repo}`}
+                              repo={repo}
+                              duplicate={duplicate}
+                            />
+                          ))
+                        )}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </RepositoryMarquee>
               </div>
             </HeroInputSection>
           </section>
@@ -239,6 +255,42 @@ function LandingPage() {
               </article>
             </div>
           </section>
+          <nav aria-label="Site map" className="shaman-site-map mx-auto max-w-5xl">
+            <p className="mb-6 text-sm leading-6 text-gray-400">
+              Explore open-source code with GitShaman, from operating system kernels and Android
+              platforms to programming languages and compilers. Browse the projects below to study
+              their source files, find symbols, and follow how the code fits together.
+            </p>
+            <div className="shaman-site-map-columns grid gap-4 text-sm sm:gap-6">
+              {repoCategories.map((category) => (
+                <div key={category.id}>
+                  <h3 className="mb-3 font-semibold text-[#efc66f]">{category.title}</h3>
+                  <p className="mb-3 text-xs leading-5 text-gray-400">
+                    {category.id === 'os-kernels'
+                      ? 'Study kernel architecture, memory management, and device drivers.'
+                      : category.id === 'aosp'
+                        ? 'Explore Android platform source trees and open-source distributions.'
+                        : category.id === 'languages'
+                          ? 'Read the implementations of languages, compilers, and core libraries.'
+                          : 'Discover more open-source projects and their implementations.'}
+                  </p>
+                  <ul className="space-y-2">
+                    {category.repos.map((repo) => (
+                      <li key={repo.slug}>
+                        <Link
+                          href={getCuratedRepoPath(repo.owner, repo.repo)}
+                          prefetch={false}
+                          className="text-gray-300 underline-offset-4 hover:text-white hover:underline"
+                        >
+                          {repo.displayName} source code
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </nav>
         </div>
       </main>
     </div>

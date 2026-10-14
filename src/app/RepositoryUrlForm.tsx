@@ -16,7 +16,6 @@ import {
 import { getCuratedRepoPath, isCuratedRepo } from '@/lib/curated-repos';
 import { githubUrlToGitShamanUrl, parseGitHubUrl } from '@/lib/github-url';
 
-const URL_HACK_HOSTS = ['github.com'] as const;
 const PORTAL_MORPH_DURATION_MS = 520;
 const PORTAL_EXIT_DURATION_MS = 420;
 const PORTAL_NAVIGATE_DELAY_MS = 1450;
@@ -178,21 +177,7 @@ export default function RepositoryUrlForm({
             </label>
             {!githubUrl && (
               <div className="shaman-url-placeholder" aria-hidden="true">
-                <span className="shaman-logo-hack">
-                  <span className="shaman-logo-hack-protocol">https://</span>
-                  <span className="shaman-logo-hack-hosts">
-                    {URL_HACK_HOSTS.map((host) => (
-                      <span key={host} className="shaman-logo-hack-old-host">
-                        {host}
-                      </span>
-                    ))}
-                    <span className="shaman-logo-hack-new-host">
-                      git<span className="shaman-wordmark-sha">sha</span>man
-                      <span className="shaman-wordmark-domain">.com</span>
-                    </span>
-                  </span>
-                  <span className="shaman-logo-hack-path">/owner/repo</span>
-                </span>
+                https://github.com/owner/repo
               </div>
             )}
             <input
