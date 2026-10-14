@@ -63,6 +63,26 @@ function limitSymbolBuckets(buckets: ReturnType<typeof createSymbolBuckets>) {
   };
 }
 
+function extractImportedSymbols(
+  lines: string[],
+  extractLine: (
+    line: string,
+    buckets: ReturnType<typeof createSymbolBuckets>,
+    rawImports: string[],
+    add: ReturnType<typeof createUniquePusher>
+  ) => void
+): Pick<FileSymbols, 'functions' | 'types' | 'defines' | 'globals' | 'rawImports'> {
+  const buckets = createSymbolBuckets();
+  const rawImports: string[] = [];
+  const add = createUniquePusher();
+
+  for (const line of lines) {
+    extractLine(line.trim(), buckets, rawImports, add);
+  }
+
+  return { ...limitSymbolBuckets(buckets), rawImports };
+}
+
 // ─── Language-specific extractors ──────────────────────────────────────────
 
 const C_KEYWORDS = new Set([
@@ -187,95 +207,75 @@ function extractC(
 function extractPython(
   lines: string[]
 ): Pick<FileSymbols, 'functions' | 'types' | 'defines' | 'globals' | 'rawImports'> {
-  const buckets = createSymbolBuckets();
-  const rawImports: string[] = [];
-  const add = createUniquePusher();
-
-  for (const line of lines) {
-    const t = line.trim();
+  return extractImportedSymbols(lines, (t, buckets, rawImports, add) => {
     if (t.match(/^import\s+([\w.]+)/)) {
       rawImports.push(RegExp.$1);
-      continue;
+      return;
     }
     if (t.match(/^from\s+([\w./]+)\s+import/)) {
       rawImports.push(RegExp.$1);
-      continue;
+      return;
     }
     const defn = t.match(/^(?:async\s+)?def\s+([a-z_]\w+)\s*\(/);
     if (defn) {
       add(buckets.functions, defn[1]);
-      continue;
+      return;
     }
     const cls = t.match(/^class\s+(\w+)/);
     if (cls) {
       add(buckets.types, cls[1]);
-      continue;
+      return;
     }
     // module-level: uppercase = constant, lowercase = global
     if (!t.startsWith(' ') && !t.startsWith('\t') && !t.startsWith('#') && !t.startsWith('"')) {
       const uc = t.match(/^([A-Z_][A-Z0-9_]{2,})\s*=/);
       if (uc) {
         add(buckets.defines, uc[1]);
-        continue;
+        return;
       }
       const lc = t.match(/^([a-z_]\w+)\s*=[^=]/);
       if (lc && lc[1] !== '_') {
         add(buckets.globals, lc[1]);
       }
     }
-  }
-
-  return {
-    ...limitSymbolBuckets(buckets),
-    rawImports,
-  };
+  });
 }
 
 function extractTS(
   lines: string[]
 ): Pick<FileSymbols, 'functions' | 'types' | 'defines' | 'globals' | 'rawImports'> {
-  const buckets = createSymbolBuckets();
-  const rawImports: string[] = [];
-  const add = createUniquePusher();
-
-  for (const line of lines) {
-    const t = line.trim();
+  return extractImportedSymbols(lines, (t, buckets, rawImports, add) => {
     const imp = t.match(/^import\s+.*from\s+['"]([^'"]+)['"]/);
     if (imp) {
       rawImports.push(imp[1]);
-      continue;
+      return;
     }
     const fn = t.match(/^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)/);
     if (fn) {
       add(buckets.functions, fn[1]);
-      continue;
+      return;
     }
     const arrowFn = t.match(/^(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?\(/);
     if (arrowFn) {
       add(buckets.functions, arrowFn[1]);
-      continue;
+      return;
     }
     const CONST = t.match(/^(?:export\s+)?(?:const|let)\s+([A-Z_][A-Z0-9_]{2,})\s*=/);
     if (CONST) {
       add(buckets.defines, CONST[1]);
-      continue;
+      return;
     }
     const tp = t.match(/^(?:export\s+)?(?:interface|type|class|enum)\s+(\w+)/);
     if (tp) {
       add(buckets.types, tp[1]);
-      continue;
+      return;
     }
     const gl = t.match(/^(?:export\s+)?(?:const|let|var)\s+([a-z_]\w+)\s*=/);
     if (gl) {
       add(buckets.globals, gl[1]);
-      continue;
+      return;
     }
-  }
-
-  return {
-    ...limitSymbolBuckets(buckets),
-    rawImports,
-  };
+  });
 }
 
 // ─── Main parse entry point ─────────────────────────────────────────────────

@@ -76,6 +76,50 @@ function symbolEntryToSymbolReference(
   };
 }
 
+type QueryBackend = LanguageBackend &
+  Partial<Pick<IndexedLanguageBackend, 'getTypeMembers' | 'getIncludeChain'>>;
+
+async function executeBackendQuery(backend: QueryBackend, query: SemanticQuery) {
+  switch (query.kind) {
+    case 'definition': {
+      const definition = await backend.getDefinition(query.symbolName, query);
+      return definition ? [definition] : [];
+    }
+    case 'references':
+      return backend.getReferences(query.symbolName, query);
+    case 'hover': {
+      const hover = await backend.getHover(query.symbolName, query);
+      return hover ? [hover] : [];
+    }
+    case 'diagnostics':
+      return backend.getDiagnostics(query);
+    case 'documentSymbols':
+      return backend.getDocumentSymbols(query);
+    case 'typeMembers':
+      return backend.getTypeMembers?.(query.symbolName, query) ?? [];
+    case 'includeChains':
+      return (
+        backend.getIncludeChain?.(query, {
+          direction: query.direction,
+          maxDepth: query.maxDepth,
+          limit: query.limit,
+        }) ?? []
+      );
+    case 'relationships':
+      return backend.getRelationships(query);
+  }
+}
+
+async function queryBackend<TKind extends SemanticQueryKind>(
+  backend: QueryBackend,
+  query: Extract<SemanticQuery, { kind: TKind }>,
+  confidence: SemanticQueryResult<TKind>['confidence'],
+  complete: boolean
+): Promise<SemanticQueryResult<TKind>> {
+  const items = (await executeBackendQuery(backend, query)) as SemanticQueryResult<TKind>['items'];
+  return { kind: query.kind as TKind, items, provider: backend.id, confidence, complete };
+}
+
 export class IndexedLanguageBackend implements LanguageBackend {
   id = 'indexed';
 
@@ -102,43 +146,7 @@ export class IndexedLanguageBackend implements LanguageBackend {
   async query<TKind extends SemanticQueryKind>(
     query: Extract<SemanticQuery, { kind: TKind }>
   ): Promise<SemanticQueryResult<TKind>> {
-    const items = (await this.executeQuery(query)) as SemanticQueryResult<TKind>['items'];
-    return {
-      kind: query.kind as TKind,
-      items,
-      provider: this.id,
-      confidence: 'high',
-      complete: Boolean(this.codeIndex),
-    };
-  }
-
-  private async executeQuery(query: SemanticQuery) {
-    switch (query.kind) {
-      case 'definition': {
-        const definition = await this.getDefinition(query.symbolName, query);
-        return definition ? [definition] : [];
-      }
-      case 'references':
-        return this.getReferences(query.symbolName, query);
-      case 'hover': {
-        const hover = await this.getHover(query.symbolName, query);
-        return hover ? [hover] : [];
-      }
-      case 'diagnostics':
-        return this.getDiagnostics(query);
-      case 'documentSymbols':
-        return this.getDocumentSymbols(query);
-      case 'typeMembers':
-        return this.getTypeMembers(query.symbolName, query);
-      case 'includeChains':
-        return this.getIncludeChain(query, {
-          direction: query.direction,
-          maxDepth: query.maxDepth,
-          limit: query.limit,
-        });
-      case 'relationships':
-        return this.getRelationships(query);
-    }
+    return queryBackend(this, query, 'high', Boolean(this.codeIndex));
   }
 
   async getDefinition(
@@ -357,37 +365,7 @@ export class HeuristicLanguageBackend implements LanguageBackend {
   async query<TKind extends SemanticQueryKind>(
     query: Extract<SemanticQuery, { kind: TKind }>
   ): Promise<SemanticQueryResult<TKind>> {
-    const items = (await this.executeQuery(query)) as SemanticQueryResult<TKind>['items'];
-    return {
-      kind: query.kind as TKind,
-      items,
-      provider: this.id,
-      confidence: 'low',
-      complete: false,
-    };
-  }
-
-  private async executeQuery(query: SemanticQuery) {
-    switch (query.kind) {
-      case 'definition': {
-        const definition = await this.getDefinition(query.symbolName, query);
-        return definition ? [definition] : [];
-      }
-      case 'references':
-        return this.getReferences(query.symbolName, query);
-      case 'hover': {
-        const hover = await this.getHover(query.symbolName, query);
-        return hover ? [hover] : [];
-      }
-      case 'diagnostics':
-        return this.getDiagnostics(query);
-      case 'documentSymbols':
-        return this.getDocumentSymbols(query);
-      case 'relationships':
-      case 'typeMembers':
-      case 'includeChains':
-        return [];
-    }
+    return queryBackend(this, query, 'low', false);
   }
 
   getDefinition(

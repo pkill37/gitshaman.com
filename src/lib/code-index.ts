@@ -559,6 +559,14 @@ export function getCodeIndexGraphNeighbors(
   path: string,
   limit: number = CODE_INDEX_SEARCH_RESULT_LIMIT
 ): CodeIndexEdgeEntry[] {
+  return queryCodeIndexEdges(handle, limit, path);
+}
+
+function queryCodeIndexEdges(
+  handle: LoadedCodeIndex,
+  limit: number,
+  path?: string
+): CodeIndexEdgeEntry[] {
   const statement = handle.db.prepare(`
     SELECT
       sf.Path AS sourcePath,
@@ -568,13 +576,13 @@ export function getCodeIndexGraphNeighbors(
     FROM Edges e
     JOIN Files sf ON sf.Id = e.SourceFileId
     JOIN Files tf ON tf.Id = e.TargetFileId
-    WHERE sf.Path = ? OR tf.Path = ?
+    ${path === undefined ? '' : 'WHERE sf.Path = ? OR tf.Path = ?'}
     ORDER BY e.Type, sf.Path COLLATE NOCASE, tf.Path COLLATE NOCASE
     LIMIT ?
   `);
 
   try {
-    statement.bind([path, path, limit]);
+    statement.bind(path === undefined ? [limit] : [path, path, limit]);
     const edges: CodeIndexEdgeEntry[] = [];
     while (statement.step()) {
       edges.push(codeIndexEdgeFromRow(statement.getAsObject()));
@@ -603,29 +611,7 @@ export function getCodeIndexGraphEdges(
   handle: LoadedCodeIndex,
   limit: number = CODE_INDEX_SEARCH_RESULT_LIMIT
 ): CodeIndexEdgeEntry[] {
-  const statement = handle.db.prepare(`
-    SELECT
-      sf.Path AS sourcePath,
-      tf.Path AS targetPath,
-      e.Type AS type,
-      e.Symbols AS symbols
-    FROM Edges e
-    JOIN Files sf ON sf.Id = e.SourceFileId
-    JOIN Files tf ON tf.Id = e.TargetFileId
-    ORDER BY e.Type, sf.Path COLLATE NOCASE, tf.Path COLLATE NOCASE
-    LIMIT ?
-  `);
-
-  try {
-    statement.bind([limit]);
-    const edges: CodeIndexEdgeEntry[] = [];
-    while (statement.step()) {
-      edges.push(codeIndexEdgeFromRow(statement.getAsObject()));
-    }
-    return edges;
-  } finally {
-    statement.free();
-  }
+  return queryCodeIndexEdges(handle, limit);
 }
 
 export function getCodeIndexIncludeChain(
@@ -765,10 +751,7 @@ export function getCodeIndexDiagnostics(
         path: String(row.path ?? path),
         severity: severity === 'error' || severity === 'warning' ? severity : 'info',
         message: String(row.message ?? ''),
-        startLine: Number(row.startLine ?? 1),
-        startColumn: Number(row.startColumn ?? 1),
-        endLine: Number(row.endLine ?? row.startLine ?? 1),
-        endColumn: Number(row.endColumn ?? row.startColumn ?? 1),
+        ...codeIndexRangeFromRow(row),
         provider: String(row.provider ?? 'unknown'),
       });
     }
@@ -892,6 +875,15 @@ function getCodeIndexSymbolById(
   }
 }
 
+function codeIndexRangeFromRow(row: Record<string, unknown>) {
+  return {
+    startLine: Number(row.startLine ?? 1),
+    startColumn: Number(row.startColumn ?? 1),
+    endLine: Number(row.endLine ?? row.startLine ?? 1),
+    endColumn: Number(row.endColumn ?? row.startColumn ?? 1),
+  };
+}
+
 function readSymbolRows(statement: CodeIndexStatementLike): CodeIndexSymbolEntry[] {
   const results: CodeIndexSymbolEntry[] = [];
   while (statement.step()) {
@@ -905,10 +897,7 @@ function readSymbolRows(statement: CodeIndexStatementLike): CodeIndexSymbolEntry
       language: String(row.language ?? ''),
       signature: row.signature == null ? null : String(row.signature),
       doc: row.doc == null ? null : String(row.doc),
-      startLine: Number(row.startLine ?? 1),
-      startColumn: Number(row.startColumn ?? 1),
-      endLine: Number(row.endLine ?? row.startLine ?? 1),
-      endColumn: Number(row.endColumn ?? row.startColumn ?? 1),
+      ...codeIndexRangeFromRow(row),
       isDefinition: Boolean(row.isDefinition),
       isDeclaration: Boolean(row.isDeclaration),
     });

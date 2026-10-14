@@ -39,7 +39,7 @@ function storageSourceSelector(page: Page) {
 }
 
 function storageSourceStatus(page: Page, title: string) {
-  return page.getByRole('main').locator(`.cursor-statusbar-item[title="${title}"]`);
+  return page.getByRole('main').getByTitle(title, { exact: true });
 }
 
 async function expectFileFetchFromSource(

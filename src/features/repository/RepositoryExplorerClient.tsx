@@ -72,6 +72,21 @@ function createOpenFileTarget(
 
 type WorkspaceTheme = 'dark' | 'light';
 
+function resolveRequestedPaths(
+  searchParams: Pick<URLSearchParams, 'get'>,
+  directTarget?: Pick<GitHubUrlTarget, 'filePath' | 'targetType'>
+) {
+  const requestedDirectory = searchParams.get('dir')?.trim();
+  const requestedFile = searchParams.get('file')?.trim();
+  return {
+    filePath: requestedFile || directTarget?.filePath,
+    directoryPath:
+      requestedDirectory ||
+      (directTarget?.targetType === 'directory' ? directTarget.filePath : undefined) ||
+      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined),
+  };
+}
+
 function createNavigationNonce(): number {
   navigationNonceCounter = (navigationNonceCounter + 1) % Number.MAX_SAFE_INTEGER;
   return Date.now() + navigationNonceCounter / 1000000;
@@ -129,15 +144,7 @@ export default function RepositoryExplorerClient({
     return 'dark';
   });
   const [initialFile, setInitialFile] = useState<InitialFileTarget | null>(() => {
-    const requestedDirectory = searchParams.get('dir')?.trim();
-    const requestedFile = searchParams.get('file')?.trim();
-    const filePath = requestedFile || effectiveDirectTarget?.filePath;
-    const directoryPath =
-      requestedDirectory ||
-      (effectiveDirectTarget?.targetType === 'directory'
-        ? effectiveDirectTarget.filePath
-        : undefined) ||
-      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
+    const { filePath, directoryPath } = resolveRequestedPaths(searchParams, effectiveDirectTarget);
     if (directoryPath) {
       return {
         kind: 'directory',
@@ -275,15 +282,10 @@ export default function RepositoryExplorerClient({
   );
 
   useEffect(() => {
-    const requestedDirectory = searchParams.get('dir')?.trim();
-    const requestedFile = searchParams.get('file')?.trim();
-    const filePath = requestedFile || effectiveDirectTarget?.filePath;
-    const directoryPath =
-      requestedDirectory ||
-      (effectiveDirectTarget?.targetType === 'directory'
-        ? effectiveDirectTarget.filePath
-        : undefined) ||
-      (requestedFile?.endsWith('/') ? requestedFile.replace(/\/+$/, '') : undefined);
+    const { filePath, directoryPath } = resolveRequestedPaths(searchParams, {
+      filePath: effectiveDirectTarget?.filePath,
+      targetType: effectiveDirectTarget?.targetType,
+    });
     if (directoryPath) {
       const timeoutId = window.setTimeout(() => {
         setInitialFile({

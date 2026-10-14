@@ -1337,27 +1337,14 @@ export default function RepositoryWorkspaceExplorer({
           const previewTargets = indexedResults.slice(0, CODE_INDEX_PREVIEW_ENRICH_LIMIT);
           const previewResults = await Promise.all(
             previewTargets.map(async (entry) => {
-              const cachedContent = workspaceSearchPreviewCacheRef.current.get(entry.path);
-              if (cachedContent) {
-                const preview = buildSearchPreview(cachedContent, normalizedQuery);
-                if (preview) {
-                  return {
-                    file: entry.path,
-                    line: preview.line,
-                    column: preview.column,
-                    preview: preview.preview,
-                    key: `${entry.path}:${preview.line}:${preview.column}`,
-                    matchType: entry.matchType,
-                    relevanceScore: entry.relevanceScore,
-                  } satisfies WorkspaceSearchResult;
-                }
-                return null;
-              }
-
               try {
-                const fileResult = await fetchFileFromSelectedSource(entry.path);
-                workspaceSearchPreviewCacheRef.current.set(entry.path, fileResult.content);
-                const preview = buildSearchPreview(fileResult.content, normalizedQuery);
+                let content = workspaceSearchPreviewCacheRef.current.get(entry.path);
+                if (!content) {
+                  const fileResult = await fetchFileFromSelectedSource(entry.path);
+                  content = fileResult.content;
+                  workspaceSearchPreviewCacheRef.current.set(entry.path, content);
+                }
+                const preview = buildSearchPreview(content, normalizedQuery);
                 if (!preview) {
                   return null;
                 }

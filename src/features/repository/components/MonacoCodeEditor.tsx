@@ -37,6 +37,42 @@ type OpenFileFn = (
 const MONACO_DARK_THEME = 'gitshaman-dark';
 const MONACO_LIGHT_THEME = 'gitshaman-light';
 
+function getEditorCursor(editorInstance: unknown) {
+  const editor = editorInstance as {
+    getModel?: () => {
+      getWordAtPosition: (position: { lineNumber: number; column: number }) => {
+        word: string;
+      } | null;
+    } | null;
+    getPosition?: () => { lineNumber: number; column: number } | null;
+  } | null;
+  return { model: editor?.getModel?.(), position: editor?.getPosition?.() };
+}
+
+async function ensureReferenceModels(
+  references: Location[],
+  filePath: string,
+  ensureModel: (path: string) => Promise<unknown>
+): Promise<string[]> {
+  const paths = Array.from(
+    new Set(references.map((location) => location.file).filter((path) => path && path !== filePath))
+  );
+  await Promise.all(
+    paths.map(async (referenceFilePath) => {
+      try {
+        await ensureModel(referenceFilePath);
+      } catch (error) {
+        console.warn('[explorar:xref] reference-model-create-failed', {
+          filePath,
+          referenceFilePath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })
+  );
+  return paths;
+}
+
 type MonacoThemeApi = {
   editor?: {
     defineTheme?: (name: string, data: Record<string, unknown>) => void;
@@ -1114,26 +1150,10 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           });
         }
 
-        const uniqueReferenceFiles = Array.from(
-          new Set(
-            dedupedReferences
-              .map((location) => location.file)
-              .filter((candidatePath) => candidatePath && candidatePath !== filePath)
-          )
-        );
-
-        await Promise.all(
-          uniqueReferenceFiles.map(async (referenceFilePath) => {
-            try {
-              await ensureMonacoModelForFile(referenceFilePath);
-            } catch (error) {
-              console.warn('[explorar:xref] reference-model-create-failed', {
-                filePath,
-                referenceFilePath,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
-          })
+        const uniqueReferenceFiles = await ensureReferenceModels(
+          dedupedReferences,
+          filePath,
+          ensureMonacoModelForFile
         );
 
         debugLog('[explorar:xref] workspace-references-ready', {
@@ -1393,26 +1413,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         context
       );
 
-      const uniqueReferenceFiles = Array.from(
-        new Set(
-          dedupedReferences
-            .map((location) => location.file)
-            .filter((candidatePath) => candidatePath && candidatePath !== filePath)
-        )
-      );
-      await Promise.all(
-        uniqueReferenceFiles.map(async (referenceFilePath) => {
-          try {
-            await ensureMonacoModelForFile(referenceFilePath);
-          } catch (error) {
-            console.warn('[explorar:xref] reference-model-create-failed', {
-              filePath,
-              referenceFilePath,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-        })
-      );
+      await ensureReferenceModels(dedupedReferences, filePath, ensureMonacoModelForFile);
 
       return dedupedReferences;
     },
@@ -1577,18 +1578,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   const openReferencesPanelAtCursor = useCallback(async (): Promise<boolean> => {
-    const editor = editorRef.current as {
-      getModel?: () => {
-        getWordAtPosition: (position: {
-          lineNumber: number;
-          column: number;
-        }) => { word: string } | null;
-      } | null;
-      getPosition?: () => { lineNumber: number; column: number } | null;
-    } | null;
-
-    const model = editor?.getModel?.();
-    const position = editor?.getPosition?.();
+    const { model, position } = getEditorCursor(editorRef.current);
     if (!model || !position) {
       return false;
     }
@@ -1728,18 +1718,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return true;
       },
       goToDefinitionAtCursor: async () => {
-        const editor = editorRef.current as {
-          getModel?: () => {
-            getWordAtPosition: (position: {
-              lineNumber: number;
-              column: number;
-            }) => { word: string } | null;
-          } | null;
-          getPosition?: () => { lineNumber: number; column: number } | null;
-        } | null;
-
-        const model = editor?.getModel?.();
-        const position = editor?.getPosition?.();
+        const { model, position } = getEditorCursor(editorRef.current);
         const word = model?.getWordAtPosition(position ?? { lineNumber: 1, column: 1 });
         const focusedSymbol = testFocusedSymbolRef.current;
         const symbolName = focusedSymbol?.filePath === filePath ? focusedSymbol.symbol : word?.word;
@@ -2653,6 +2632,43 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       const registerCallHierarchyProvider = monaco.languages.registerCallHierarchyProvider;
       if (registerCallHierarchyProvider) {
+        type CallHierarchyItem = { data?: { filePath?: string; symbolName?: string } };
+        const getHierarchyCalls = async (
+          item: CallHierarchyItem,
+          direction: 'incoming' | 'outgoing'
+        ) => {
+          const relationships = await semanticQueryService.getRelationships(
+            language,
+            backendContext
+          );
+          const calls = relationships.filter(
+            (relationship) =>
+              relationship.kind === 'call' &&
+              relationship.direction === direction &&
+              (!item.data?.symbolName ||
+                relationship.symbols.length === 0 ||
+                relationship.symbols.includes(item.data.symbolName))
+          );
+          return Promise.all(
+            calls.map(async (call) => {
+              const path = direction === 'incoming' ? call.sourcePath : call.targetPath;
+              const uri = await ensureMonacoModelForFile(path);
+              const range = new monaco.Range(1, 1, 1, 1);
+              return {
+                item: {
+                  name: call.symbols[0] ?? getPathBasename(path),
+                  detail: path,
+                  kind: monaco.languages.SymbolKind.Function,
+                  uri,
+                  range,
+                  selectionRange: range,
+                  data: { filePath: path, symbolName: call.symbols[0] },
+                },
+                fromRanges: [range],
+              };
+            })
+          );
+        };
         providerDisposablesRef.current.push(
           registerCallHierarchyProvider(lang, {
             prepareCallHierarchy: (model: MonacoModelLike, position: MonacoPosition) => {
@@ -2674,74 +2690,16 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
                 data: { filePath, symbolName: word.word },
               };
             },
-            provideIncomingCalls: async (item: {
-              data?: { filePath?: string; symbolName?: string };
-            }) => {
-              const relationships = await semanticQueryService.getRelationships(
-                language,
-                backendContext
-              );
-              const calls = relationships.filter(
-                (relationship) =>
-                  relationship.kind === 'call' &&
-                  relationship.direction === 'incoming' &&
-                  (!item.data?.symbolName ||
-                    relationship.symbols.length === 0 ||
-                    relationship.symbols.includes(item.data.symbolName))
-              );
-              return Promise.all(
-                calls.map(async (call) => {
-                  const uri = await ensureMonacoModelForFile(call.sourcePath);
-                  const range = new monaco.Range(1, 1, 1, 1);
-                  return {
-                    from: {
-                      name: call.symbols[0] ?? getPathBasename(call.sourcePath),
-                      detail: call.sourcePath,
-                      kind: monaco.languages.SymbolKind.Function,
-                      uri,
-                      range,
-                      selectionRange: range,
-                      data: { filePath: call.sourcePath, symbolName: call.symbols[0] },
-                    },
-                    fromRanges: [range],
-                  };
-                })
-              );
-            },
-            provideOutgoingCalls: async (item: {
-              data?: { filePath?: string; symbolName?: string };
-            }) => {
-              const relationships = await semanticQueryService.getRelationships(
-                language,
-                backendContext
-              );
-              const calls = relationships.filter(
-                (relationship) =>
-                  relationship.kind === 'call' &&
-                  relationship.direction === 'outgoing' &&
-                  (!item.data?.symbolName ||
-                    relationship.symbols.length === 0 ||
-                    relationship.symbols.includes(item.data.symbolName))
-              );
-              return Promise.all(
-                calls.map(async (call) => {
-                  const uri = await ensureMonacoModelForFile(call.targetPath);
-                  const range = new monaco.Range(1, 1, 1, 1);
-                  return {
-                    to: {
-                      name: call.symbols[0] ?? getPathBasename(call.targetPath),
-                      detail: call.targetPath,
-                      kind: monaco.languages.SymbolKind.Function,
-                      uri,
-                      range,
-                      selectionRange: range,
-                      data: { filePath: call.targetPath, symbolName: call.symbols[0] },
-                    },
-                    fromRanges: [range],
-                  };
-                })
-              );
-            },
+            provideIncomingCalls: async (item: CallHierarchyItem) =>
+              (await getHierarchyCalls(item, 'incoming')).map(({ item: from, fromRanges }) => ({
+                from,
+                fromRanges,
+              })),
+            provideOutgoingCalls: async (item: CallHierarchyItem) =>
+              (await getHierarchyCalls(item, 'outgoing')).map(({ item: to, fromRanges }) => ({
+                to,
+                fromRanges,
+              })),
           })
         );
       }

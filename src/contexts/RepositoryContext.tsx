@@ -69,8 +69,8 @@ interface RepositoryProviderProps {
   children: ReactNode;
 }
 
-export function RepositoryProvider({ children }: RepositoryProviderProps) {
-  const [state, setState] = useState<RepositoryState>({
+function createInitialRepositoryState(): RepositoryState {
+  return {
     source: null,
     identifier: null,
     displayName: null,
@@ -82,7 +82,11 @@ export function RepositoryProvider({ children }: RepositoryProviderProps) {
     error: null,
     downloadStatus: {},
     downloadProgress: null,
-  });
+  };
+}
+
+export function RepositoryProvider({ children }: RepositoryProviderProps) {
+  const [state, setState] = useState<RepositoryState>(createInitialRepositoryState);
 
   // Check if any repository is set up
   const checkSetupStatus = useCallback(async (): Promise<boolean> => {
@@ -175,19 +179,7 @@ export function RepositoryProvider({ children }: RepositoryProviderProps) {
 
   // Clear current repository
   const clearRepository = useCallback(() => {
-    setState({
-      source: null,
-      identifier: null,
-      displayName: null,
-      currentBranch: null,
-      availableBranches: [],
-      trustedBranches: [],
-      isLoading: false,
-      isSetup: false,
-      error: null,
-      downloadStatus: {},
-      downloadProgress: null,
-    });
+    setState(createInitialRepositoryState());
   }, []);
 
   // Switch to different branch

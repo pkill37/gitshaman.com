@@ -16,6 +16,15 @@ export interface CodeEntity {
   language: string;
 }
 
+type LocatedCodeEntity = CodeEntity & { line: number };
+
+function createEntityCollection(lines: string[]): {
+  entities: LocatedCodeEntity[];
+  lineCount: number;
+} {
+  return { entities: [], lineCount: lines.length };
+}
+
 function signatureToFields(signature?: string): EntityField[] {
   if (!signature) return [];
   const match = signature.match(/\((.*)\)/);
@@ -91,8 +100,7 @@ function extractPythonEntities(
   lines: string[],
   filePath: string
 ): Array<CodeEntity & { line: number }> {
-  const entities: Array<CodeEntity & { line: number }> = [];
-  const n = lines.length;
+  const { entities, lineCount: n } = createEntityCollection(lines);
   let i = 0;
 
   while (i < n) {
@@ -173,8 +181,7 @@ function extractTSEntities(
   lines: string[],
   filePath: string
 ): Array<CodeEntity & { line: number }> {
-  const entities: Array<CodeEntity & { line: number }> = [];
-  const n = lines.length;
+  const { entities, lineCount: n } = createEntityCollection(lines);
   let i = 0;
 
   const readBlockFields = (

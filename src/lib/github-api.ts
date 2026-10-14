@@ -14,6 +14,7 @@ import { getDefaultCuratedRepoSourceMode } from './curated-content-url';
 import { getCuratedRepoRevision } from './curated-repos';
 import { debugLog } from './browser-debug';
 import type { FileFetchResult } from './file-fetch-debug';
+export { sortFileNodes } from './file-tree';
 
 type GitHubConfig = {
   owner: string;
@@ -282,24 +283,6 @@ export async function fetchFileContent(path: string): Promise<FileFetchResult> {
   return fetchRepositoryFile(currentConfig.owner, currentConfig.repo, currentConfig.branch, path, {
     sourceMode: currentConfig.corpusSourceMode,
   });
-}
-
-export function sortFileNodes(nodes: FileNode[]): FileNode[] {
-  return nodes
-    .sort((a, b) => {
-      // Directories (trees) first, then files (blobs), both alphabetically
-      if (a.type === b.type) {
-        return a.name.localeCompare(b.name);
-      }
-      return a.type === 'directory' ? -1 : 1;
-    })
-    .map((node) => {
-      // Recursively sort children if they exist
-      if (node.children) {
-        return { ...node, children: sortFileNodes(node.children) };
-      }
-      return node;
-    });
 }
 
 function extractSubtree(tree: FileNode[], path: string): FileNode[] {

@@ -10,6 +10,7 @@ import {
   type FileEntry,
 } from './repo-storage';
 import type { GitHubApiResponse, FileNode } from '@/types';
+import { sortFileNodes } from './file-tree';
 
 export interface DownloadProgress {
   phase: 'downloading' | 'extracting' | 'storing' | 'completed' | 'error';
@@ -263,23 +264,7 @@ async function downloadCompleteTreeStructure(
     }
 
     // Sort all nodes: directories first, then files, both alphabetically
-    const sortNodes = (nodes: FileNode[]): FileNode[] => {
-      return nodes
-        .sort((a, b) => {
-          if (a.type === b.type) {
-            return a.name.localeCompare(b.name);
-          }
-          return a.type === 'directory' ? -1 : 1;
-        })
-        .map((node) => {
-          if (node.children) {
-            return { ...node, children: sortNodes(node.children) };
-          }
-          return node;
-        });
-    };
-
-    const sortedTree = sortNodes(rootNodes);
+    const sortedTree = sortFileNodes(rootNodes);
 
     console.log('[Tree Download] Tree structure built:', {
       identifier,

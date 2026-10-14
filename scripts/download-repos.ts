@@ -514,34 +514,26 @@ async function gitCloneShallow(
         repoDir
       );
       await runCommand('git', ['checkout', '--detach', 'FETCH_HEAD'], repoDir);
+    } else {
+      const cloneArgs = [
+        '-c',
+        'advice.detachedHead=false',
+        '-c',
+        'http.version=HTTP/1.1',
+        'clone',
+        '--filter=blob:none',
+        '--depth',
+        String(depth),
+        '--single-branch',
+        '--branch',
+        revision,
+        repoUrl,
+        repoDir,
+      ];
 
-      const sha = await getLocalSHA(repoDir);
-      const gitDir = path.join(repoDir, '.git');
-      if (fs.existsSync(gitDir)) {
-        fs.rmSync(gitDir, { recursive: true, force: true });
-      }
-
-      return sha;
+      logger.warn(`   Running git clone for ${owner}/${repo}@${revision}`);
+      await runCommand('git', cloneArgs);
     }
-
-    const cloneArgs = [
-      '-c',
-      'advice.detachedHead=false',
-      '-c',
-      'http.version=HTTP/1.1',
-      'clone',
-      '--filter=blob:none',
-      '--depth',
-      String(depth),
-      '--single-branch',
-      '--branch',
-      revision,
-      repoUrl,
-      repoDir,
-    ];
-
-    logger.warn(`   Running git clone for ${owner}/${repo}@${revision}`);
-    await runCommand('git', cloneArgs);
 
     // Capture SHA before deleting .git — used for future staleness checks.
     const sha = await getLocalSHA(repoDir);

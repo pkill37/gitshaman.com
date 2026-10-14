@@ -446,59 +446,39 @@ const FileTree: React.FC<FileTreeProps> = ({
       let didChange = false;
       const pathsToExpand = new Set<string>();
 
-      // If we have the complete tree in memory, use it for instant synchronous expansion
-      if (completeTree) {
-        for (let i = 0; i < segments.length; i++) {
-          const currentPath = segments.slice(0, i + 1).join('/');
-          const normalizedCurrentPath = currentPath.replace(/\/+$/, '');
-
-          // Find node in complete tree
-          const node = findNodeInTree(completeTree, currentPath);
-
-          if (!node || node.type !== 'directory') {
-            break;
-          }
-
-          if (!expandedPaths.has(normalizedCurrentPath)) {
-            pathsToExpand.add(normalizedCurrentPath);
-            didChange = true;
-          }
+      let currentNodes = rootNodes;
+      for (let i = 0; i < segments.length; i++) {
+        const currentPath = segments.slice(0, i + 1).join('/');
+        const normalizedCurrentPath = currentPath.replace(/\/+$/, '');
+        const node = completeTree
+          ? findNodeInTree(completeTree, currentPath)
+          : currentNodes.find((n) => n.path === currentPath);
+        if (!node || node.type !== 'directory') {
+          break;
         }
-      } else {
-        // Fallback: original sequential loading approach
-        let currentNodes = rootNodes;
-        for (let i = 0; i < segments.length; i++) {
-          const currentPath = segments.slice(0, i + 1).join('/');
-          const normalizedCurrentPath = currentPath.replace(/\/+$/, '');
-          const node = currentNodes.find((n) => n.path === currentPath);
-          if (!node || node.type !== 'directory') {
+
+        if (!completeTree && !node.isLoaded) {
+          try {
+            const childNodes = listDirectory
+              ? await listDirectory(node.path)
+              : await buildFileTree(node.path);
+            setRootNodes((prev) => updateDirectoryChildren(prev, node.path, childNodes));
+            didChange = true;
+            currentNodes = childNodes;
+          } catch (err) {
+            console.error('Failed to auto-expand directory:', err);
             break;
           }
+        } else {
+          currentNodes = node.children || [];
+        }
 
-          if (!node.isLoaded) {
-            try {
-              const childNodes = listDirectory
-                ? await listDirectory(node.path)
-                : await buildFileTree(node.path);
-              setRootNodes((prev) => updateDirectoryChildren(prev, node.path, childNodes));
-              didChange = true;
-              currentNodes = childNodes;
-            } catch (err) {
-              console.error('Failed to auto-expand directory:', err);
-              break;
-            }
-          } else {
-            currentNodes = node.children || [];
-          }
-
-          // Add to expanded paths if not already expanded
-          if (!expandedPaths.has(normalizedCurrentPath)) {
-            pathsToExpand.add(normalizedCurrentPath);
-            didChange = true;
-          }
+        // Add to expanded paths if not already expanded
+        if (!expandedPaths.has(normalizedCurrentPath)) {
+          pathsToExpand.add(normalizedCurrentPath);
+          didChange = true;
         }
       }
-
       if (didChange || pathsToExpand.size > 0) {
         // Update expanded paths state
         if (pathsToExpand.size > 0) {

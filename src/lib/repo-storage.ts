@@ -247,6 +247,33 @@ function getMetadataKey(source: 'github' | 'uploaded', identifier: string): stri
   return `${source}:${identifier}`;
 }
 
+function visitRepositoryRecords(
+  index: IDBIndex,
+  source: RepositoryMetadata['source'],
+  identifier: string,
+  visit: (cursor: IDBCursorWithValue) => void
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const request = index.openCursor(IDBKeyRange.only(identifier));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      if (cursor.value.source === source) visit(cursor);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function includeRepositoryBranch(metadata: RepositoryMetadata | null, branch: string): string[] {
+  const branches = metadata ? [...metadata.branches] : [];
+  if (!branches.includes(branch)) branches.push(branch);
+  return branches;
+}
+
 /**
  * Get list of available branches for a repository
  * Checks both files store and metadata store for branches
@@ -278,23 +305,8 @@ export async function getAvailableBranches(
     const store = transaction.objectStore(FILES_STORE);
     const index = store.index('identifier');
 
-    await new Promise<void>((resolve, reject) => {
-      const request = index.openCursor(IDBKeyRange.only(identifier));
-
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-        if (cursor) {
-          const record = cursor.value;
-          if (record.source === source) {
-            branches.add(record.branch);
-          }
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-
-      request.onerror = () => reject(request.error);
+    await visitRepositoryRecords(index, source, identifier, (cursor) => {
+      branches.add(cursor.value.branch);
     });
 
     // Also check tree structure store for branches
@@ -303,23 +315,8 @@ export async function getAvailableBranches(
       const treeStore = treeTransaction.objectStore(TREE_STRUCTURE_STORE);
       const treeIndex = treeStore.index('identifier');
 
-      await new Promise<void>((resolve, reject) => {
-        const request = treeIndex.openCursor(IDBKeyRange.only(identifier));
-
-        request.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-          if (cursor) {
-            const record = cursor.value;
-            if (record.source === source) {
-              branches.add(record.branch);
-            }
-            cursor.continue();
-          } else {
-            resolve();
-          }
-        };
-
-        request.onerror = () => reject(request.error);
+      await visitRepositoryRecords(treeIndex, source, identifier, (cursor) => {
+        branches.add(cursor.value.branch);
       });
     }
 
@@ -512,10 +509,7 @@ async function updateRepositoryMetadata(
     // Get existing metadata in a separate transaction
     const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
 
-    const branches = metadata ? [...metadata.branches] : [];
-    if (!branches.includes(branch)) {
-      branches.push(branch);
-    }
+    const branches = includeRepositoryBranch(metadata, branch);
 
     // Create display name
     let displayName = identifier;
@@ -565,10 +559,7 @@ export async function finalizeRepositoryMetadata(
     // Get existing metadata
     const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
 
-    const branches = metadata ? [...metadata.branches] : [];
-    if (!branches.includes(branch)) {
-      branches.push(branch);
-    }
+    const branches = includeRepositoryBranch(metadata, branch);
 
     // Calculate size of currently downloaded files only (not total repository size)
     const downloadedSize = await calculateRepositorySize(source, identifier);
@@ -629,24 +620,9 @@ async function calculateRepositorySize(
 
     let totalSize = 0;
 
-    return new Promise<number>((resolve, reject) => {
-      const request = index.openCursor(IDBKeyRange.only(identifier));
-
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-        if (cursor) {
-          const record = cursor.value;
-          if (record.source === source) {
-            totalSize += record.size || 0;
-          }
-          cursor.continue();
-        } else {
-          resolve(totalSize);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    return visitRepositoryRecords(index, source, identifier, (cursor) => {
+      totalSize += cursor.value.size || 0;
+    }).then(() => totalSize);
   } catch {
     return 0;
   }
@@ -737,23 +713,8 @@ export async function clearRepository(
     const index = filesStore.index('identifier');
 
     // Delete all files for this repository
-    await new Promise<void>((resolve, reject) => {
-      const request = index.openCursor(IDBKeyRange.only(identifier));
-
-      request.onsuccess = (event) => {
-        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-        if (cursor) {
-          const record = cursor.value;
-          if (record.source === source) {
-            cursor.delete();
-          }
-          cursor.continue();
-        } else {
-          resolve();
-        }
-      };
-
-      request.onerror = () => reject(request.error);
+    await visitRepositoryRecords(index, source, identifier, (cursor) => {
+      cursor.delete();
     });
 
     // Delete metadata

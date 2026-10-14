@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import BugReportWidget from '@/components/BugReportWidget';
 import {
@@ -11,6 +11,10 @@ import {
 import type { CuratedRepoSourceMode } from '@/lib/repo-static';
 
 type WorkspaceTheme = 'dark' | 'light';
+
+const subscribeToHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerHydratedSnapshot = () => false;
 
 interface StatusBarProps {
   repoLabel?: string;
@@ -57,6 +61,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
   workspaceTheme,
   onWorkspaceThemeChange,
 }) => {
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot
+  );
   const [repoSwitchFlash, setRepoSwitchFlash] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const branchLabel = branch ? formatDisplayBranch(branch) : null;
@@ -278,6 +287,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
             <span className="cursor-statusbar-icon">🌐</span>
             <span className="cursor-statusbar-text">storage</span>
             <select
+              disabled={!isHydrated}
               value={sourceMode}
               onChange={(event) => onSourceModeChange(event.target.value as CuratedRepoSourceMode)}
               aria-label="Storage source"

@@ -294,32 +294,12 @@ export function findSymbolsInFile(content: string, filePath: string): SymbolRefe
 
     // Function definitions
     const funcDefMatch = trimmed.includes('(') ? signatureLine.match(FUNCTION_DEF_PATTERN) : null;
-    if (funcDefMatch) {
-      const funcName = funcDefMatch[1];
-      if (funcName && isLikelyCallableSymbol(funcName)) {
-        const signature = extractFunctionSignature(signatureLine);
-        const documentation = extractDocumentation(lines, lineNum);
-        symbols.push({
-          name: funcName,
-          type: 'function',
-          line: lineNum,
-          column: line.indexOf(funcName) + 1,
-          file: filePath,
-          isDefinition: true,
-          isDeclaration: false,
-          signature,
-          documentation,
-          references: [],
-          relatedSymbols: [],
-        });
-      }
-    }
-
     // Function declarations
     const funcDeclMatch =
       trimmed.includes('(') && !funcDefMatch ? signatureLine.match(FUNCTION_DECL_PATTERN) : null;
-    if (funcDeclMatch && !funcDefMatch) {
-      const funcName = funcDeclMatch[1];
+    const functionMatch = funcDefMatch ?? funcDeclMatch;
+    if (functionMatch) {
+      const funcName = functionMatch[1];
       if (funcName && isLikelyCallableSymbol(funcName)) {
         const signature = extractFunctionSignature(signatureLine);
         const documentation = extractDocumentation(lines, lineNum);
@@ -329,8 +309,8 @@ export function findSymbolsInFile(content: string, filePath: string): SymbolRefe
           line: lineNum,
           column: line.indexOf(funcName) + 1,
           file: filePath,
-          isDefinition: false,
-          isDeclaration: true,
+          isDefinition: Boolean(funcDefMatch),
+          isDeclaration: !funcDefMatch,
           signature,
           documentation,
           references: [],

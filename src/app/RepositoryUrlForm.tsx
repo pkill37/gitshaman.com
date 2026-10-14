@@ -19,8 +19,9 @@ import { githubUrlToGitShamanUrl, parseGitHubUrl } from '@/lib/github-url';
 const PORTAL_MORPH_DURATION_MS = 520;
 const PORTAL_EXIT_DURATION_MS = 420;
 const PORTAL_NAVIGATE_DELAY_MS = 1450;
+const DOMAIN_CORRECTION_DURATION_MS = 900;
 
-type PortalPhase = 'idle' | 'typing' | 'transit' | 'exiting';
+type PortalPhase = 'idle' | 'typing' | 'correcting' | 'transit' | 'exiting';
 
 export default function RepositoryUrlForm({
   onPortalLoadingChange,
@@ -32,11 +33,12 @@ export default function RepositoryUrlForm({
   const [urlError, setUrlError] = useState('');
   const [portalPhase, setPortalPhase] = useState<PortalPhase>('idle');
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [domainEditStep, setDomainEditStep] = useState(0);
   const animationCleanupRef = useRef<(() => void) | null>(null);
   const isPortalOpening = portalPhase !== 'idle';
   const isPortalLoading = portalPhase === 'transit' || portalPhase === 'exiting';
-  const loadingUrl = isPortalLoading ? githubUrlToGitShamanUrl(githubUrl.trim()) : null;
-  const domainEditStep = Math.min(9, Math.max(0, Math.floor((loadingProgress - 8) / 6)));
+  const isDomainVisible = portalPhase === 'correcting' || isPortalLoading;
+  const loadingUrl = isDomainVisible ? githubUrlToGitShamanUrl(githubUrl.trim()) : null;
   const animatedDomainChange =
     domainEditStep <= 3
       ? 'hub'.slice(0, 3 - domainEditStep)
@@ -66,13 +68,38 @@ export default function RepositoryUrlForm({
   const openPortal = useCallback(
     (destination: string) => {
       animationCleanupRef.current?.();
-      setPortalPhase('transit');
+      setPortalPhase('correcting');
+      setDomainEditStep(0);
       setLoadingProgress(0);
 
-      const progressStartedAt = performance.now();
+      const correctionStartedAt = performance.now();
+      let progressStartedAt: number | null = null;
       let progressFrame = 0;
+      let exitTimer = 0;
+      let navigationTimer = 0;
 
       const animateProgress = (now: number) => {
+        if (progressStartedAt === null) {
+          const correctionProgress = Math.min(
+            1,
+            (now - correctionStartedAt) / DOMAIN_CORRECTION_DURATION_MS
+          );
+          setDomainEditStep(Math.min(9, Math.floor(correctionProgress * 10)));
+          if (correctionProgress < 1) {
+            progressFrame = requestAnimationFrame(animateProgress);
+            return;
+          }
+
+          progressStartedAt = now;
+          setPortalPhase('transit');
+          exitTimer = window.setTimeout(() => {
+            setPortalPhase('exiting');
+            setLoadingProgress(100);
+          }, PORTAL_NAVIGATE_DELAY_MS - PORTAL_EXIT_DURATION_MS);
+          navigationTimer = window.setTimeout(() => {
+            router.push(destination);
+          }, PORTAL_NAVIGATE_DELAY_MS);
+        }
         const progress = Math.min(
           100,
           Math.round(((now - progressStartedAt) / PORTAL_NAVIGATE_DELAY_MS) * 100)
@@ -85,14 +112,6 @@ export default function RepositoryUrlForm({
       };
 
       progressFrame = requestAnimationFrame(animateProgress);
-
-      const exitTimer = window.setTimeout(() => {
-        setPortalPhase('exiting');
-        setLoadingProgress(100);
-      }, PORTAL_NAVIGATE_DELAY_MS - PORTAL_EXIT_DURATION_MS);
-      const navigationTimer = window.setTimeout(() => {
-        router.push(destination);
-      }, PORTAL_NAVIGATE_DELAY_MS);
 
       animationCleanupRef.current = () => {
         cancelAnimationFrame(progressFrame);
@@ -171,7 +190,9 @@ export default function RepositoryUrlForm({
           <div
             className={`shaman-url-input-shell relative min-w-0 flex-1 ${
               isPortalOpening ? 'shaman-url-input-shell--opening' : ''
-            } ${isPortalLoading ? 'shaman-url-input-shell--loading' : ''}`}
+            } ${isPortalLoading ? 'shaman-url-input-shell--loading' : ''} ${
+              isDomainVisible ? 'shaman-url-input-shell--domain' : ''
+            }`}
             style={
               {
                 '--shaman-url-load-progress': `${loadingProgress}%`,
@@ -217,9 +238,9 @@ export default function RepositoryUrlForm({
             type="submit"
             className="shaman-url-button shaman-url-button--icon rounded-md px-6 py-4 text-base font-semibold transition-colors"
             disabled={isPortalOpening}
-            aria-label={isPortalOpening ? 'Loading repository' : 'Open in GitShaman'}
+            aria-label={isPortalLoading ? 'Loading repository' : 'Open in GitShaman'}
           >
-            {isPortalOpening ? (
+            {isPortalLoading ? (
               <span className="shaman-url-button-spinner" aria-hidden="true" />
             ) : (
               <span className="shaman-url-button-arrow" aria-hidden="true">

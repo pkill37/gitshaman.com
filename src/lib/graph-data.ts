@@ -24,6 +24,71 @@ interface Edge {
   label?: string;
 }
 
+function layoutFileNodes(nodes: Node[], edges: Edge[]): void {
+  const graph = new Dagre.graphlib.Graph();
+  graph.setDefaultEdgeLabel(() => ({}));
+  graph.setGraph({ rankdir: 'TB', nodesep: 72, ranksep: 96, marginx: 36, marginy: 32 });
+  for (const node of nodes) {
+    graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  }
+  for (const edge of edges) graph.setEdge(edge.source, edge.target);
+  Dagre.layout(graph);
+  for (const node of nodes) {
+    const position = graph.node(node.id);
+    if (position) {
+      node.position = { x: position.x - NODE_WIDTH / 2, y: position.y - NODE_HEIGHT / 2 };
+    }
+  }
+}
+
+function projectCwdEdges(
+  cwd: string,
+  nodes: Node<FileNodeData>[],
+  edges: Edge[],
+  surfacedDocumentationPaths: Set<string>,
+  pairRemap: Map<string, string> = new Map()
+): Edge[] {
+  function getRepresentative(filePath: string): string | null {
+    if (surfacedDocumentationPaths.has(filePath)) return filePath;
+    if (cwd !== '' && !filePath.startsWith(cwd + '/')) return null;
+    const relPath = cwd === '' ? filePath : filePath.slice(cwd.length + 1);
+    const firstSlash = relPath.indexOf('/');
+    if (firstSlash === -1) return filePath;
+    const subdir = relPath.slice(0, firstSlash);
+    return `folder:${cwd === '' ? subdir : `${cwd}/${subdir}`}`;
+  }
+
+  const edgeAgg = new Map<
+    string,
+    { source: string; target: string; color: string; count: number }
+  >();
+  for (const edge of edges) {
+    let source = getRepresentative(edge.source);
+    let target = getRepresentative(edge.target);
+    if (!source || !target) continue;
+    source = pairRemap.get(source) ?? source;
+    target = pairRemap.get(target) ?? target;
+    if (source === target) continue;
+    const key = `${source}|||${target}`;
+    if (!edgeAgg.has(key)) {
+      const color = nodes.find((node) => node.id === edge.source)?.data.color ?? '#555';
+      edgeAgg.set(key, { source, target, color, count: 0 });
+    }
+    edgeAgg.get(key)!.count++;
+  }
+  return [...edgeAgg.values()].map(({ source, target, color, count }) => ({
+    id: `cwd|||${source}|||${target}`,
+    source,
+    target,
+    type: 'smoothstep',
+    style: {
+      stroke: color,
+      strokeOpacity: 0.6,
+      strokeWidth: Math.min(1 + count * 0.3, 3.5),
+    },
+  }));
+}
+
 export interface FolderNodeData extends Record<string, unknown> {
   folderName: string;
   folderPath: string; // full path from root (e.g. 'kernel/sched')
@@ -471,26 +536,8 @@ function buildGraphDataFromFileEntries(files: GraphFileEntry[]): {
 
   // Dagre layout
   console.time('[graph-data] dagre layout');
-  const g = new Dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', nodesep: 72, ranksep: 96, marginx: 36, marginy: 32 });
-
-  for (const node of nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-  for (const edge of edges) {
-    g.setEdge(edge.source, edge.target);
-  }
-
-  Dagre.layout(g);
+  layoutFileNodes(nodes, edges);
   console.timeEnd('[graph-data] dagre layout');
-
-  for (const node of nodes) {
-    const n = g.node(node.id);
-    if (n) {
-      node.position = { x: n.x - NODE_WIDTH / 2, y: n.y - NODE_HEIGHT / 2 };
-    }
-  }
   return { nodes, edges };
 }
 
@@ -696,48 +743,7 @@ export function buildCwdView(
     outputNodes.push({ ...file, position: { x: 0, y: 0 } });
   }
 
-  // Project edges to depth=1 representatives
-  // Returns the ID of the depth=1 node for a given filePath, or null if not in cwd
-  function getRepresentative(filePath: string): string | null {
-    if (surfacedDocumentationPaths.has(filePath)) return filePath;
-    if (cwd !== '' && !filePath.startsWith(cwd + '/')) return null;
-    const relPath = cwd === '' ? filePath : filePath.slice(cwd.length + 1);
-    const firstSlash = relPath.indexOf('/');
-    if (firstSlash === -1) return filePath; // direct file
-    const subdir = relPath.slice(0, firstSlash);
-    const folderPath = cwd === '' ? subdir : `${cwd}/${subdir}`;
-    return `folder:${folderPath}`;
-  }
-
-  // Aggregate edges, deduplicate by representative pair
-  const edgeAgg = new Map<
-    string,
-    { source: string; target: string; color: string; count: number }
-  >();
-
-  for (const edge of allFileEdges) {
-    const srcRep = getRepresentative(edge.source);
-    const tgtRep = getRepresentative(edge.target);
-    if (!srcRep || !tgtRep || srcRep === tgtRep) continue;
-    const key = `${srcRep}|||${tgtRep}`;
-    if (!edgeAgg.has(key)) {
-      const color = allFileNodes.find((n) => n.id === edge.source)?.data.color ?? '#555';
-      edgeAgg.set(key, { source: srcRep, target: tgtRep, color, count: 0 });
-    }
-    edgeAgg.get(key)!.count++;
-  }
-
-  const rawEdges: Edge[] = [...edgeAgg.values()].map(({ source, target, color, count }) => ({
-    id: `cwd|||${source}|||${target}`,
-    source,
-    target,
-    type: 'smoothstep',
-    style: {
-      stroke: color,
-      strokeOpacity: 0.6,
-      strokeWidth: Math.min(1 + count * 0.3, 3.5),
-    },
-  }));
+  const rawEdges = projectCwdEdges(cwd, allFileNodes, allFileEdges, surfacedDocumentationPaths);
 
   // Merge .c/.h pairs among direct file nodes (folders stay as-is)
   const fileNodesOnly = outputNodes.filter((n) => n.type === 'fileNode') as Node<FileNodeData>[];
@@ -934,27 +940,9 @@ export function buildChapterView(
   const { nodes: finalNodes, edges: finalEdges } = mergeCHPairs(rawNodes, rawEdges);
 
   // Dagre layout
-  const g = new Dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', nodesep: 72, ranksep: 96, marginx: 36, marginy: 32 });
-
-  for (const node of finalNodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-  for (const edge of finalEdges) {
-    g.setEdge(edge.source, edge.target);
-  }
-
   console.time('[graph-data] buildChapterView dagre');
-  Dagre.layout(g);
+  layoutFileNodes(finalNodes, finalEdges);
   console.timeEnd('[graph-data] buildChapterView dagre');
-
-  for (const node of finalNodes) {
-    const n = g.node(node.id);
-    if (n) {
-      node.position = { x: n.x - NODE_WIDTH / 2, y: n.y - NODE_HEIGHT / 2 };
-    }
-  }
 
   clusterDocumentationNodes(finalNodes);
 
@@ -1013,45 +1001,5 @@ export function projectEdgesForCwd(
     pairRemap.set(hNode.id, pairedId);
   }
 
-  function getRepresentative(filePath: string): string | null {
-    if (surfacedDocumentationPaths.has(filePath)) return filePath;
-    if (cwd !== '' && !filePath.startsWith(cwd + '/')) return null;
-    const relPath = cwd === '' ? filePath : filePath.slice(cwd.length + 1);
-    const firstSlash = relPath.indexOf('/');
-    if (firstSlash === -1) return filePath;
-    const subdir = relPath.slice(0, firstSlash);
-    return `folder:${cwd === '' ? subdir : `${cwd}/${subdir}`}`;
-  }
-
-  const edgeAgg = new Map<
-    string,
-    { source: string; target: string; color: string; count: number }
-  >();
-
-  for (const edge of allFileEdges) {
-    let srcRep = getRepresentative(edge.source);
-    let tgtRep = getRepresentative(edge.target);
-    if (!srcRep || !tgtRep) continue;
-    srcRep = pairRemap.get(srcRep) ?? srcRep;
-    tgtRep = pairRemap.get(tgtRep) ?? tgtRep;
-    if (srcRep === tgtRep) continue;
-    const key = `${srcRep}|||${tgtRep}`;
-    if (!edgeAgg.has(key)) {
-      const color = allFileNodes.find((n) => n.id === edge.source)?.data.color ?? '#555';
-      edgeAgg.set(key, { source: srcRep, target: tgtRep, color, count: 0 });
-    }
-    edgeAgg.get(key)!.count++;
-  }
-
-  return [...edgeAgg.values()].map(({ source, target, color, count }) => ({
-    id: `cwd|||${source}|||${target}`,
-    source,
-    target,
-    type: 'smoothstep',
-    style: {
-      stroke: color,
-      strokeOpacity: 0.6,
-      strokeWidth: Math.min(1 + count * 0.3, 3.5),
-    },
-  }));
+  return projectCwdEdges(cwd, allFileNodes, allFileEdges, surfacedDocumentationPaths, pairRemap);
 }

@@ -200,7 +200,7 @@ test('CLI fails closed on an empty corpus', (t) => {
 
 test('guide validation and the build include prose linting', () => {
   const { scripts } = JSON.parse(readFileSync('package.json', 'utf8'));
-  assert.match(scripts['guides:validate'], /&& npm run lint:guide-prose &&/);
+  assert.match(scripts.guides, /&& npm run lint:guide-prose &&/);
   assert.match(scripts.lint, /&& npm run lint:guide-prose &&/);
   assert.match(
     readFileSync('scripts/build.ts', 'utf8'),

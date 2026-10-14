@@ -154,16 +154,9 @@ export function resolveRepoPath(repoRoot: string, refPath: string): string | nul
     return normalized;
   }
 
-  if (normalized.includes('/')) {
-    const basename = normalized.split('/').pop();
-    if (!basename) return null;
-    const matches = buildPathIndex(repoRoot).get(basename) ?? [];
-    if (matches.length === 1) return matches[0];
-    const arm64Matches = matches.filter((candidate) => /(^|\/)arm64(\/|$)/.test(candidate));
-    return arm64Matches.length === 1 ? arm64Matches[0] : null;
-  }
-
-  const matches = buildPathIndex(repoRoot).get(normalized) ?? [];
+  const basename = normalized.split('/').pop();
+  if (!basename) return null;
+  const matches = buildPathIndex(repoRoot).get(basename) ?? [];
   if (matches.length === 1) return matches[0];
   const arm64Matches = matches.filter((candidate) => /(^|\/)arm64(\/|$)/.test(candidate));
   return arm64Matches.length === 1 ? arm64Matches[0] : null;
@@ -323,6 +316,45 @@ const LINE_COUNT_RE = /\(~([\d,]+)\s+lines[^)]*\)/g;
 const MD_LINK_RE = /\[(?:[^\]]*)\]\(([\w./\-@:]+)\)/g;
 const BACKTICK_RE = /`([^`\n]+)`/g;
 
+function checkRecommendedPath(
+  repoRoot: string,
+  refPath: string,
+  label: string,
+  category: string,
+  errors: string[],
+  warnings: string[]
+): boolean {
+  const exists = refExistsForGuide(repoRoot, refPath);
+  if (exists === 'missing-corpus') {
+    warnings.push(`${label}: SKIP CROSS-REPO: ${refPath} (target corpus not downloaded)`);
+    return false;
+  }
+  if (!exists) {
+    const kind = category === 'directories' ? 'DIRECTORY' : 'FILE';
+    errors.push(`${label}: MISSING ${kind}: ${refPath} (fileRecommendations.${category})`);
+  }
+  return Boolean(exists);
+}
+
+function checkLineCountClaim(
+  resolved: ResolvedGuideRef,
+  refPath: string,
+  claimedStr: string,
+  sectionId: string,
+  warnings: string[]
+): void {
+  const claimed = parseClaimed(claimedStr);
+  const actual = countLines(resolved.repoRoot, resolved.refPath);
+  if (actual !== null && claimed > 0) {
+    const pct = Math.abs(actual - claimed) / claimed;
+    if (pct > 0.3) {
+      warnings.push(
+        `${sectionId}: LINE COUNT: ${refPath} claims ~${claimedStr} lines, actual ${actual} (${Math.round(pct * 100)}% off)`
+      );
+    }
+  }
+}
+
 export function checkGuide(
   repoRoot: string,
   sections: Section[]
@@ -335,27 +367,13 @@ export function checkGuide(
 
     // ── 1. fileRecommendations.readingOrder paths ───────────────────────────
     for (const ref of section.readingOrderRefs) {
-      const exists = refExistsForGuide(repoRoot, ref.refPath);
-      if (exists === 'missing-corpus') {
-        warnings.push(`${label}: SKIP CROSS-REPO: ${ref.refPath} (target corpus not downloaded)`);
-        continue;
-      }
-      if (!exists) {
-        errors.push(`${label}: MISSING FILE: ${ref.refPath} (fileRecommendations.readingOrder)`);
-        continue;
-      }
+      checkRecommendedPath(repoRoot, ref.refPath, label, 'readingOrder', errors, warnings);
     }
 
     // ── 2. fileRecommendations.source paths ──────────────────────────────────
     for (const ref of section.sourceRefs) {
       const resolved = resolveGuideRef(repoRoot, ref.refPath);
-      const exists = refExistsForGuide(repoRoot, ref.refPath);
-      if (exists === 'missing-corpus') {
-        warnings.push(`${label}: SKIP CROSS-REPO: ${ref.refPath} (target corpus not downloaded)`);
-        continue;
-      }
-      if (!exists) {
-        errors.push(`${label}: MISSING FILE: ${ref.refPath} (fileRecommendations.source)`);
+      if (!checkRecommendedPath(repoRoot, ref.refPath, label, 'source', errors, warnings)) {
         continue; // no point checking symbols / line counts in a missing file
       }
 
@@ -374,44 +392,19 @@ export function checkGuide(
       // 7. Line-count claim in description
       if (isFile) {
         for (const m of ref.description.matchAll(LINE_COUNT_RE)) {
-          const claimed = parseClaimed(m[1]);
-          const actual = countLines(resolved.repoRoot, resolved.refPath);
-          if (actual !== null && claimed > 0) {
-            const pct = Math.abs(actual - claimed) / claimed;
-            if (pct > 0.3) {
-              warnings.push(
-                `${section.id}: LINE COUNT: ${ref.refPath} claims ~${m[1]} lines, actual ${actual} (${Math.round(pct * 100)}% off)`
-              );
-            }
-          }
+          checkLineCountClaim(resolved, ref.refPath, m[1], section.id, warnings);
         }
       }
     }
 
     // ── 3. fileRecommendations.docs paths ────────────────────────────────────
     for (const ref of section.docsRefs) {
-      const exists = refExistsForGuide(repoRoot, ref.refPath);
-      if (exists === 'missing-corpus') {
-        warnings.push(`${label}: SKIP CROSS-REPO: ${ref.refPath} (target corpus not downloaded)`);
-        continue;
-      }
-      if (!exists) {
-        errors.push(`${label}: MISSING FILE: ${ref.refPath} (fileRecommendations.docs)`);
-      }
+      checkRecommendedPath(repoRoot, ref.refPath, label, 'docs', errors, warnings);
     }
 
     // ── 4. fileRecommendations.directories paths ────────────────────────────
     for (const ref of section.directoryRefs) {
-      const exists = refExistsForGuide(repoRoot, ref.refPath);
-      if (exists === 'missing-corpus') {
-        warnings.push(`${label}: SKIP CROSS-REPO: ${ref.refPath} (target corpus not downloaded)`);
-        continue;
-      }
-      if (!exists) {
-        errors.push(
-          `${label}: MISSING DIRECTORY: ${ref.refPath} (fileRecommendations.directories)`
-        );
-      }
+      checkRecommendedPath(repoRoot, ref.refPath, label, 'directories', errors, warnings);
     }
 
     // ── 4. chapter-graph edges ───────────────────────────────────────────────
@@ -495,16 +488,7 @@ export function checkGuide(
         ) {
           continue;
         }
-        const claimed = parseClaimed(claimedStr);
-        const actual = countLines(resolved.repoRoot, resolved.refPath);
-        if (actual !== null && claimed > 0) {
-          const pct = Math.abs(actual - claimed) / claimed;
-          if (pct > 0.3) {
-            warnings.push(
-              `${section.id}: LINE COUNT: ${refPath} claims ~${claimedStr} lines, actual ${actual} (${Math.round(pct * 100)}% off)`
-            );
-          }
-        }
+        checkLineCountClaim(resolved, refPath, claimedStr, section.id, warnings);
       }
     }
   }

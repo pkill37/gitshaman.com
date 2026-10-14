@@ -288,6 +288,7 @@ async function readBinaryFromStatic(
       }
     }
 
+    let bytes: ArrayBuffer;
     if (response.body?.getReader) {
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -314,31 +315,14 @@ async function readBinaryFromStatic(
       }
 
       const byteView = concatUint8Arrays(chunks);
-      const bytes = byteView.buffer.slice(
+      bytes = byteView.buffer.slice(
         byteView.byteOffset,
         byteView.byteOffset + byteView.byteLength
       ) as ArrayBuffer;
-      if (filePath === CODE_INDEX_FILE_NAME) {
-        const loadKey = getCodeIndexLoadKey(owner, repo, branch, sourceMode);
-        codeIndexSizeCache.set(loadKey, bytes.byteLength);
-        codeIndexLoadSourceCache.set(loadKey, 'network');
-      }
-      onProgress?.({
-        loadedBytes: bytes.byteLength,
-        totalBytes:
-          Number.isFinite(totalBytes ?? NaN) && (totalBytes ?? 0) > 0
-            ? totalBytes
-            : bytes.byteLength,
-        source: 'network',
-      });
-
-      if (filePath === CODE_INDEX_FILE_NAME) {
-        void writeCachedCodeIndexBytes(owner, repo, branch, sourceMode, bytes);
-      }
-      return bytes;
+    } else {
+      bytes = await response.arrayBuffer();
     }
 
-    const bytes = await response.arrayBuffer();
     if (filePath === CODE_INDEX_FILE_NAME) {
       const loadKey = getCodeIndexLoadKey(owner, repo, branch, sourceMode);
       codeIndexSizeCache.set(loadKey, bytes.byteLength);
@@ -389,19 +373,12 @@ export function resolveCorpusPathFromKnownFiles(
     return normalizedPath;
   }
 
-  if (normalizedPath.includes('/')) {
-    const basename = normalizedPath.split('/').pop();
-    if (!basename) return null;
-    const matches = paths.filter((candidate) => candidate.endsWith(`/${basename}`));
-    if (matches.length === 1) {
-      return matches[0];
-    }
-
-    const arm64Matches = matches.filter((candidate) => /(^|\/)arm64(\/|$)/.test(candidate));
-    return arm64Matches.length === 1 ? arm64Matches[0] : null;
-  }
-
-  const matches = paths.filter((candidate) => candidate.split('/').pop() === normalizedPath);
+  const basename = normalizedPath.split('/').pop();
+  const matches = paths.filter((candidate) =>
+    normalizedPath.includes('/')
+      ? candidate.endsWith(`/${basename}`)
+      : candidate.split('/').pop() === normalizedPath
+  );
   if (matches.length === 1) {
     return matches[0];
   }

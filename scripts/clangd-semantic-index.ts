@@ -256,7 +256,7 @@ export async function enrichCodeIndexWithClangd(
   const recordCapability = db.prepare(
     'INSERT OR REPLACE INTO AnalysisCapabilities(Language, Feature, Provider, Status, Detail) VALUES (?, ?, ?, ?, ?)'
   );
-  const finishUnavailable = (detail: string): ClangdSemanticIndexStats => {
+  const recordUnavailable = (detail: string): void => {
     for (const feature of CLANGD_BACKEND_FEATURES) {
       recordBackendCapability(recordCapability, feature, 'clangd', 'unavailable', detail);
     }
@@ -275,6 +275,9 @@ export async function enrichCodeIndexWithClangd(
       'partial',
       'Local def-use summaries were inferred from assignments and return statements.'
     );
+  };
+  const finishUnavailable = (detail: string): ClangdSemanticIndexStats => {
+    recordUnavailable(detail);
     db.close();
     return { status: 'unavailable', filesAnalyzed: 0, callEdges: 0, detail };
   };
@@ -534,24 +537,7 @@ export async function enrichCodeIndexWithClangd(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     logger.warn(`   clangd semantic indexing unavailable: ${detail}`);
-    for (const feature of CLANGD_BACKEND_FEATURES) {
-      recordBackendCapability(recordCapability, feature, 'clangd', 'unavailable', detail);
-    }
-    recordBackendCapability(
-      recordCapability,
-      'includeChains',
-      'heuristic-indexer',
-      'partial',
-      detail
-    );
-    recordBackendCapability(recordCapability, 'dataflow', 'clang-ast', 'unavailable', detail);
-    recordBackendCapability(
-      recordCapability,
-      'dataflow',
-      'heuristic-indexer',
-      'partial',
-      'Local def-use summaries were inferred from assignments and return statements.'
-    );
+    recordUnavailable(detail);
     return { status: 'unavailable', filesAnalyzed, callEdges, detail };
   } finally {
     await client.stop().catch(() => undefined);
