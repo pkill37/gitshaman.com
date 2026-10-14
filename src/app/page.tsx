@@ -205,7 +205,6 @@ function LandingPage() {
                   src="/features/vscode-lsp.svg"
                   alt="VS Code editor connected to LSP diagnostics and symbols"
                   width={640}
-                  height={360}
 
                   loading="lazy"
                   decoding="async"
@@ -223,7 +222,6 @@ function LandingPage() {
                   src="/features/code-indexing.svg"
                   alt="Repository files flowing into a searchable code index"
                   width={640}
-                  height={360}
 
                   loading="lazy"
                   decoding="async"
@@ -241,7 +239,6 @@ function LandingPage() {
                   src="/features/semantic-enrichment.svg"
                   alt="Semantic graph connecting code symbols, files, and relationships"
                   width={640}
-                  height={360}
 
                   loading="lazy"
                   decoding="async"

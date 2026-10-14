@@ -780,7 +780,6 @@ body {
 .shaman-landing .shaman-url-placeholder {
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.875rem;
 }
 
 .shaman-landing .shaman-compact-portal {
@@ -1277,15 +1276,11 @@ body {
   pointer-events: none;
   position: absolute;
   top: 50%;
-  left: 1rem;
+  left: calc(1rem + 1px);
   z-index: 20;
   right: 1rem;
   max-width: none;
   overflow: hidden;
-  color: #c9c1d4;
-  font-size: 1rem;
-  line-height: 1;
-  opacity: 0.86;
   transform: translateY(-50%);
 }
 
@@ -1303,6 +1298,20 @@ body {
   overflow: hidden;
   color: #666171;
   font-weight: 500;
+}
+
+.shaman-url-placeholder,
+.shaman-url-input,
+.shaman-url-loading-text {
+  text-align: left;
+  direction: ltr;
+  color: #f8f3e7;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-shadow: 0 1px 8px rgba(17, 16, 23, 0.38);
 }
 
 .shaman-url-input {
@@ -1373,8 +1382,24 @@ body {
 }
 
 .shaman-url-input-shell--loading .shaman-url-input {
-  color: #f8f3e7;
-  text-shadow: 0 1px 8px rgba(17, 16, 23, 0.38);
+  color: transparent;
+  text-shadow: none;
+  transition-property: border-color, box-shadow, background;
+}
+
+.shaman-url-loading-text {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 calc(1rem + 1px);
+  z-index: 30;
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.shaman-url-loading-text span {
+  grid-area: 1 / 1;
 }
 
 .shaman-url-input::placeholder {

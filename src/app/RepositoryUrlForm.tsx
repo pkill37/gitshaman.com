@@ -35,6 +35,12 @@ export default function RepositoryUrlForm({
   const animationCleanupRef = useRef<(() => void) | null>(null);
   const isPortalOpening = portalPhase !== 'idle';
   const isPortalLoading = portalPhase === 'transit' || portalPhase === 'exiting';
+  const loadingUrl = isPortalLoading ? githubUrlToGitShamanUrl(githubUrl.trim()) : null;
+  const domainEditStep = Math.min(9, Math.max(0, Math.floor((loadingProgress - 8) / 6)));
+  const animatedDomainChange =
+    domainEditStep <= 3
+      ? 'hub'.slice(0, 3 - domainEditStep)
+      : 'shaman'.slice(0, domainEditStep - 3);
 
   useEffect(() => {
     onPortalLoadingChange?.(isPortalLoading);
@@ -182,7 +188,7 @@ export default function RepositoryUrlForm({
             )}
             <input
               id="github-url"
-              value={githubUrl}
+              value={loadingUrl ?? githubUrl}
               onChange={(event) => setGithubUrl(event.target.value)}
               placeholder=""
               className="shaman-url-input relative z-10 w-full rounded-md px-4 py-4 text-base outline-none"
@@ -193,6 +199,14 @@ export default function RepositoryUrlForm({
               aria-busy={isPortalOpening}
               aria-describedby={isPortalLoading ? 'github-url-loading-status' : undefined}
             />
+            {loadingUrl && (
+              <div className="shaman-url-loading-text" aria-hidden="true">
+                <span>
+                  https://git<strong>{animatedDomainChange}</strong>
+                  {loadingUrl.slice('https://gitshaman'.length)}
+                </span>
+              </div>
+            )}
             {isPortalLoading && (
               <span id="github-url-loading-status" className="sr-only">
                 Loading repository {loadingProgress}%
