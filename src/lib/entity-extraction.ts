@@ -16,6 +16,77 @@ export interface CodeEntity {
   language: string;
 }
 
+function signatureToFields(signature?: string): EntityField[] {
+  if (!signature) return [];
+  const match = signature.match(/\((.*)\)/);
+  if (!match) return [];
+
+  return match[1]
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part && part !== 'void')
+    .slice(0, 8)
+    .map((part, index) => {
+      const tokens = part.split(/\s+/).filter(Boolean);
+      const name =
+        tokens[tokens.length - 1]?.replace(/^[*&]+/, '').replace(/\[\]$/, '') || `arg${index + 1}`;
+      const type = tokens.slice(0, -1).join(' ') || part;
+      return { name, type };
+    });
+}
+
+function symbolToEntity(
+  symbol: ReturnType<typeof findSymbolsInFile>[number]
+): CodeEntity & { line: number } {
+  const base = {
+    name: symbol.name,
+    filePath: symbol.file,
+    line: symbol.line,
+    language: symbol.file.split('.').pop()?.toLowerCase() || 'text',
+  };
+
+  switch (symbol.type) {
+    case 'struct':
+    case 'class':
+      return {
+        ...base,
+        kind: symbol.type,
+        fields:
+          symbol.members?.slice(0, 12).map((member) => ({
+            name: member.name,
+            type: member.type,
+          })) ?? [],
+      };
+    case 'typedef':
+      return {
+        ...base,
+        kind: 'type',
+        fields: symbol.signature ? [{ name: symbol.name, type: symbol.signature }] : [],
+      };
+    case 'function':
+      return {
+        ...base,
+        kind: 'function',
+        fields: signatureToFields(symbol.signature),
+      };
+    case 'macro':
+    case 'variable':
+      return {
+        ...base,
+        kind: symbol.type,
+        fields: [],
+      };
+    default:
+      return {
+        ...base,
+        kind: 'type',
+        fields: symbol.relatedSymbols
+          .slice(0, 8)
+          .map((related) => ({ name: related, type: 'related' })),
+      };
+  }
+}
+
 function extractPythonEntities(
   lines: string[],
   filePath: string
@@ -106,128 +177,120 @@ function extractTSEntities(
   const n = lines.length;
   let i = 0;
 
+  const readBlockFields = (
+    startIndex: number,
+    includeAtDepth: (depth: number) => boolean,
+    parseField: (body: string) => EntityField | undefined
+  ): { fields: EntityField[]; nextIndex: number } => {
+    const fields: EntityField[] = [];
+    let depth = 1;
+    let cursor = startIndex;
+
+    while (cursor < n && depth > 0) {
+      const body = lines[cursor].trim();
+      depth += (body.match(/\{/g) || []).length;
+      depth -= (body.match(/\}/g) || []).length;
+      if (includeAtDepth(depth) && body && !body.startsWith('/')) {
+        const field = parseField(body);
+        if (field) fields.push(field);
+      }
+      cursor++;
+    }
+
+    return { fields: fields.slice(0, 12), nextIndex: cursor };
+  };
+
+  const parsePropertyField = (body: string): EntityField | undefined => {
+    const field = body.match(/^(?:readonly\s+)?(\w+)\??\s*:\s*([^;,]+)/);
+    return field ? { name: field[1], type: field[2].trim() } : undefined;
+  };
+
   while (i < n) {
     const t = lines[i].trim();
 
     const ifaceM = t.match(/^(?:export\s+)?interface\s+(\w+)(?:\s+extends\s+\S+)?\s*\{/);
     if (ifaceM) {
-      const name = ifaceM[1];
-      const line = i + 1;
-      const fields: EntityField[] = [];
-      i++;
-      let depth = 1;
-      while (i < n && depth > 0) {
-        const body = lines[i].trim();
-        depth += (body.match(/\{/g) || []).length;
-        depth -= (body.match(/\}/g) || []).length;
-        if (depth > 0 && body && !body.startsWith('/')) {
-          const field = body.match(/^(?:readonly\s+)?(\w+)\??\s*:\s*([^;,]+)/);
-          if (field) {
-            fields.push({ name: field[1], type: field[2].trim() });
-          }
-        }
-        i++;
-      }
+      const { fields, nextIndex } = readBlockFields(
+        i + 1,
+        (depth) => depth > 0,
+        parsePropertyField
+      );
       entities.push({
-        name,
+        name: ifaceM[1],
         kind: 'interface',
-        fields: fields.slice(0, 12),
+        fields,
         filePath,
         language: 'typescript',
-        line,
+        line: i + 1,
       });
+      i = nextIndex;
       continue;
     }
 
     const typeObjM = t.match(/^(?:export\s+)?type\s+(\w+)\s*=\s*\{/);
     if (typeObjM) {
-      const name = typeObjM[1];
-      const line = i + 1;
-      const fields: EntityField[] = [];
-      i++;
-      let depth = 1;
-      while (i < n && depth > 0) {
-        const body = lines[i].trim();
-        depth += (body.match(/\{/g) || []).length;
-        depth -= (body.match(/\}/g) || []).length;
-        if (depth > 0 && body && !body.startsWith('/')) {
-          const field = body.match(/^(?:readonly\s+)?(\w+)\??\s*:\s*([^;,]+)/);
-          if (field) {
-            fields.push({ name: field[1], type: field[2].trim() });
-          }
-        }
-        i++;
-      }
+      const { fields, nextIndex } = readBlockFields(
+        i + 1,
+        (depth) => depth > 0,
+        parsePropertyField
+      );
       entities.push({
-        name,
+        name: typeObjM[1],
         kind: 'type',
-        fields: fields.slice(0, 12),
+        fields,
         filePath,
         language: 'typescript',
-        line,
+        line: i + 1,
       });
+      i = nextIndex;
       continue;
     }
 
     const enumM = t.match(/^(?:export\s+)?(?:const\s+)?enum\s+(\w+)\s*\{/);
     if (enumM) {
-      const name = enumM[1];
-      const line = i + 1;
-      const fields: EntityField[] = [];
-      i++;
-      let depth = 1;
-      while (i < n && depth > 0) {
-        const body = lines[i].trim();
-        depth += (body.match(/\{/g) || []).length;
-        depth -= (body.match(/\}/g) || []).length;
-        if (depth > 0 && body && !body.startsWith('/')) {
+      const { fields, nextIndex } = readBlockFields(
+        i + 1,
+        (depth) => depth > 0,
+        (body) => {
           const val = body.match(/^(\w+)\s*(?:=\s*[^,]+)?\s*,?/);
-          if (val) {
-            fields.push({ name: val[1], type: '' });
-          }
+          return val ? { name: val[1], type: '' } : undefined;
         }
-        i++;
-      }
+      );
       entities.push({
-        name,
+        name: enumM[1],
         kind: 'enum',
-        fields: fields.slice(0, 12),
+        fields,
         filePath,
         language: 'typescript',
-        line,
+        line: i + 1,
       });
+      i = nextIndex;
       continue;
     }
 
     const classM = t.match(/^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+(\w+)/);
     if (classM) {
-      const name = classM[1];
-      const line = i + 1;
-      const fields: EntityField[] = [];
-      i++;
-      let depth = 1;
-      while (i < n && depth > 0) {
-        const body = lines[i].trim();
-        depth += (body.match(/\{/g) || []).length;
-        depth -= (body.match(/\}/g) || []).length;
-        if (depth === 1 && body && !body.startsWith('/')) {
+      const { fields, nextIndex } = readBlockFields(
+        i + 1,
+        (depth) => depth === 1,
+        (body) => {
           const prop = body.match(
             /^(?:(?:private|public|protected|readonly|static|declare|override)\s+)*(\w+)\??\s*:\s*([^;=]+)/
           );
-          if (prop && !prop[1].match(/^(?:constructor|get|set|async|static|abstract)$/)) {
-            fields.push({ name: prop[1], type: prop[2].trim() });
-          }
+          return prop && !prop[1].match(/^(?:constructor|get|set|async|static|abstract)$/)
+            ? { name: prop[1], type: prop[2].trim() }
+            : undefined;
         }
-        i++;
-      }
+      );
       entities.push({
-        name,
+        name: classM[1],
         kind: 'class',
-        fields: fields.slice(0, 12),
+        fields,
         filePath,
         language: 'typescript',
-        line,
+        line: i + 1,
       });
+      i = nextIndex;
       continue;
     }
 
@@ -274,25 +337,7 @@ export function extractEntities(
             symbol.type === 'class' ||
             symbol.type === 'typedef')
       )
-      .map((symbol) => ({
-        name: symbol.name,
-        kind:
-          symbol.type === 'typedef'
-            ? 'type'
-            : symbol.type === 'macro'
-              ? 'macro'
-              : symbol.type === 'variable'
-                ? 'variable'
-                : symbol.type,
-        fields:
-          symbol.members?.slice(0, 12).map((member) => ({
-            name: member.name,
-            type: member.type,
-          })) ?? [],
-        filePath,
-        language: 'c-family',
-        line: symbol.line,
-      }));
+      .map(symbolToEntity);
   }
 
   return [];

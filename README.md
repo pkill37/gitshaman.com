@@ -25,6 +25,12 @@ from the configured public R2 origin. Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to forc
 full local corpus build. Local corpus indexing requires Node.js 22.22.2 or newer because it loads the
 native `better-sqlite3` index builder.
 
+Pages serves exported routes and assets before its `404.html` fallback. Unlisted GitHub
+repository URLs use that fallback to open the client app through `?github_path=...`.
+Do not add catch-all `/:owner/:repo` rewrites: Pages applies them even to existing
+Next.js route-data files and images. After deploying a routing fix, purge Cloudflare's
+cached redirects and verify with a fresh browser context (308s can also be browser-cached).
+
 Online you can visit **[https://gitshaman.com](https://gitshaman.com)** for free. To use the URL-hacking workflow, replace `github.com` with `gitshaman.com` in a repository URL.
 
 ## Semantic Editor Implementation

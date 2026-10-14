@@ -1,0 +1,13 @@
+{
+  "ignore": [
+    "package-lock.json",
+    "node_modules/**",
+    ".next/**",
+    "out/**",
+    "tests/**",
+    "public/features/**",
+    "public/repos/**",
+    "repos/**",
+    "src/app/**/*.css"
+  ]
+}

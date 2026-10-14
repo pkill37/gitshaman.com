@@ -187,6 +187,25 @@ function extractIncludeTargets(content: string): string[] {
   return includeTargets;
 }
 
+function getIncludeTargetSets(content: string): {
+  includeTargets: Set<string>;
+  includeBasenames: Set<string>;
+} {
+  const includeTargets = new Set(extractIncludeTargets(content));
+  return {
+    includeTargets,
+    includeBasenames: new Set(Array.from(includeTargets, (target) => getPathBasename(target))),
+  };
+}
+
+function addCandidateScore(candidateScores: Map<string, number>, filePath: string, score: number) {
+  if (!filePath || !isIndexableSourceFile(filePath)) return;
+  const previous = candidateScores.get(filePath) ?? Number.NEGATIVE_INFINITY;
+  if (score > previous) {
+    candidateScores.set(filePath, score);
+  }
+}
+
 function rankWorkspaceCandidatePaths(
   symbolName: string,
   currentFilePath: string,
@@ -196,19 +215,10 @@ function rankWorkspaceCandidatePaths(
   const normalizedSymbol = normalizeSymbolQuery(symbolName).toLowerCase();
   const currentDir = getPathDirectory(currentFilePath);
   const currentStem = getPathStem(currentFilePath).toLowerCase();
-  const includeTargets = new Set(extractIncludeTargets(content));
-  const includeBasenames = new Set(Array.from(includeTargets, (target) => getPathBasename(target)));
+  const { includeTargets, includeBasenames } = getIncludeTargetSets(content);
   const candidateScores = new Map<string, number>();
 
-  const addCandidate = (filePath: string, score: number) => {
-    if (!filePath || !isIndexableSourceFile(filePath)) return;
-    const previous = candidateScores.get(filePath) ?? Number.NEGATIVE_INFINITY;
-    if (score > previous) {
-      candidateScores.set(filePath, score);
-    }
-  };
-
-  addCandidate(currentFilePath, 1000);
+  addCandidateScore(candidateScores, currentFilePath, 1000);
 
   for (const filePath of workspaceFilePaths) {
     const basename = getPathBasename(filePath);
@@ -228,7 +238,7 @@ function rankWorkspaceCandidatePaths(
     }
 
     if (score > 0) {
-      addCandidate(filePath, score);
+      addCandidateScore(candidateScores, filePath, score);
     }
   }
 
@@ -257,21 +267,12 @@ function rankReferenceCandidatePaths(
   const definitionTopLevelDir = definitionFilePath?.split('/')[0] || '';
   const currentStem = getPathStem(currentFilePath).toLowerCase();
   const definitionStem = definitionFilePath ? getPathStem(definitionFilePath).toLowerCase() : '';
-  const includeTargets = new Set(extractIncludeTargets(content));
-  const includeBasenames = new Set(Array.from(includeTargets, (target) => getPathBasename(target)));
+  const { includeTargets, includeBasenames } = getIncludeTargetSets(content);
   const candidateScores = new Map<string, number>();
 
-  const addCandidate = (filePath: string, score: number) => {
-    if (!filePath || !isIndexableSourceFile(filePath)) return;
-    const previous = candidateScores.get(filePath) ?? Number.NEGATIVE_INFINITY;
-    if (score > previous) {
-      candidateScores.set(filePath, score);
-    }
-  };
-
-  addCandidate(currentFilePath, 5000);
+  addCandidateScore(candidateScores, currentFilePath, 5000);
   if (definitionFilePath) {
-    addCandidate(definitionFilePath, 4900);
+    addCandidateScore(candidateScores, definitionFilePath, 4900);
   }
 
   for (const filePath of workspaceFilePaths) {
@@ -295,7 +296,7 @@ function rankReferenceCandidatePaths(
     }
 
     if (score > 0) {
-      addCandidate(filePath, score);
+      addCandidateScore(candidateScores, filePath, score);
     }
   }
 

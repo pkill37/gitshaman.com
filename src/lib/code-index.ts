@@ -577,22 +577,26 @@ export function getCodeIndexGraphNeighbors(
     statement.bind([path, path, limit]);
     const edges: CodeIndexEdgeEntry[] = [];
     while (statement.step()) {
-      const row = statement.getAsObject();
-      edges.push({
-        sourcePath: String(row.sourcePath ?? ''),
-        targetPath: String(row.targetPath ?? ''),
-        type: String(row.type ?? ''),
-        symbols: String(row.symbols ?? '')
-          .split('\n')
-          .filter(Boolean),
-        provider: String(row.type ?? '').startsWith('clangd:') ? 'clangd' : 'heuristic-indexer',
-        confidence: String(row.type ?? '').startsWith('clangd:') ? 'high' : 'low',
-      });
+      edges.push(codeIndexEdgeFromRow(statement.getAsObject()));
     }
     return edges;
   } finally {
     statement.free();
   }
+}
+
+function codeIndexEdgeFromRow(row: Record<string, unknown>): CodeIndexEdgeEntry {
+  const type = String(row.type ?? '');
+  return {
+    sourcePath: String(row.sourcePath ?? ''),
+    targetPath: String(row.targetPath ?? ''),
+    type,
+    symbols: String(row.symbols ?? '')
+      .split('\n')
+      .filter(Boolean),
+    provider: type.startsWith('clangd:') ? 'clangd' : 'heuristic-indexer',
+    confidence: type.startsWith('clangd:') ? 'high' : 'low',
+  };
 }
 
 export function getCodeIndexGraphEdges(
@@ -616,17 +620,7 @@ export function getCodeIndexGraphEdges(
     statement.bind([limit]);
     const edges: CodeIndexEdgeEntry[] = [];
     while (statement.step()) {
-      const row = statement.getAsObject();
-      edges.push({
-        sourcePath: String(row.sourcePath ?? ''),
-        targetPath: String(row.targetPath ?? ''),
-        type: String(row.type ?? ''),
-        symbols: String(row.symbols ?? '')
-          .split('\n')
-          .filter(Boolean),
-        provider: String(row.type ?? '').startsWith('clangd:') ? 'clangd' : 'heuristic-indexer',
-        confidence: String(row.type ?? '').startsWith('clangd:') ? 'high' : 'low',
-      });
+      edges.push(codeIndexEdgeFromRow(statement.getAsObject()));
     }
     return edges;
   } finally {

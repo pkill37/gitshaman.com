@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import BugReportWidget from '@/components/BugReportWidget';
+import IconSidebarToggleButton from './IconSidebarToggleButton';
 
 interface Section {
   id: string;
@@ -36,6 +37,10 @@ function chapterNumber(id: string): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
+function chapterTitle(title: string): string {
+  return title.replace(/^(?:\d+\.\s*)?Chapter\s+\d+\s*[-–—:]\s*/i, '').trim();
+}
+
 export default function GuidePanel({
   sections,
   guides,
@@ -57,23 +62,18 @@ export default function GuidePanel({
   const scrollPositionStorageKey = `guide-panel-scroll-position:${storageScope}`;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const currentActiveId = activeChapterId ?? null;
+  const currentActiveId = activeChapterId ?? currentSections[0]?.id ?? null;
+  const activeIndex = Math.max(
+    0,
+    currentSections.findIndex((section) => section.id === currentActiveId)
+  );
+  const activeSection = currentSections[activeIndex] ?? currentSections[0];
+  const progressPercent = currentSections.length
+    ? ((activeIndex + 1) / currentSections.length) * 100
+    : 0;
 
-  // Scroll active chapter into view when it opens
   useEffect(() => {
-    if (!currentActiveId) return;
-    const el = sectionRefs.current[currentActiveId];
-    if (el && scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const elTop = el.offsetTop;
-      const elHeight = el.offsetHeight;
-      const viewTop = container.scrollTop;
-      const viewBottom = viewTop + container.clientHeight;
-      if (elTop < viewTop || elTop + elHeight > viewBottom) {
-        container.scrollTo({ top: Math.max(0, elTop - 16), behavior: 'smooth' });
-      }
-    }
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentActiveId]);
 
   // Save scroll position — debounced
@@ -108,14 +108,14 @@ export default function GuidePanel({
 
   const toggle = useCallback(
     (id: string) => {
-      onActiveChapterChange?.(currentActiveId === id ? null : id);
+      onActiveChapterChange?.(id);
     },
-    [currentActiveId, onActiveChapterChange]
+    [onActiveChapterChange]
   );
 
   const [selectionTooltip, setSelectionTooltip] = useState<SelectionTooltipState | null>(null);
 
-  const handleBodyMouseUp = useCallback((event: React.SyntheticEvent<HTMLDivElement>) => {
+  const handleBodyMouseUp = useCallback((event: React.SyntheticEvent<HTMLElement>) => {
     // Let the browser finish updating the selection before reading it.
     const body = event.currentTarget;
     window.setTimeout(() => {
@@ -158,60 +158,143 @@ export default function GuidePanel({
       }}
     >
       {/* ── Header ── */}
-      <div
-        style={{
-          background: 'var(--vscode-bg-tertiary)',
-          borderBottom: '1px solid var(--vscode-border)',
-          padding: '8px 12px',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <div style={{ minWidth: 0, flex: '1 1 auto' }} />
+      {onSidebarToggle && (
+        <div
+          style={{
+            background: 'var(--vscode-bg-tertiary)',
+            borderBottom: '1px solid var(--vscode-border)',
+            padding: '4px 8px',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <IconSidebarToggleButton onClick={onSidebarToggle} label={sidebarToggleLabel}>
+            {sidebarToggleIcon}
+          </IconSidebarToggleButton>
+        </div>
+      )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {onSidebarToggle && (
-            <button
-              onClick={onSidebarToggle}
-              title={sidebarToggleLabel}
-              aria-label={sidebarToggleLabel}
+      {/* ── Always-visible chapter selector ── */}
+      {currentSections.length > 0 && (
+        <div
+          style={{
+            flexShrink: 0,
+            borderBottom: '1px solid var(--vscode-border)',
+            background: 'var(--vscode-bg-secondary)',
+            padding: '6px 8px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 6,
+              marginBottom: 5,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                title={activeSection ? chapterTitle(activeSection.title) : undefined}
+                style={{
+                  color: 'var(--vscode-text-primary)',
+                  fontSize: 12,
+                  fontWeight: 650,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {activeSection ? chapterTitle(activeSection.title) : 'No chapter selected'}
+              </div>
+            </div>
+            <div
+              aria-label="Chapter progress"
               style={{
-                width: 24,
-                height: 24,
-                borderRadius: 3,
-                border: '1px solid var(--vscode-border)',
-                background: 'transparent',
-                color: 'var(--vscode-text-secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-                lineHeight: 1,
-                padding: 0,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--vscode-bg-hover)';
-                e.currentTarget.style.borderColor =
-                  'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
-                e.currentTarget.style.color = 'var(--vscode-text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = 'var(--vscode-border)';
-                e.currentTarget.style.color = 'var(--vscode-text-secondary)';
+                flexShrink: 0,
+                color: 'var(--vscode-text-muted, #888)',
+                fontSize: 11,
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {sidebarToggleIcon}
-            </button>
-          )}
-        </div>
-      </div>
+              {activeIndex + 1}/{currentSections.length}
+            </div>
+          </div>
 
-      {/* ── Chapter list ── */}
+          <div
+            aria-hidden="true"
+            style={{
+              height: 2,
+              overflow: 'hidden',
+              borderRadius: 999,
+              background: 'var(--vscode-border)',
+              marginBottom: 5,
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPercent}%`,
+                height: '100%',
+                borderRadius: 999,
+                background: 'var(--repo-accent, var(--vscode-text-accent, #0078d4))',
+                transition: 'width 0.2s ease',
+              }}
+            />
+          </div>
+
+          <div
+            role="tablist"
+            aria-label="Guide chapters"
+            style={{
+              display: 'flex',
+              gap: 4,
+              overflowX: 'auto',
+              paddingBottom: 1,
+              scrollbarWidth: 'thin',
+            }}
+          >
+            {currentSections.map((section, idx) => {
+              const isActive = section.id === currentActiveId;
+              const num = chapterNumber(section.id) ?? idx + 1;
+
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`guide-chapter-${section.id}`}
+                  title={chapterTitle(section.title)}
+                  aria-label={chapterTitle(section.title)}
+                  onClick={() => toggle(section.id)}
+                  style={{
+                    flex: '0 0 auto',
+                    minWidth: 24,
+                    height: 24,
+                    borderRadius: 4,
+                    border: '1px solid transparent',
+                    background: isActive
+                      ? 'color-mix(in srgb, var(--repo-accent, var(--vscode-text-accent, #0078d4)) 18%, var(--vscode-bg-hover))'
+                      : 'transparent',
+                    color: isActive ? 'var(--vscode-text-primary)' : 'var(--vscode-text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    fontWeight: isActive ? 800 : 650,
+                    fontFamily: 'monospace',
+                    padding: '0 6px',
+                  }}
+                >
+                  {num}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Chapter body ── */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -220,133 +303,27 @@ export default function GuidePanel({
           flex: '1 1 0%',
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '4px',
+          padding: '8px 10px',
           minHeight: 0,
         }}
       >
-        {currentSections.map((s, idx) => {
-          const isActive = s.id === currentActiveId;
-          const num = chapterNumber(s.id) ?? idx + 1;
-          const ACCENT = 'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
-
-          return (
-            <div
-              key={s.id}
-              ref={(el) => {
-                sectionRefs.current[s.id] = el;
-              }}
-              style={{
-                marginBottom: 3,
-                borderRadius: 5,
-                overflow: 'hidden',
-                border: isActive ? `1px solid ${ACCENT}44` : '1px solid transparent',
-                transition: 'border-color 0.2s ease',
-              }}
-            >
-              {/* Chapter header row */}
-              <div
-                onClick={() => toggle(s.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0,
-                  cursor: 'pointer',
-                  background: isActive ? 'var(--vscode-bg-hover)' : 'var(--vscode-bg-tertiary)',
-                  borderLeft: isActive ? `3px solid ${ACCENT}` : '3px solid transparent',
-                  padding: isActive ? '9px 10px 9px 9px' : '7px 10px 7px 9px',
-                  transition: 'background 0.15s ease, padding 0.15s ease',
-                  userSelect: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive)
-                    (e.currentTarget as HTMLElement).style.background = 'var(--vscode-bg-hover)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive)
-                    (e.currentTarget as HTMLElement).style.background = 'var(--vscode-bg-tertiary)';
-                }}
-              >
-                {/* Chapter number badge */}
-                <span
-                  style={{
-                    flexShrink: 0,
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
-                    background: isActive ? ACCENT : 'var(--vscode-border)',
-                    color: isActive ? '#fff' : 'var(--vscode-text-muted, #555)',
-                    fontSize: 9,
-                    fontWeight: 700,
-                    fontFamily: 'monospace',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 8,
-                    transition: 'background 0.2s ease, color 0.2s ease',
-                    letterSpacing: 0,
-                  }}
-                >
-                  {num}
-                </span>
-
-                {/* Title */}
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: isActive ? 12 : 11,
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive
-                      ? 'var(--vscode-text-primary)'
-                      : 'var(--vscode-text-muted, #555)',
-                    lineHeight: 1.3,
-                    transition: 'color 0.15s ease, font-size 0.15s ease',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    // Strip "Chapter N — " prefix since we show the number badge
-                    // Rendered as-is; the title already has leading "Chapter N — " stripped in the guide loader
-                  }}
-                >
-                  {s.title}
-                </span>
-
-                {/* Chevron */}
-                <span
-                  style={{
-                    flexShrink: 0,
-                    marginLeft: 6,
-                    fontSize: 9,
-                    color: isActive ? ACCENT : 'var(--vscode-text-muted, #444)',
-                    transition: 'transform 0.2s ease, color 0.2s ease',
-                    transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)',
-                    display: 'inline-block',
-                  }}
-                >
-                  ›
-                </span>
-              </div>
-
-              {/* Chapter body */}
-              {isActive && (
-                <div
-                  onMouseUp={handleBodyMouseUp}
-                  onKeyUp={handleBodyMouseUp}
-                  style={{
-                    position: 'relative',
-                    background: 'var(--vscode-bg-secondary)',
-                    borderTop: `1px solid ${ACCENT}22`,
-                    padding: '10px 10px 12px',
-                    color: 'var(--vscode-text-secondary)',
-                    fontSize: 12,
-                    lineHeight: 1.65,
-                  }}
-                >
-                  {s.body}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {activeSection && (
+          <section
+            id={`guide-chapter-${activeSection.id}`}
+            role="tabpanel"
+            aria-label={chapterTitle(activeSection.title)}
+            onMouseUp={handleBodyMouseUp}
+            onKeyUp={handleBodyMouseUp}
+            style={{
+              position: 'relative',
+              color: 'var(--vscode-text-secondary)',
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}
+          >
+            {activeSection.body}
+          </section>
+        )}
       </div>
       {selectionTooltip && (
         <div

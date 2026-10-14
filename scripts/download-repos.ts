@@ -13,7 +13,7 @@ import { CODE_INDEX_FILE_NAME } from '../src/lib/code-index';
 import { type CodeIndexBuildLogger, type CodeIndexBuildStats } from './code-index-builder';
 import { getCorpusBuildSignature, type CorpusBuildTreeNode } from './corpus-build-signature';
 import { CORPUS_REPOS_DIR } from './static-asset-paths';
-import { runPhase } from './tqdm';
+import { fmtDuration, runPhase } from './tqdm';
 
 type ScriptOptions = {
   only: string[]; // entries like "owner/repo" or "owner/repo@revision"
@@ -263,16 +263,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function fmtDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes > 0) {
-    return `${minutes}m${String(seconds).padStart(2, '0')}s`;
-  }
-  return `${seconds}s`;
 }
 
 function fmtCount(value: number): string {

@@ -1,22 +1,13 @@
 // Markdown parser utility for guide files
 import React from 'react';
 import matter from 'gray-matter';
-import { marked, type Tokens } from 'marked';
+import { marked } from 'marked';
 import { GuideSection, FileRecommendation } from '@/lib/project-guides';
 import { createFileRecommendationsComponent } from '@/lib/project-guides';
 import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import { debugLog } from '@/lib/browser-debug';
-import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
-import {
-  decodeHtmlEntities,
-  escapeHtml,
-  getExternalRepoIconHtml,
-  getRepoLinkAttributes,
-  hasUnsafeScheme,
-  isExternalHref,
-  parseMarkdownNavigationTarget,
-  parseRepoNavigationTarget,
-} from '@/lib/markdown-navigation';
+import { createRepoMarkdownRenderer } from '@/lib/markdown-renderer';
+import { parseRepoNavigationTarget } from '@/lib/markdown-navigation';
 
 /** Extract and strip a ```chapter-graph block from section content. */
 function extractChapterGraph(content: string): { graph: string | undefined; cleanContent: string } {
@@ -27,14 +18,6 @@ function extractChapterGraph(content: string): { graph: string | undefined; clea
     graph: match[1].trim(),
     cleanContent: content.replace(re, '').trim(),
   };
-}
-
-function isLikelySymbolCode(code: string): boolean {
-  const trimmed = code.trim();
-  if (!trimmed || trimmed.length > 120) return false;
-  if (/[\s/\\]/.test(trimmed)) return false;
-  if (/^(true|false|null|undefined|\d+)$/i.test(trimmed)) return false;
-  return /^(?:[A-Za-z_]\w*|[A-Za-z_]\w*::[A-Za-z_]\w*)(?:\(\))?$/.test(trimmed);
 }
 
 type OpenFileInTab = (
@@ -49,64 +32,10 @@ function createMarkdownRenderer(
   symbolScopePaths: string[],
   options?: { linkRepoReferences?: boolean }
 ) {
-  const renderer = new marked.Renderer();
-  const linkRepoReferences = options?.linkRepoReferences ?? true;
-
-  renderer.code = function ({ text, lang }: Tokens.Code) {
-    return renderHighlightedCodeBlock(text, lang);
-  };
-
-  renderer.link = function ({ href, title, tokens }: Tokens.Link) {
-    const safeHref = href?.trim() || '#';
-    // A markdown link can wrap an inline-code span. Since codespan navigation
-    // also renders an anchor, remove that nested anchor before rendering the
-    // outer link so the resulting HTML contains one accessible link.
-    const renderedText = this.parser.parseInline(tokens);
-    const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
-    const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-
-    if (hasUnsafeScheme(safeHref)) {
-      return `<span>${renderedText}</span>`;
-    }
-
-    const navigationTarget = parseMarkdownNavigationTarget(safeHref, undefined, {
-      linkText: linkText,
-      title: title ?? undefined,
-    });
-
-    if (navigationTarget?.kind === 'repo-file') {
-      if (!linkRepoReferences) {
-        return linkText;
-      }
-      return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
-    }
-
-    const targetAttr = isExternalHref(safeHref) ? ' target="_blank" rel="noreferrer"' : '';
-    return `<a href="${escapeHtml(safeHref)}"${titleAttr}${targetAttr}>${linkText}</a>`;
-  };
-
-  renderer.codespan = function ({ text: code }: Tokens.Codespan) {
-    const decodedCode = decodeHtmlEntities(code);
-    const repoTarget = parseRepoNavigationTarget(decodedCode);
-    const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
-
-    if (!repoTarget) {
-      if (symbolScopePaths.length > 0 && isLikelySymbolCode(decodedCode)) {
-        return `<a href="#" class="inline-code-link" data-search-pattern="${escapeHtml(
-          decodedCode.trim()
-        )}" data-symbol-scope="${escapeHtml(symbolScopePaths.join('|||'))}">${codeHtml}</a>`;
-      }
-      return codeHtml;
-    }
-
-    if (!linkRepoReferences) {
-      return codeHtml;
-    }
-
-    return `<a href="#" class="inline-code-link" ${getRepoLinkAttributes(repoTarget)}>${getExternalRepoIconHtml(repoTarget)}${codeHtml}</a>`;
-  };
-
-  return renderer;
+  return createRepoMarkdownRenderer({
+    symbolScopePaths,
+    linkRepoReferences: options?.linkRepoReferences,
+  });
 }
 
 // Parse section frontmatter

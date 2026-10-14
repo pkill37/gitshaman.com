@@ -31,6 +31,12 @@ import { getCuratedRepo } from '../src/lib/curated-repos';
 import { parseRepoNavigationTarget } from '../src/lib/markdown-navigation';
 import { CORPUS_REPOS_DIR } from './static-asset-paths';
 import { DOCS_DIR, listGuideMarkdownFiles } from './guide-docs';
+import {
+  extractFencedBlocks as extractFencedBlocksWithLines,
+  extractSectionFrontmatterBlocks,
+  parseFrontmatterTitleFields,
+} from './guide-markdown-utils';
+export { isFenceMarker } from './guide-markdown-utils';
 
 // File extensions that indicate a source/doc file path (vs a generic identifier).
 // Note: .s covers both lowercase and uppercase (.S) since hasKnownExt lowercases first.
@@ -256,67 +262,18 @@ export function parseClaimed(raw: string): number {
 
 /** Extract all ```<lang> … ``` blocks from raw text. */
 export function extractFencedBlocks(raw: string, lang: string): Array<{ code: string }> {
-  const blocks: Array<{ code: string }> = [];
-  const fence = '```' + lang;
-  const lines = raw.split('\n');
-  let i = 0;
-  while (i < lines.length) {
-    if (lines[i].trim() === fence) {
-      i++;
-      const codeLines: string[] = [];
-      while (i < lines.length && lines[i].trim() !== '```') {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      i++;
-      blocks.push({ code: codeLines.join('\n') });
-    } else {
-      i++;
-    }
-  }
-  return blocks;
+  return extractFencedBlocksWithLines(raw, lang).map(({ code }) => ({ code }));
 }
 
 // ─── Section parser ───────────────────────────────────────────────────────────
 
-/** Returns true if the line opens or closes a fenced code block (``` or ~~~). */
-export function isFenceMarker(line: string): boolean {
-  const t = line.trim();
-  return t.startsWith('```') || t.startsWith('~~~');
-}
-
 /** Parse guide content (after gray-matter has stripped the doc frontmatter). */
 export function parseSections(content: string): Section[] {
   const sections: Section[] = [];
-  const lines = content.split('\n');
-  let i = 0;
 
-  while (i < lines.length) {
-    // Seek opening --- (not inside a fenced block)
-    let inFence = false;
-    while (i < lines.length) {
-      if (isFenceMarker(lines[i])) inFence = !inFence;
-      if (!inFence && lines[i].trim() === '---') break;
-      i++;
-    }
-    if (i >= lines.length) break;
-    i++; // skip opening ---
-
-    // Collect YAML frontmatter until closing ---
-    // YAML frontmatter cannot contain fenced code blocks, so no fence tracking needed here.
-    const fmLines: string[] = [];
-    while (i < lines.length && lines[i].trim() !== '---') {
-      fmLines.push(lines[i]);
-      i++;
-    }
-    if (i < lines.length) i++; // skip closing ---
-
-    const fm = fmLines.join('\n').trim();
-    if (!fm) continue;
-
-    const idMatch = fm.match(/^id:\s*(.+)$/m);
-    const titleMatch = fm.match(/^title:\s*(.+)$/m);
-    if (!idMatch) continue; // not a chapter section
+  for (const { frontmatter: fm, prose } of extractSectionFrontmatterBlocks(content)) {
+    const { id, title } = parseFrontmatterTitleFields(fm);
+    if (!id) continue; // not a chapter section
 
     let readingOrderRefs: FileRef[] = [];
     let sourceRefs: FileRef[] = [];
@@ -345,24 +302,14 @@ export function parseSections(content: string): Section[] {
       /* malformed YAML — skip fileRecommendations for this section */
     }
 
-    // Collect prose until the next --- that is NOT inside a fenced code block.
-    const proseLines: string[] = [];
-    inFence = false;
-    while (i < lines.length) {
-      if (isFenceMarker(lines[i])) inFence = !inFence;
-      if (!inFence && lines[i].trim() === '---') break;
-      proseLines.push(lines[i]);
-      i++;
-    }
-
     sections.push({
-      id: idMatch[1].trim(),
-      title: titleMatch?.[1].trim() ?? '',
+      id,
+      title: title ?? '',
       readingOrderRefs,
       sourceRefs,
       docsRefs,
       directoryRefs,
-      prose: proseLines.join('\n'),
+      prose,
     });
   }
 

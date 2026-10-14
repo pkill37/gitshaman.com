@@ -2,18 +2,8 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { marked, type Tokens } from 'marked';
-import { renderHighlightedCodeBlock } from '@/lib/markdown-code-highlight';
-import {
-  decodeHtmlEntities,
-  escapeHtml,
-  getExternalRepoIconHtml,
-  getRepoLinkAttributes,
-  hasUnsafeScheme,
-  isExternalHref,
-  parseMarkdownNavigationTarget,
-  parseRepoNavigationTarget,
-  resolveRepoRelativePath,
-} from '@/lib/markdown-navigation';
+import { createRepoMarkdownRenderer } from '@/lib/markdown-renderer';
+import { escapeHtml, hasUnsafeScheme, resolveRepoRelativePath } from '@/lib/markdown-navigation';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -37,57 +27,11 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   const articleRef = useRef<HTMLElement | null>(null);
 
   const html = useMemo(() => {
-    const renderer = new marked.Renderer();
-
-    renderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
-
-    renderer.code = ({ text, lang }: Tokens.Code) => {
-      const language = lang?.match(/^\S+/)?.[0].toLowerCase();
-      if (language === 'mermaid') {
-        return `<div class="mermaid" data-mermaid-diagram>${escapeHtml(text)}</div>`;
-      }
-
-      return renderHighlightedCodeBlock(text, language);
-    };
-
-    renderer.link = function ({ href, title, tokens }: Tokens.Link) {
-      const safeHref = href?.trim() || '#';
-      // Avoid invalid nested anchors for markdown links around inline-code
-      // navigation links (for example, [`symbol`](path:symbol)).
-      const renderedText = this.parser.parseInline(tokens);
-      const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
-      const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-
-      if (hasUnsafeScheme(safeHref)) {
-        return `<span>${renderedText}</span>`;
-      }
-
-      if (safeHref.startsWith('#')) {
-        return `<a href="${escapeHtml(safeHref)}"${titleAttr}>${linkText}</a>`;
-      }
-
-      const navigationTarget = parseMarkdownNavigationTarget(safeHref, filePath, {
-        linkText,
-        title: title ?? undefined,
-      });
-      if (navigationTarget?.kind === 'repo-file') {
-        return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
-      }
-
-      const targetAttr = isExternalHref(safeHref) ? ' target="_blank" rel="noreferrer"' : '';
-      return `<a href="${escapeHtml(safeHref)}"${titleAttr}${targetAttr}>${linkText}</a>`;
-    };
-
-    renderer.codespan = ({ text: code }: Tokens.Codespan) => {
-      const decodedCode = decodeHtmlEntities(code);
-      const repoTarget = parseRepoNavigationTarget(decodedCode, filePath);
-      const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
-      if (!repoTarget) {
-        return codeHtml;
-      }
-
-      return `<a href="#" class="inline-code-link" ${getRepoLinkAttributes(repoTarget)}>${getExternalRepoIconHtml(repoTarget)}${codeHtml}</a>`;
-    };
+    const renderer = createRepoMarkdownRenderer({
+      baseFilePath: filePath,
+      allowMermaid: true,
+      escapeHtmlBlocks: true,
+    });
 
     renderer.image = function ({ href, title, text, tokens }: Tokens.Image) {
       const safeHref = href?.trim() || '';

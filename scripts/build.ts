@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { inspectCorpusState } from './download-repos';
 import { writeGuideRegistry } from './generate-guide-registry';
+import { fmtDuration } from './tqdm';
 
 type Step = {
   name: string;
@@ -27,16 +28,6 @@ type CodeIndexRunStats = {
 function fail(message: string): never {
   console.error(`\nERROR: ${message}\n`);
   process.exit(1);
-}
-
-function fmtDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes > 0) {
-    return `${minutes}m${String(seconds).padStart(2, '0')}s`;
-  }
-  return `${seconds}s`;
 }
 
 function isTruthyEnv(name: string): boolean {

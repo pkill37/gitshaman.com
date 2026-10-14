@@ -95,11 +95,12 @@ ${formatConsoleLogsForIssue(diagnostics.consoleLogs)}
 export function createBugReportIssueUrl(input: BugReportIssueInput): string {
   const { owner, repo } = getIssueTarget();
   const route = typeof window === 'undefined' ? 'unknown route' : window.location.pathname;
+  const titleRoute = route === '/' || route.endsWith('/') ? route : `${route}/`;
 
   return newGithubIssueUrl({
     user: owner,
     repo,
-    title: `Bug report: ${route}`,
+    title: `Bug report: ${titleRoute}`,
     body: formatIssueBody(input),
     labels: ['bug', 'user-report'],
   });

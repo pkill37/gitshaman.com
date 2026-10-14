@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties } from 'react';
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useSyncExternalStore,
+  type CSSProperties,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import RepositoryWorkspaceExplorer, {
   type InitialFileTarget,
 } from './components/RepositoryWorkspaceExplorer';
 import GuidePanel from './components/GuidePanel';
+import IconSidebarToggleButton from './components/IconSidebarToggleButton';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
 import StatusBar from './components/StatusBar';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
@@ -17,28 +26,49 @@ import { getCuratedRepoAccent, getCuratedRepoPath } from '@/lib/curated-repos';
 import type { GitHubUrlTarget } from '@/lib/github-url';
 import { resolveRepositoryNavigation } from '@/lib/github-url';
 import {
-  getDefaultCuratedRepoSourceMode,
   hasConfiguredR2BucketBaseUrl,
   isLocalFilesystemCorpusAvailable,
   normalizeCuratedRepoSourceMode,
 } from '@/lib/curated-content-url';
 import type { CuratedRepoSourceMode } from '@/lib/repo-static';
+import {
+  CORPUS_SOURCE_MODE_STORAGE_KEY,
+  getStoredCuratedRepoSourceMode,
+} from '@/lib/repository-preferences';
 import '@/app/vscode.css';
 
 const GUIDE_DEFAULT_WIDTH = 300;
 const GUIDE_MIN_WIDTH = 200;
 const GUIDE_MAX_WIDTH = 520;
-const GUIDE_COLLAPSED_WIDTH = 44;
 const ENTITY_CONTEXT_WIDTH = 420;
-const CORPUS_SOURCE_MODE_STORAGE_KEY = 'repository-workspace-explorer-corpus-source-mode';
 const GUIDE_SIDEBAR_OPEN_STORAGE_KEY = 'repository-explorer-guide-sidebar-open';
 const WORKSPACE_THEME_STORAGE_KEY = 'repository-workspace-explorer-theme';
 let navigationNonceCounter = 0;
+
+const subscribeToHydration = () => () => {};
 
 const EntityView = dynamic(
   () => import('./components/EntityView').then((module) => module.EntityView),
   { loading: () => null }
 );
+
+function createOpenFileTarget(
+  fileId: string,
+  searchPattern?: string,
+  scrollToLine?: number,
+  searchScope?: string[]
+): InitialFileTarget | string[] {
+  const paths = fileId.includes('|||') ? fileId.split('|||') : null;
+  return (
+    paths ?? {
+      path: fileId,
+      searchPattern,
+      scrollToLine,
+      searchScope,
+      navigationNonce: createNavigationNonce(),
+    }
+  );
+}
 
 type WorkspaceTheme = 'dark' | 'light';
 
@@ -83,20 +113,9 @@ export default function RepositoryExplorerClient({
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch } = useRepository();
   const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
-  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
-    let nextSourceMode = getDefaultCuratedRepoSourceMode();
-    try {
-      if (typeof window !== 'undefined') {
-        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
-        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
-          nextSourceMode = savedSourceMode;
-        }
-      }
-    } catch {
-      // Keep the environment default.
-    }
-    return normalizeCuratedRepoSourceMode(nextSourceMode);
-  });
+  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(
+    getStoredCuratedRepoSourceMode
+  );
   const [workspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
     try {
       if (typeof window === 'undefined') return 'dark';
@@ -138,7 +157,12 @@ export default function RepositoryExplorerClient({
     };
   });
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
-  const [isGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
+  const hasHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false
+  );
+  const [savedGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
     try {
       if (typeof window === 'undefined') return true;
       const savedGuideSidebarOpen = localStorage.getItem(GUIDE_SIDEBAR_OPEN_STORAGE_KEY);
@@ -150,6 +174,8 @@ export default function RepositoryExplorerClient({
     }
     return true;
   });
+  // The server and hydration pass must render the same sidebar structure.
+  const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : true;
   // Keep EntityView mounted once first activated to preserve per-chapter cache
   const [entitiesMounted, setEntitiesMounted] = useState(false);
   const urlInitialFile = useMemo<InitialFileTarget | null>(() => {
@@ -217,18 +243,8 @@ export default function RepositoryExplorerClient({
         return;
       }
 
-      // Paired nodes encode both paths as "primary|||header"
-      const paths = fileId.includes('|||') ? fileId.split('|||') : null;
-      const navigationNonce = createNavigationNonce();
-      setInitialFile(
-        paths ?? {
-          path: fileId,
-          searchPattern,
-          scrollToLine,
-          searchScope,
-          navigationNonce,
-        }
-      );
+      // Paired nodes encode both paths as "primary|||header".
+      setInitialFile(createOpenFileTarget(fileId, searchPattern, scrollToLine, searchScope));
       setMode('editor');
     },
     [navigateToRepoTarget]
@@ -253,17 +269,7 @@ export default function RepositoryExplorerClient({
         return;
       }
 
-      const paths = fileId.includes('|||') ? fileId.split('|||') : null;
-      const navigationNonce = createNavigationNonce();
-      setInitialFile(
-        paths ?? {
-          path: fileId,
-          searchPattern,
-          scrollToLine,
-          searchScope,
-          navigationNonce,
-        }
-      );
+      setInitialFile(createOpenFileTarget(fileId, searchPattern, scrollToLine, searchScope));
     },
     [navigateToRepoTarget]
   );
@@ -362,12 +368,13 @@ export default function RepositoryExplorerClient({
   }, []);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     try {
-      localStorage.setItem(GUIDE_SIDEBAR_OPEN_STORAGE_KEY, String(isGuideSidebarOpen));
+      localStorage.setItem(GUIDE_SIDEBAR_OPEN_STORAGE_KEY, String(savedGuideSidebarOpen));
     } catch {
       // Ignore storage failures.
     }
-  }, [isGuideSidebarOpen]);
+  }, [hasHydrated, savedGuideSidebarOpen]);
 
   useEffect(() => {
     try {
@@ -478,7 +485,15 @@ export default function RepositoryExplorerClient({
           {_loadingDescription}
         </p>
       )}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'row',
+          position: 'relative',
+        }}
+      >
         {/* ── Activity bar ── */}
         <div
           style={{
@@ -636,7 +651,6 @@ export default function RepositoryExplorerClient({
               width: 4,
               cursor: 'col-resize',
               background: 'transparent',
-              borderLeft: '1px solid var(--vscode-border)',
               flexShrink: 0,
               transition: 'background 0.15s',
             }}
@@ -652,11 +666,11 @@ export default function RepositoryExplorerClient({
         {/* ── Persistent guide sidebar ── */}
         <div
           style={{
-            width: isGuideSidebarOpen ? guideWidth : GUIDE_COLLAPSED_WIDTH,
-            minWidth: isGuideSidebarOpen ? GUIDE_MIN_WIDTH : GUIDE_COLLAPSED_WIDTH,
-            maxWidth: isGuideSidebarOpen ? GUIDE_MAX_WIDTH : GUIDE_COLLAPSED_WIDTH,
+            width: guideWidth,
+            minWidth: GUIDE_MIN_WIDTH,
+            maxWidth: GUIDE_MAX_WIDTH,
             height: '100%',
-            display: 'flex',
+            display: isGuideSidebarOpen ? 'flex' : 'none',
             flexDirection: 'column',
             overflow: 'hidden',
             flexShrink: 0,
@@ -688,53 +702,19 @@ export default function RepositoryExplorerClient({
               />
             </RepositoryRightPanel>
           </div>
-          {!isGuideSidebarOpen && (
-            <div
-              style={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                paddingTop: 8,
-                background: 'var(--vscode-bg-tertiary)',
-              }}
-            >
-              <button
-                onClick={() => setIsGuideSidebarOpen(true)}
-                title="Show guide sidebar"
-                aria-label="Show guide sidebar"
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 4,
-                  border: '1px solid var(--vscode-border)',
-                  background: 'transparent',
-                  color: 'var(--vscode-text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
-                  lineHeight: 1,
-                  padding: 0,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--vscode-bg-hover)';
-                  e.currentTarget.style.borderColor =
-                    'var(--repo-accent, var(--vscode-text-accent, #0078d4))';
-                  e.currentTarget.style.color = 'var(--vscode-text-primary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.borderColor = 'var(--vscode-border)';
-                  e.currentTarget.style.color = 'var(--vscode-text-secondary)';
-                }}
-              >
-                ‹
-              </button>
-            </div>
-          )}
         </div>
+        {!isGuideSidebarOpen && (
+          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}>
+            <IconSidebarToggleButton
+              onClick={() => setIsGuideSidebarOpen(true)}
+              label="Show guide sidebar"
+              size={28}
+              borderRadius={4}
+            >
+              ‹
+            </IconSidebarToggleButton>
+          </div>
+        )}
       </div>
       <StatusBar
         repoLabel={repoLabel}

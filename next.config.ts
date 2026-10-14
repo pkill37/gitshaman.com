@@ -4,7 +4,7 @@ import { withMonacoEditor } from './scripts/monaco-plugin';
 
 const nextConfig: NextConfig = {
   // Curated routes are exported. Arbitrary GitHub routes use the static app
-  // shell fallback (public/_redirects) and are loaded in the browser.
+  // shell fallback (404.html) and are loaded in the browser.
   output: process.env.NEXT_OUTPUT_EXPORT === 'false' ? undefined : 'export',
 
   // Trailing slash ensures python http.server serves index.html from directories

@@ -11,6 +11,11 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import { DOCS_DIR, listGuideMarkdownFiles } from './guide-docs';
+import {
+  extractFencedBlocks,
+  extractSectionFrontmatterBlocks,
+  parseFrontmatterTitleFields,
+} from './guide-markdown-utils';
 
 export interface SectionMeta {
   id?: string;
@@ -23,81 +28,11 @@ export interface GuideValidationResult {
   graphBlocks: Array<{ code: string; line: number }>;
 }
 
-function isFenceMarker(line: string): boolean {
-  const t = line.trim();
-  return t.startsWith('```') || t.startsWith('~~~');
-}
-
 /** Split content into sections by --- delimiter pairs, returning frontmatter strings */
 export function parseSectionIds(content: string): SectionMeta[] {
-  const sections: SectionMeta[] = [];
-  const lines = content.split('\n');
-  let i = 0;
-  let inFence = false;
-
-  while (i < lines.length) {
-    if (isFenceMarker(lines[i])) inFence = !inFence;
-    if (inFence || lines[i].trim() !== '---') {
-      i++;
-      continue;
-    }
-    const sectionStart = i;
-    i++; // skip opening ---
-    while (i < lines.length && lines[i].trim() === '') i++;
-
-    const fmLines: string[] = [];
-    while (i < lines.length && lines[i].trim() !== '---') {
-      fmLines.push(lines[i]);
-      i++;
-    }
-    if (i < lines.length) i++; // skip closing ---
-
-    const fm = fmLines.join('\n').trim();
-    if (!fm) continue;
-
-    // Minimal id/title extraction — match `id: value` and `title: value`
-    const idMatch = fm.match(/^id:\s*(.+)$/m);
-    const titleMatch = fm.match(/^title:\s*(.+)$/m);
-    if (idMatch || titleMatch) {
-      sections.push({
-        id: idMatch?.[1].trim(),
-        title: titleMatch?.[1].trim(),
-      });
-    } else {
-      i = sectionStart + 1;
-    }
-  }
-
-  return sections;
-}
-
-/** Extract all fenced code blocks of a given language with their 1-based start line numbers */
-export function extractFencedBlocks(
-  raw: string,
-  language: string
-): Array<{ code: string; line: number }> {
-  const blocks: Array<{ code: string; line: number }> = [];
-  const lines = raw.split('\n');
-  const fence = '```' + language;
-  let i = 0;
-
-  while (i < lines.length) {
-    if (lines[i].trim() === fence) {
-      const startLine = i + 1; // 1-based
-      i++;
-      const codeLines: string[] = [];
-      while (i < lines.length && lines[i].trim() !== '```') {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      i++; // skip closing ```
-      blocks.push({ code: codeLines.join('\n'), line: startLine });
-    } else {
-      i++;
-    }
-  }
-
-  return blocks;
+  return extractSectionFrontmatterBlocks(content)
+    .map(({ frontmatter }) => parseFrontmatterTitleFields(frontmatter))
+    .filter((section) => section.id || section.title);
 }
 
 /** Edge syntax: `source -> target : label` (label is required) */

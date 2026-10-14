@@ -1,4 +1,4 @@
-# Keep arbitrary GitHub-shaped URLs on the static app shell. The client parses
-# the original pathname and loads the repository directly from GitHub.
-/:owner/:repo /index.html 200
-/:owner/:repo/* /index.html 200
+# Do not add catch-all repository rewrites here. Cloudflare Pages applies them
+# before existing assets, including /<slug>/index.txt and /avatars/<file>.
+# Serve exported routes and assets normally; unmatched repository URLs use
+# the exported 404.html and src/app/not-found.tsx app-shell fallback.

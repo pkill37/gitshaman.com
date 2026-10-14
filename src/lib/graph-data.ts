@@ -78,6 +78,24 @@ function getPedagogicalOrderLabel(start: number, end?: number): string {
   return end && end !== start ? `${start}-${end}` : `${start}`;
 }
 
+function pushGraphFileEntry(
+  files: GraphFileEntry[],
+  filePath: string,
+  sectionLabel: string,
+  sectionIndex: number,
+  pedagogicalOrder: number,
+  isDocumentation = false
+): void {
+  files.push({
+    filePath,
+    sectionLabel,
+    sectionIndex,
+    isDocumentation,
+    pedagogicalOrder,
+    pedagogicalOrderLabel: getPedagogicalOrderLabel(pedagogicalOrder),
+  });
+}
+
 /**
  * Merge paired .c/.h nodes (same base stem) into a single PairedNode.
  * Edges that referenced either individual node are remapped to the paired id.
@@ -577,14 +595,7 @@ export function buildGraphData(guideContent: string): {
       const p = m[2];
       if (isFilePath(p) && isCoreSourceFile(p) && !seen.has(p)) {
         seen.add(p);
-        files.push({
-          filePath: p,
-          sectionLabel,
-          sectionIndex,
-          isDocumentation: false,
-          pedagogicalOrder,
-          pedagogicalOrderLabel: getPedagogicalOrderLabel(pedagogicalOrder),
-        });
+        pushGraphFileEntry(files, p, sectionLabel, sectionIndex, pedagogicalOrder);
         pedagogicalOrder++;
       }
     }
@@ -595,14 +606,7 @@ export function buildGraphData(guideContent: string): {
       const p = m[1];
       if (isFilePath(p) && isCoreSourceFile(p) && !seen.has(p)) {
         seen.add(p);
-        files.push({
-          filePath: p,
-          sectionLabel,
-          sectionIndex,
-          isDocumentation: false,
-          pedagogicalOrder,
-          pedagogicalOrderLabel: getPedagogicalOrderLabel(pedagogicalOrder),
-        });
+        pushGraphFileEntry(files, p, sectionLabel, sectionIndex, pedagogicalOrder);
         pedagogicalOrder++;
       }
     }

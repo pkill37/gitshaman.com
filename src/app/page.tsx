@@ -157,7 +157,7 @@ function LandingPage() {
                 <div className="grid gap-3 lg:grid-cols-2">
                   {repoCategories.map((category) => (
                     <div key={category.id} className="shaman-hero-portal-group rounded-lg p-3">
-                      <h3 className="shaman-hero-portal-title">{category.title}</h3>
+                      <h2 className="shaman-hero-portal-title">{category.title}</h2>
                       <div className="flex flex-wrap gap-2">
                         {category.repos.map((repo) => (
                           <CompactRepositoryPortal key={`${repo.owner}/${repo.repo}`} repo={repo} />

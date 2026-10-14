@@ -1,6 +1,6 @@
 'use client';
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { notFound, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import FileTree from './FileTree';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
@@ -30,10 +30,11 @@ import {
   resolveCorpusPathFromKnownFiles,
   type CuratedRepoSourceMode,
 } from '@/lib/repo-static';
+import { normalizeCuratedRepoSourceMode } from '@/lib/curated-content-url';
 import {
-  getDefaultCuratedRepoSourceMode,
-  normalizeCuratedRepoSourceMode,
-} from '@/lib/curated-content-url';
+  CORPUS_SOURCE_MODE_STORAGE_KEY,
+  getStoredCuratedRepoSourceMode,
+} from '@/lib/repository-preferences';
 import {
   buildSearchPreview,
   CODE_INDEX_PREVIEW_ENRICH_LIMIT,
@@ -87,8 +88,6 @@ const getRepoScopedKey = (baseKey: string, repoIdentifier: string | null): strin
 };
 
 const EXPLORER_STORAGE_KEY_PREFIX = 'repository-workspace-explorer';
-const CORPUS_SOURCE_MODE_STORAGE_KEY = `${EXPLORER_STORAGE_KEY_PREFIX}-corpus-source-mode`;
-
 type WorkspaceTheme = 'dark' | 'light';
 type StoredEditorTab = Omit<EditorTab, 'content' | 'isLoading'> & {
   isLoading?: boolean;
@@ -239,6 +238,7 @@ export default function RepositoryWorkspaceExplorer({
   } = useRepository();
 
   const [tabs, setTabs] = useState<EditorTab[]>([]);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string>('');
   useEffect(() => {
@@ -285,20 +285,7 @@ export default function RepositoryWorkspaceExplorer({
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [tabsRestored, setTabsRestored] = useState<boolean>(false);
 
-  const [localFileSourceMode] = useState<CuratedRepoSourceMode>(() => {
-    let nextSourceMode = getDefaultCuratedRepoSourceMode();
-    try {
-      if (typeof window !== 'undefined') {
-        const savedSourceMode = localStorage.getItem(CORPUS_SOURCE_MODE_STORAGE_KEY);
-        if (savedSourceMode === 'local-filesystem' || savedSourceMode === 'r2-bucket') {
-          nextSourceMode = savedSourceMode;
-        }
-      }
-    } catch {
-      // Keep the environment default.
-    }
-    return normalizeCuratedRepoSourceMode(nextSourceMode);
-  });
+  const [localFileSourceMode] = useState<CuratedRepoSourceMode>(getStoredCuratedRepoSourceMode);
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
 
@@ -472,8 +459,7 @@ export default function RepositoryWorkspaceExplorer({
         }
       } catch (error) {
         console.error('Failed to setup repository:', error);
-        // Redirect to home on error
-        router.push('/');
+        setSetupError(error instanceof Error ? error.message : 'Failed to load repository');
       }
     };
 
@@ -1590,9 +1576,18 @@ export default function RepositoryWorkspaceExplorer({
   }, [initialFile, tabsRestored, isTreeStructureReady, openFileInTab, owner, repo]);
 
   // Repository error
-  if (repoError) {
-    notFound();
-    return null;
+  if (setupError || repoError) {
+    return (
+      <div className={`vscode-container vscode-theme-${workspaceTheme}`} role="alert">
+        <section style={{ padding: 24 }}>
+          <h2>Unable to load repository</h2>
+          <p>{setupError || repoError}</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -1728,14 +1723,16 @@ export default function RepositoryWorkspaceExplorer({
             className={`vscode-editor-container ${isMobile && mobileView !== 'editor' ? 'mobile-hidden' : ''}`}
             style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column' }}
           >
-            <TabBar
-              tabs={renderedTabs}
-              activeTabId={renderedActiveTabId}
-              onTabSelect={onTabSelect}
-              onTabClose={onTabClose}
-              onCloseAllTabs={onCloseAllTabs}
-              onMarkdownPreviewToggle={toggleMarkdownPreview}
-            />
+            {renderedTabs.length > 0 && (
+              <TabBar
+                tabs={renderedTabs}
+                activeTabId={renderedActiveTabId}
+                onTabSelect={onTabSelect}
+                onTabClose={onTabClose}
+                onCloseAllTabs={onCloseAllTabs}
+                onMarkdownPreviewToggle={toggleMarkdownPreview}
+              />
+            )}
             {renderedActiveTab ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <CodeEditorContainer

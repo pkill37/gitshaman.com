@@ -90,6 +90,46 @@ async function withOpenDatabase<T>(operation: (database: IDBDatabase) => Promise
   }
 }
 
+function getFromStore<T>(
+  database: IDBDatabase,
+  storeName: string,
+  key: IDBValidKey
+): Promise<T | null> {
+  return new Promise<T | null>((resolve, reject) => {
+    const transaction = database.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+    const request = store.get(key);
+
+    request.onsuccess = () => {
+      transaction.oncomplete = () => resolve((request.result as T | undefined) ?? null);
+      transaction.onerror = () => reject(transaction.error);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function putInStore(
+  database: IDBDatabase,
+  storeName: string,
+  value: unknown,
+  onComplete?: () => void
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    const request = store.put(value);
+
+    request.onsuccess = () => {
+      transaction.oncomplete = () => {
+        onComplete?.();
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 /**
  * Initialize IndexedDB database
  */
@@ -222,17 +262,7 @@ export async function getAvailableBranches(
 
     // Check metadata store first (more reliable)
     const metadataKey = getMetadataKey(source, identifier);
-    const metadata = await new Promise<RepositoryMetadata | null>((resolve, reject) => {
-      const transaction = database.transaction([METADATA_STORE], 'readonly');
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-      const request = metadataStore.get(metadataKey);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => resolve(request.result || null);
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
 
     if (metadata && metadata.branches) {
       console.log('[Repo Storage] Found branches in metadata:', {
@@ -330,25 +360,14 @@ export async function storeDirectoryMetadata(
 
   const key = `repos/${source}/${identifier}/${branch}/dir/${path}`;
 
-  await new Promise<void>((resolve, reject) => {
-    const transaction = database.transaction([DIRECTORY_STORE], 'readwrite');
-    const directoryStore = transaction.objectStore(DIRECTORY_STORE);
-
-    const request = directoryStore.put({
-      key,
-      source,
-      identifier,
-      branch,
-      path,
-      entries,
-      lastModified: Date.now(),
-    });
-
-    request.onsuccess = () => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    };
-    request.onerror = () => reject(request.error);
+  await putInStore(database, DIRECTORY_STORE, {
+    key,
+    source,
+    identifier,
+    branch,
+    path,
+    entries,
+    lastModified: Date.now(),
   });
 }
 
@@ -372,20 +391,8 @@ export async function getDirectoryMetadata(
 
     const key = `repos/${source}/${identifier}/${branch}/dir/${path}`;
 
-    return new Promise<FileEntry[] | null>((resolve, reject) => {
-      const transaction = database.transaction([DIRECTORY_STORE], 'readonly');
-      const directoryStore = transaction.objectStore(DIRECTORY_STORE);
-      const request = directoryStore.get(key);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => {
-          const result = request.result;
-          resolve(result ? result.entries : null);
-        };
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const result = await getFromStore<{ entries: FileEntry[] }>(database, DIRECTORY_STORE, key);
+    return result?.entries ?? null;
   } catch (error) {
     console.warn('Failed to get directory metadata:', error);
     return null;
@@ -405,19 +412,7 @@ export async function isFileAvailable(
     const database = await ensureDB();
     const key = `repos/${source}/${identifier}/${branch}/${path}`;
 
-    return new Promise<boolean>((resolve, reject) => {
-      const transaction = database.transaction([FILES_STORE], 'readonly');
-      const filesStore = transaction.objectStore(FILES_STORE);
-      const request = filesStore.get(key);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => {
-          resolve(request.result !== undefined);
-        };
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    return (await getFromStore(database, FILES_STORE, key)) !== null;
   } catch {
     return false;
   }
@@ -449,27 +444,15 @@ export async function storeFileInStorage(
     const size = contentBuffer.byteLength;
 
     // Store file in its own transaction
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([FILES_STORE], 'readwrite');
-      const filesStore = transaction.objectStore(FILES_STORE);
-
-      const request = filesStore.put({
-        key,
-        source,
-        identifier,
-        branch,
-        filePath,
-        content: contentBuffer,
-        size,
-        lastModified: Date.now(),
-      });
-
-      request.onsuccess = () => {
-        // Wait for transaction to complete
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
+    await putInStore(database, FILES_STORE, {
+      key,
+      source,
+      identifier,
+      branch,
+      filePath,
+      content: contentBuffer,
+      size,
+      lastModified: Date.now(),
     });
 
     // Update metadata with debouncing to avoid transaction conflicts during bulk downloads
@@ -527,17 +510,7 @@ async function updateRepositoryMetadata(
     const metadataKey = getMetadataKey(source, identifier);
 
     // Get existing metadata in a separate transaction
-    const metadata = await new Promise<RepositoryMetadata | null>((resolve, reject) => {
-      const transaction = database.transaction([METADATA_STORE], 'readonly');
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-      const request = metadataStore.get(metadataKey);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => resolve(request.result || null);
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
 
     const branches = metadata ? [...metadata.branches] : [];
     if (!branches.includes(branch)) {
@@ -553,25 +526,14 @@ async function updateRepositoryMetadata(
     // Update metadata in its own transaction
     // Note: We don't recalculate totalSize on every file write to avoid performance issues
     // The size will be recalculated when needed (e.g., when viewing storage usage)
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([METADATA_STORE], 'readwrite');
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-
-      const request = metadataStore.put({
-        id: metadataKey,
-        source,
-        identifier,
-        branches: branches.sort(),
-        totalSize: metadata?.totalSize || 0, // Keep existing size, recalculate when needed
-        lastAccessed: Date.now(),
-        displayName,
-      });
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
+    await putInStore(database, METADATA_STORE, {
+      id: metadataKey,
+      source,
+      identifier,
+      branches: branches.sort(),
+      totalSize: metadata?.totalSize || 0, // Keep existing size, recalculate when needed
+      lastAccessed: Date.now(),
+      displayName,
     });
   } catch (error) {
     // Don't throw - metadata update failure shouldn't block file storage
@@ -601,17 +563,7 @@ export async function finalizeRepositoryMetadata(
     const database = await ensureDB();
 
     // Get existing metadata
-    const metadata = await new Promise<RepositoryMetadata | null>((resolve, reject) => {
-      const transaction = database.transaction([METADATA_STORE], 'readonly');
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-      const request = metadataStore.get(metadataKey);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => resolve(request.result || null);
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
 
     const branches = metadata ? [...metadata.branches] : [];
     if (!branches.includes(branch)) {
@@ -644,24 +596,12 @@ export async function finalizeRepositoryMetadata(
       metadata: metadataToStore,
     });
 
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([METADATA_STORE], 'readwrite');
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-
-      const request = metadataStore.put(metadataToStore);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => {
-          console.log('[Repo Storage] Repository metadata stored successfully:', {
-            source,
-            identifier,
-            branch,
-          });
-          resolve();
-        };
-        transaction.onerror = () => reject(transaction.error);
-      };
-      request.onerror = () => reject(request.error);
+    await putInStore(database, METADATA_STORE, metadataToStore, () => {
+      console.log('[Repo Storage] Repository metadata stored successfully:', {
+        source,
+        identifier,
+        branch,
+      });
     });
   } catch (error) {
     console.error('[Repo Storage] Failed to finalize repository metadata:', {

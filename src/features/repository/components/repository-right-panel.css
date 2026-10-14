@@ -20,7 +20,10 @@
   border: 0;
   border-bottom: 2px solid transparent;
   color: var(--vscode-text-secondary);
-  padding: 10px 16px;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 18px;
   cursor: pointer;
 }
 .repository-panel-header [aria-selected='true'] {
