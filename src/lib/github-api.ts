@@ -14,6 +14,7 @@ import { getDefaultCuratedRepoSourceMode } from './curated-content-url';
 import { getCuratedRepoRevision } from './curated-repos';
 import { debugLog } from './browser-debug';
 import type { FileFetchResult } from './file-fetch-debug';
+import { isSafeRepositoryPath } from './github-url';
 export { sortFileNodes } from './file-tree';
 
 type GitHubConfig = {
@@ -24,6 +25,8 @@ type GitHubConfig = {
   rawBase: string;
   corpusSourceMode: CuratedRepoSourceMode;
 };
+
+const MAX_EDITOR_FILE_BYTES = 2 * 1024 * 1024;
 
 let currentConfig: GitHubConfig = {
   ...GITHUB_CONFIG,
@@ -56,6 +59,7 @@ export function getTrustedVersion(owner: string, repo: string): string {
 export async function getGitHubDefaultBranch(owner: string, repo: string): Promise<string> {
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'gitshaman.com' },
+    signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
     throw new GitHubApiError(`Unable to load repository ${owner}/${repo}`, response.status);
@@ -206,7 +210,7 @@ export async function fetchRepositoryFile(
   }
 ): Promise<FileFetchResult> {
   const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
-  if (path.endsWith('/')) {
+  if (path.endsWith('/') || !isSafeRepositoryPath(path)) {
     throw new GitHubApiError(
       `Failed to load "${path}" from ${sourceMode} for ${owner}/${repo}@${branch}.`,
       404
@@ -214,13 +218,9 @@ export async function fetchRepositoryFile(
   }
 
   if (isCuratedRepo(owner, repo)) {
-    try {
-      const staticResult = await tryFetchFileFromStorage(owner, repo, branch, path, sourceMode);
-      if (staticResult) {
-        return staticResult;
-      }
-    } catch (error) {
-      throw error;
+    const staticResult = await tryFetchFileFromStorage(owner, repo, branch, path, sourceMode);
+    if (staticResult) {
+      return staticResult;
     }
   }
 
@@ -229,12 +229,23 @@ export async function fetchRepositoryFile(
   if (!isCuratedRepo(owner, repo) || options?.allowGitHubFallback) {
     const rawPath = path.split('/').map(encodeURIComponent).join('/');
     const rawBranch = branch.split('/').map(encodeURIComponent).join('/');
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${rawBranch}/${rawPath}`;
+    const rawUrl = new URL(
+      `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${rawBranch}/${rawPath}`,
+      'https://raw.githubusercontent.com/'
+    ).toString();
     try {
-      const response = await fetch(rawUrl);
+      const response = await fetch(rawUrl, { signal: AbortSignal.timeout(15_000) });
       if (response.ok) {
+        const contentLength = Number(response.headers.get('content-length'));
+        if (Number.isFinite(contentLength) && contentLength > MAX_EDITOR_FILE_BYTES) {
+          throw new GitHubApiError(`File is too large to open: ${path}`, 413);
+        }
+        const content = await response.text();
+        if (new Blob([content]).size > MAX_EDITOR_FILE_BYTES) {
+          throw new GitHubApiError(`File is too large to open: ${path}`, 413);
+        }
         return {
-          content: await response.text(),
+          content,
           debugInfo: {
             enabled: false,
             source: 'github-api',
@@ -243,7 +254,10 @@ export async function fetchRepositoryFile(
           },
         };
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof GitHubApiError) {
+        throw error;
+      }
       // Normalize network failures below so callers receive a stable error.
     }
   }
@@ -308,10 +322,11 @@ export async function buildFileTree(
   path: string = '',
   options?: {
     sourceMode?: CuratedRepoSourceMode;
+    repository?: Pick<GitHubConfig, 'owner' | 'repo' | 'branch'>;
   }
 ): Promise<FileNode[]> {
   try {
-    const { owner, repo, branch } = currentConfig;
+    const { owner, repo, branch } = options?.repository ?? currentConfig;
     const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
     const mode = getRepositoryMode(owner, repo);
 

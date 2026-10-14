@@ -33,9 +33,27 @@ const codeIndexCache = new Map<string, Promise<LoadedCodeIndex | null>>();
 const treeStructureCache = new Map<string, Promise<FileNode[] | null>>();
 const codeIndexSizeCache = new Map<string, number>();
 const codeIndexLoadSourceCache = new Map<string, CodeIndexLoadProgress['source']>();
+const MAX_REPOSITORY_MEMORY_CACHE_ENTRIES = 12;
 export const CODE_INDEX_BROWSER_CACHE_NAME = 'explorar-code-index-v2';
 
 export type { CuratedRepoSourceMode };
+
+function setBoundedCacheEntry<T>(
+  cache: Map<string, T>,
+  key: string,
+  value: T,
+  onEvict?: (key: string) => void
+): void {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > MAX_REPOSITORY_MEMORY_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) {
+      cache.delete(oldestKey);
+      onEvict?.(oldestKey);
+    }
+  }
+}
 
 export interface StaticStorageOptions {
   sourceMode?: CuratedRepoSourceMode;
@@ -677,7 +695,7 @@ export async function getTreeStructureFromStatic(
     return null;
   })();
 
-  treeStructureCache.set(cacheKey, treePromise);
+  setBoundedCacheEntry(treeStructureCache, cacheKey, treePromise);
 
   try {
     const tree = await treePromise;
@@ -715,7 +733,8 @@ export async function getCodeIndexFromStatic(
       cacheKey,
       cacheState: 'miss',
     });
-    codeIndexCache.set(
+    setBoundedCacheEntry(
+      codeIndexCache,
       cacheKey,
       (async () => {
         const bytes = await readBinaryFromStatic(
@@ -778,7 +797,11 @@ export async function getCodeIndexFromStatic(
         } finally {
           metadataStatement.free();
         }
-      })()
+      })(),
+      (evictedKey) => {
+        codeIndexSizeCache.delete(evictedKey);
+        codeIndexLoadSourceCache.delete(evictedKey);
+      }
     );
   } else {
     debugLog('[explorar:code-index-static] load-start', {

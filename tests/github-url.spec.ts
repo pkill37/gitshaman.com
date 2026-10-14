@@ -80,6 +80,9 @@ test.describe('GitHub URL hacking', () => {
   test('rejects non-GitHub and non-repository URLs', () => {
     expect(githubUrlToGitShamanUrl('https://gitlab.com/torvalds/linux')).toBeNull();
     expect(githubUrlToGitShamanUrl('https://github.com/settings/profile')).toBeNull();
+    expect(githubUrlToGitShamanUrl('https://github.com/owner%23fragment/repo')).toBeNull();
+    expect(githubUrlToGitShamanUrl('https://github.com/owner/repo%2Fextra')).toBeNull();
+    expect(resolveRepositoryNavigation('/', 'file=..%2Fsecret')).toBeNull();
   });
 });
 

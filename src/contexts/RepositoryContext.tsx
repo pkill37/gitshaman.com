@@ -9,6 +9,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import {
@@ -267,16 +268,28 @@ export function RepositoryProvider({ children }: RepositoryProviderProps) {
     });
   }, [checkSetupStatus]);
 
-  const contextValue: RepositoryContextValue = {
-    ...state,
-    setRepository,
-    clearRepository,
-    checkSetupStatus,
-    switchBranch,
-    refreshBranches,
-    getRepoInfo,
-    getRepositoryMode,
-  };
+  const contextValue = useMemo<RepositoryContextValue>(
+    () => ({
+      ...state,
+      setRepository,
+      clearRepository,
+      checkSetupStatus,
+      switchBranch,
+      refreshBranches,
+      getRepoInfo,
+      getRepositoryMode,
+    }),
+    [
+      state,
+      setRepository,
+      clearRepository,
+      checkSetupStatus,
+      switchBranch,
+      refreshBranches,
+      getRepoInfo,
+      getRepositoryMode,
+    ]
+  );
 
   return <RepositoryContext.Provider value={contextValue}>{children}</RepositoryContext.Provider>;
 }

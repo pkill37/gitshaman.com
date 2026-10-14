@@ -3,16 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import SidebarSearchHeader from './SidebarSearchHeader';
 import { FileNode, WorkspaceSearchResult } from '@/types';
-import {
-  buildFileTree,
-  getFileIcon,
-  sortFileNodes,
-  getCurrentRepoLabel,
-  getCurrentBranch,
-  getTrustedVersion,
-} from '@/lib/github-api';
-import { getTreeStructure, getGitHubRepoIdentifier } from '@/lib/repo-storage';
-import { isCuratedRepo } from '@/lib/repo-static';
+import { buildFileTree, getFileIcon, sortFileNodes } from '@/lib/github-api';
 
 interface FileTreeProps {
   onFileSelect: (path: string) => void;
@@ -386,31 +377,6 @@ const FileTree: React.FC<FileTreeProps> = ({
       try {
         setIsLoading(true);
         setError(null);
-
-        // Try to load complete tree structure from storage
-        try {
-          const repoLabel = getCurrentRepoLabel();
-          if (repoLabel) {
-            const [owner, repo] = repoLabel.split('/');
-            const branch = getCurrentBranch();
-            const identifier = getGitHubRepoIdentifier(owner, repo);
-
-            const storedTree =
-              isCuratedRepo(owner, repo) && getCurrentBranch() === getTrustedVersion(owner, repo)
-                ? await getTreeStructure('github', identifier, branch)
-                : null;
-
-            if (storedTree && storedTree.length > 0) {
-              // Mark all directories as loaded since we have the complete structure
-              const loadedTree = markLoadedDirectories(storedTree);
-              setCompleteTree(loadedTree);
-              setRootNodes(loadedTree);
-              return; // Successfully loaded complete tree
-            }
-          }
-        } catch (storageError) {
-          console.warn('Failed to load complete tree from storage, falling back:', storageError);
-        }
 
         // Fallback: load tree via buildFileTree.
         // For curated repos this returns the full manifest tree (all children populated).

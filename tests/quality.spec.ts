@@ -174,20 +174,8 @@ test.describe('Quality Checks', () => {
     });
 
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1000);
-
-    // Filter out known non-critical errors
-    const criticalErrors = errors.filter(
-      (error) =>
-        !error.includes('favicon') &&
-        !error.includes('404') &&
-        !error.includes('net::ERR_') &&
-        !error.includes('RepoMetadata') &&
-        !error.includes('GitHub API error') &&
-        !error.includes('status of 403')
-    );
-
-    expect(criticalErrors).toEqual([]);
+    await expect(page.getByRole('main')).toBeVisible();
+    expect(errors).toEqual([]);
   });
 
   test('has proper document structure', async ({ page }) => {

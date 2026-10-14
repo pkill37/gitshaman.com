@@ -11,9 +11,6 @@ import { EditorTab, FileNode, WorkspaceSearchResult } from '@/types';
 import {
   buildFileTree,
   fetchRepositoryFile,
-  setCurrentCorpusSourceMode,
-  getCurrentRepoLabel,
-  setGitHubRepoWithDefaultBranch,
   getTrustedVersion,
   getRepoIdentifier,
   getGitHubDefaultBranch,
@@ -31,10 +28,7 @@ import {
   type CuratedRepoSourceMode,
 } from '@/lib/repo-static';
 import { normalizeCuratedRepoSourceMode } from '@/lib/curated-content-url';
-import {
-  CORPUS_SOURCE_MODE_STORAGE_KEY,
-  getStoredCuratedRepoSourceMode,
-} from '@/lib/repository-preferences';
+import { getStoredCuratedRepoSourceMode } from '@/lib/repository-preferences';
 import {
   buildSearchPreview,
   CODE_INDEX_PREVIEW_ENRICH_LIMIT,
@@ -65,12 +59,17 @@ const saveToLocalStorage = (key: string, value: unknown) => {
   }
 };
 
-const loadFromLocalStorage = (key: string, defaultValue: unknown): unknown => {
+const loadFromLocalStorage = <T,>(
+  key: string,
+  defaultValue: T,
+  isValid: (value: unknown) => value is T
+): T => {
   try {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(key);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed: unknown = JSON.parse(saved);
+        return isValid(parsed) ? parsed : defaultValue;
       }
     }
   } catch (error) {
@@ -78,6 +77,11 @@ const loadFromLocalStorage = (key: string, defaultValue: unknown): unknown => {
   }
   return defaultValue;
 };
+
+const isEditorTabArray = (value: unknown): value is EditorTab[] => Array.isArray(value);
+const isStringOrNull = (value: unknown): value is string | null =>
+  value === null || typeof value === 'string';
+const isString = (value: unknown): value is string => typeof value === 'string';
 
 // Helper function to get repository-scoped localStorage key
 const getRepoScopedKey = (baseKey: string, repoIdentifier: string | null): string => {
@@ -254,9 +258,6 @@ export default function RepositoryWorkspaceExplorer({
   );
 
   // Repository version state - use default branch from project config.
-  // Also initialises currentConfig synchronously (setGitHubRepoWithDefaultBranch has
-  // no awaits, so its body runs synchronously) so that FileTree's mount effect reads
-  // the correct repo rather than the module-level default (torvalds/linux).
   const [selectedVersion, setSelectedVersion] = useState<string>(() => {
     const config = owner && repo ? getProjectConfig(owner, repo) : null;
     const trusted = owner && repo ? getTrustedVersion(owner, repo) : '';
@@ -265,9 +266,6 @@ export default function RepositoryWorkspaceExplorer({
     // point at main, master, or a tag, but the file focus remains useful on the
     // trusted local revision.
     const effectiveBranch = branch || defaultBranch;
-    if (owner && repo) {
-      void setGitHubRepoWithDefaultBranch(owner, repo, effectiveBranch);
-    }
     return effectiveBranch;
   });
 
@@ -393,15 +391,6 @@ export default function RepositoryWorkspaceExplorer({
     return;
   }, [mobileView]);
 
-  useEffect(() => {
-    setCurrentCorpusSourceMode(fileSourceMode);
-    try {
-      localStorage.setItem(CORPUS_SOURCE_MODE_STORAGE_KEY, fileSourceMode);
-    } catch {
-      // ignore
-    }
-  }, [fileSourceMode]);
-
   // Check repository setup and tree structure readiness
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -430,19 +419,13 @@ export default function RepositoryWorkspaceExplorer({
         // Repository exists, set it in context
         await setRepository('github', identifier, `${owner}/${repo}`, targetBranch);
 
-        // Set GitHub API config for backward compatibility
-        await setGitHubRepoWithDefaultBranch(owner, repo, targetBranch, {
-          preserveBranch: usesRuntimeBranch,
-        });
         setRepoLabel(`${owner}/${repo}`);
 
         // Curated repositories always use their trusted local revision. For
         // runtime repositories, the requested URL ref is authoritative.
         // setRepository initialized the context with the URL ref (when one
         // was supplied), so do not route it through local branch validation.
-        if (selectedVersion !== targetBranch) {
-          setSelectedVersion(targetBranch);
-        }
+        setSelectedVersion(targetBranch);
 
         if (isCurated && !usesRuntimeBranch) {
           const staticTree = await getTreeStructureFromStatic(owner, repo, targetBranch, {
@@ -464,7 +447,7 @@ export default function RepositoryWorkspaceExplorer({
     };
 
     checkRepositorySetup();
-  }, [owner, repo, branch, router, setRepository, currentBranch, selectedVersion, fileSourceMode]);
+  }, [owner, repo, branch, router, setRepository, fileSourceMode]);
 
   useEffect(() => {
     if (!shouldLoadWorkspaceSearchIndex) {
@@ -650,7 +633,7 @@ export default function RepositoryWorkspaceExplorer({
     // Use setTimeout to avoid synchronous setState in effect
     setTimeout(() => {
       setIsHydrated(true);
-      setRepoLabel(getCurrentRepoLabel());
+      setRepoLabel(owner && repo ? `${owner}/${repo}` : '');
     }, 0);
 
     if (typeof window !== 'undefined') {
@@ -672,7 +655,7 @@ export default function RepositoryWorkspaceExplorer({
         }
       }, 0);
     }
-  }, []);
+  }, [owner, repo]);
 
   // Load repository-specific tabs when repository changes
   useEffect(() => {
@@ -707,9 +690,9 @@ export default function RepositoryWorkspaceExplorer({
       repoIdentifier
     );
 
-    const savedTabs = normalizeStoredTabs(loadFromLocalStorage(tabsKey, []) as EditorTab[]);
-    const savedActiveTabId = loadFromLocalStorage(activeTabKey, null) as string | null;
-    const savedSelectedFile = loadFromLocalStorage(selectedFileKey, '') as string;
+    const savedTabs = normalizeStoredTabs(loadFromLocalStorage(tabsKey, [], isEditorTabArray));
+    const savedActiveTabId = loadFromLocalStorage(activeTabKey, null, isStringOrNull);
+    const savedSelectedFile = loadFromLocalStorage(selectedFileKey, '', isString);
     const hasExplicitInitialFile =
       Boolean(initialFile) ||
       (() => {
@@ -814,7 +797,7 @@ export default function RepositoryWorkspaceExplorer({
       `${EXPLORER_STORAGE_KEY_PREFIX}-workspace-search`,
       repoIdentifier
     );
-    const savedSearchQuery = loadFromLocalStorage(searchKey, '') as string;
+    const savedSearchQuery = loadFromLocalStorage(searchKey, '', isString);
     queueMicrotask(() => {
       setWorkspaceSearchQuery(savedSearchQuery);
     });
@@ -830,17 +813,6 @@ export default function RepositoryWorkspaceExplorer({
     }
   }, [isHydrated, repoIdentifier, workspaceSearchQuery]);
 
-  useEffect(() => {
-    if (!owner || !repo) {
-      return;
-    }
-
-    void setGitHubRepoWithDefaultBranch(owner, repo, selectedVersion, {
-      preserveBranch: Boolean(branch),
-    });
-    setCurrentCorpusSourceMode(fileSourceMode);
-  }, [branch, owner, repo, selectedVersion, fileSourceMode]);
-
   const listDirectoryFromSelectedSource = useCallback(
     async (path: string) => {
       if (owner && repo && (Boolean(branch) || !isCuratedRepo(owner, repo))) {
@@ -855,7 +827,10 @@ export default function RepositoryWorkspaceExplorer({
           children: undefined,
         }));
       }
-      return buildFileTree(path, { sourceMode: fileSourceMode });
+      return buildFileTree(path, {
+        sourceMode: fileSourceMode,
+        repository: { owner: owner || '', repo: repo || '', branch: selectedVersion },
+      });
     },
     [branch, fileSourceMode, owner, repo, selectedVersion]
   );

@@ -11,6 +11,13 @@ export interface GitHubUrlTarget {
   line?: number;
 }
 
+const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+const GITHUB_REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]{1,100}$/;
+
+function isGitHubRepositoryIdentifier(owner: string, repo: string): boolean {
+  return GITHUB_OWNER_PATTERN.test(owner) && GITHUB_REPOSITORY_PATTERN.test(repo);
+}
+
 function decodePathSegment(segment: string): string | null {
   try {
     const decoded = decodeURIComponent(segment);
@@ -20,6 +27,13 @@ function decodePathSegment(segment: string): string | null {
   }
 }
 
+export function isSafeRepositoryPath(path: string): boolean {
+  return (
+    path.length <= 1024 &&
+    path.split('/').every((segment) => segment.length > 0 && segment !== '.' && segment !== '..')
+  );
+}
+
 export function parseGitHubRepositoryPath(pathname: string): GitHubUrlTarget | null {
   const segments = pathname.split('/').filter(Boolean).map(decodePathSegment);
   if (segments.some((segment) => !segment)) {
@@ -27,7 +41,13 @@ export function parseGitHubRepositoryPath(pathname: string): GitHubUrlTarget | n
   }
 
   const [owner, repo, mode, ...path] = segments as string[];
-  if (!owner || !repo || owner === 'settings' || owner === 'new') {
+  if (
+    !owner ||
+    !repo ||
+    owner === 'settings' ||
+    owner === 'new' ||
+    !isGitHubRepositoryIdentifier(owner, repo)
+  ) {
     return null;
   }
 
@@ -74,7 +94,14 @@ function getGitHubUrlParts(
   const segments = source.pathname.split('/').filter(Boolean).map(decodePathSegment);
   if (segments.some((segment) => !segment)) return null;
   const [owner, repo, mode, ...path] = segments as string[];
-  if (!owner || !repo || owner === 'settings' || owner === 'new') return null;
+  if (
+    !owner ||
+    !repo ||
+    owner === 'settings' ||
+    owner === 'new' ||
+    !isGitHubRepositoryIdentifier(owner, repo)
+  )
+    return null;
   return { source, owner, repo, mode, path };
 }
 
@@ -145,6 +172,9 @@ export function resolveRepositoryNavigation(
 
   const directory = url.searchParams.get('dir');
   const file = url.searchParams.get('file');
+  if ((directory && !isSafeRepositoryPath(directory)) || (file && !isSafeRepositoryPath(file))) {
+    return null;
+  }
   return {
     ...target,
     branch: url.searchParams.get('ref') || target.branch,

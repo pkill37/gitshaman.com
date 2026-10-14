@@ -175,6 +175,16 @@ const workspaceSymbolsCache = new Map<string, SymbolReference[]>();
 const workspaceContentsCache = new Map<string, string>();
 const workspaceReferencesCache = new Map<string, Location[]>();
 const workspaceReferencesPromiseCache = new Map<string, Promise<Location[]>>();
+const MAX_WORKSPACE_CACHE_ENTRIES = 250;
+
+function setBoundedWorkspaceCache<T>(cache: Map<string, T>, key: string, value: T): void {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > MAX_WORKSPACE_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+}
 
 function buildWorkspaceCacheKey(workspaceId: string, filePath: string): string {
   return `${workspaceId}:${filePath}`;
@@ -916,9 +926,9 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return [];
       }
 
-      workspaceContentsCache.set(cacheKey, targetContent);
+      setBoundedWorkspaceCache(workspaceContentsCache, cacheKey, targetContent);
       const parsedSymbols = findSymbolsInFile(targetContent, targetFilePath);
-      workspaceSymbolsCache.set(cacheKey, parsedSymbols);
+      setBoundedWorkspaceCache(workspaceSymbolsCache, cacheKey, parsedSymbols);
       return parsedSymbols;
     },
     [content, fetchFile, filePath, workspaceId]
@@ -941,7 +951,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       }
 
       const fetchedContent = (await fetchFile(targetFilePath)).content;
-      workspaceContentsCache.set(cacheKey, fetchedContent);
+      setBoundedWorkspaceCache(workspaceContentsCache, cacheKey, fetchedContent);
       return fetchedContent;
     },
     [content, fetchFile, filePath, workspaceId]
@@ -1167,13 +1177,17 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           sampleReferences: dedupedReferences.slice(0, 5),
         });
 
-        workspaceReferencesCache.set(referenceCacheKey, dedupedReferences);
+        setBoundedWorkspaceCache(workspaceReferencesCache, referenceCacheKey, dedupedReferences);
         return dedupedReferences;
       })().finally(() => {
         workspaceReferencesPromiseCache.delete(referenceCacheKey);
       });
 
-      workspaceReferencesPromiseCache.set(referenceCacheKey, referencePromise);
+      setBoundedWorkspaceCache(
+        workspaceReferencesPromiseCache,
+        referenceCacheKey,
+        referencePromise
+      );
       return referencePromise;
     },
     [
@@ -2018,8 +2032,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       const parsedSymbols = findSymbolsInFile(content, filePath);
       symbolsRef.current = parsedSymbols;
       const cacheKey = buildWorkspaceCacheKey(workspaceId, filePath);
-      workspaceContentsCache.set(cacheKey, content);
-      workspaceSymbolsCache.set(cacheKey, parsedSymbols);
+      setBoundedWorkspaceCache(workspaceContentsCache, cacheKey, content);
+      setBoundedWorkspaceCache(workspaceSymbolsCache, cacheKey, parsedSymbols);
     } else {
       symbolsRef.current = [];
     }

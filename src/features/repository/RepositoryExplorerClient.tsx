@@ -297,7 +297,8 @@ export default function RepositoryExplorerClient({
       return () => window.clearTimeout(timeoutId);
     }
     if (!filePath) {
-      return;
+      const timeoutId = window.setTimeout(() => setInitialFile(null), 0);
+      return () => window.clearTimeout(timeoutId);
     }
 
     const lineValue = searchParams.get('line');
@@ -395,17 +396,18 @@ export default function RepositoryExplorerClient({
   const resizeRaf = useRef<number | null>(null);
 
   const handleGuideResizeStart = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
       isResizingGuide.current = true;
       resizeStartX.current = e.clientX;
       resizeStartWidth.current = guideWidth;
+      e.currentTarget.setPointerCapture(e.pointerId);
       e.preventDefault();
     },
     [guideWidth]
   );
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       if (!isResizingGuide.current) return;
       // Capture latest X but only schedule one RAF per frame
       pendingClientX.current = e.clientX;
@@ -427,11 +429,11 @@ export default function RepositoryExplorerClient({
         resizeRaf.current = null;
       }
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
   }, []);
 
@@ -586,6 +588,7 @@ export default function RepositoryExplorerClient({
             }}
           >
             <RepositoryWorkspaceExplorer
+              key={`${owner}/${repo}@${requestedBranch ?? 'default'}:${fileSourceMode}`}
               owner={owner}
               repo={repo}
               branch={requestedBranch}
@@ -643,7 +646,22 @@ export default function RepositoryExplorerClient({
         {/* ── Guide resize handle ── */}
         {isGuideSidebarOpen && (
           <div
-            onMouseDown={handleGuideResizeStart}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize guide sidebar"
+            aria-valuemin={GUIDE_MIN_WIDTH}
+            aria-valuemax={GUIDE_MAX_WIDTH}
+            aria-valuenow={guideWidth}
+            tabIndex={0}
+            onPointerDown={handleGuideResizeStart}
+            onKeyDown={(event) => {
+              const delta = event.key === 'ArrowLeft' ? 16 : event.key === 'ArrowRight' ? -16 : 0;
+              if (!delta) return;
+              event.preventDefault();
+              setGuideWidth((width) =>
+                Math.min(GUIDE_MAX_WIDTH, Math.max(GUIDE_MIN_WIDTH, width + delta))
+              );
+            }}
             style={{
               width: 4,
               cursor: 'col-resize',

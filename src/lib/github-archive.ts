@@ -334,6 +334,7 @@ export async function downloadDirectoryContents(
         Accept: 'application/vnd.github.v3+json',
         'User-Agent': 'gitshaman.com',
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

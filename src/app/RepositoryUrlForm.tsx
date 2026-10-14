@@ -125,8 +125,11 @@ export default function RepositoryUrlForm({
 
   useEffect(() => {
     const handleCuratedPortal = (event: Event) => {
-      const { githubUrl: targetUrl } = (event as CustomEvent<CuratedRepositoryPortalEventDetail>)
-        .detail;
+      const detail = (event as CustomEvent<CuratedRepositoryPortalEventDetail | undefined>).detail;
+      if (!detail || typeof detail.githubUrl !== 'string') {
+        return;
+      }
+      const { githubUrl: targetUrl } = detail;
       const destination = resolveDestination(targetUrl);
       if (!destination) {
         return;
