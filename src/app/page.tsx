@@ -3,7 +3,12 @@ import Link from 'next/link';
 import CuratedRepositoryPortalLink from './CuratedRepositoryPortalLink';
 import HeroInputSection from './HeroInputSection';
 import HomeRoute from './HomeRoute';
-import { CURATED_REPOS, getCuratedRepoPath, type CuratedRepoConfig } from '@/lib/curated-repos';
+import {
+  CURATED_REPOS,
+  getCuratedRepoAvatarUrl,
+  getCuratedRepoPath,
+  type CuratedRepoConfig,
+} from '@/lib/curated-repos';
 import { SOURCE_REPOSITORY_URL, SITE_NAME } from '@/lib/site';
 
 const DISCORD_URL = 'https://discord.gg/fuXYz44tSs';
@@ -53,7 +58,7 @@ const CURATED_REPO_CATEGORIES = [
 ] as const;
 
 function CompactRepositoryPortal({ repo }: { repo: CuratedRepoConfig }) {
-  const avatarUrl = `/avatars/${repo.avatarFile ?? `${repo.owner}.png`}`;
+  const avatarUrl = getCuratedRepoAvatarUrl(repo);
   const content = (
     <>
       <span className="shaman-compact-portal-avatar" aria-hidden="true">

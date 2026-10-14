@@ -3,7 +3,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import BugReportWidget from '@/components/BugReportWidget';
-import { getCuratedRepoAccent, getCuratedRepoPath } from '@/lib/curated-repos';
+import {
+  getCuratedRepoAccent,
+  getCuratedRepoAvatarUrl,
+  getCuratedRepoPath,
+} from '@/lib/curated-repos';
 import type { CuratedRepoSourceMode } from '@/lib/repo-static';
 
 type WorkspaceTheme = 'dark' | 'light';
@@ -210,7 +214,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     className="cursor-statusbar-aosp-avatar"
-                    src={`/avatars/${entry.avatarFile}`}
+                    src={getCuratedRepoAvatarUrl(entry)}
                     alt=""
                     width={14}
                     height={14}

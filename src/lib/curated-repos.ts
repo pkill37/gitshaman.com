@@ -27,6 +27,13 @@ export interface CuratedRepoConfig {
   avatarVersion?: string;
 }
 
+export function getCuratedRepoAvatarUrl(
+  repo: Pick<CuratedRepoConfig, 'owner' | 'avatarFile'>
+): string {
+  // Bypass permanent redirects cached by browsers and Cloudflare before the static-asset fix.
+  return `/avatars/${repo.avatarFile ?? `${repo.owner}.png`}?v=20261014`;
+}
+
 export const CURATED_REPOS: CuratedRepoConfig[] = [
   {
     id: 'linux-v6.1',
