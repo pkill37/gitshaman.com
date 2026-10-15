@@ -50,6 +50,7 @@ export async function generateMetadata({
   return {
     title,
     description: config.seoDescription,
+    keywords: config.seoKeywords,
     openGraph: {
       title: `${title} | ${SITE_NAME}`,
       description: config.seoDescription,

@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 
 import { CODE_INDEX_VERSION } from '@/lib/code-index';
 import { CURATED_REPOS } from '@/lib/curated-repos';
@@ -14,7 +15,7 @@ import {
   computeDeploymentSignature,
 } from '../scripts/deploy-r2';
 
-test.describe('R2 deploy', () => {
+describe('R2 deploy', () => {
   test('builds repo object keys for every curated repo', () => {
     for (const repo of CURATED_REPOS) {
       expect(buildRepoBucketPrefix('explorar-repos', repo)).toBe(

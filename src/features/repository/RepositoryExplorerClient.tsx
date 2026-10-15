@@ -92,9 +92,16 @@ function createNavigationNonce(): number {
   return Date.now() + navigationNonceCounter / 1000000;
 }
 
+function isExpectedCancellation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { name, message } = error as { name?: unknown; message?: unknown };
+  return name === 'Canceled' || message === 'Canceled: Canceled';
+}
+
 interface RepositoryExplorerClientProps {
   owner: string;
   repo: string;
+  initialSourceMode: CuratedRepoSourceMode;
   directTarget?: GitHubUrlTarget;
   guideContent?: string;
   guideDefaultOpenIds?: string[];
@@ -105,6 +112,7 @@ interface RepositoryExplorerClientProps {
 export default function RepositoryExplorerClient({
   owner,
   repo,
+  initialSourceMode,
   directTarget,
   guideContent,
   guideDefaultOpenIds,
@@ -128,9 +136,9 @@ export default function RepositoryExplorerClient({
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch } = useRepository();
   const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
-  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(
-    getStoredCuratedRepoSourceMode
-  );
+  // This value is calculated by the Server Component and serialized into the
+  // RSC payload, so the server render and hydration render use the same source.
+  const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(initialSourceMode);
   const [workspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
     try {
       if (typeof window === 'undefined') return 'dark';
@@ -149,7 +157,7 @@ export default function RepositoryExplorerClient({
       return {
         kind: 'directory',
         path: directoryPath,
-        navigationNonce: createNavigationNonce(),
+        navigationNonce: 0,
       };
     }
     if (!filePath) return null;
@@ -160,10 +168,22 @@ export default function RepositoryExplorerClient({
       exactPath: true,
       searchPattern: searchParams.get('search') || undefined,
       scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
-      navigationNonce: createNavigationNonce(),
+      navigationNonce: 0,
     };
   });
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
+
+  useEffect(() => {
+    const suppressExpectedCancellation = (event: PromiseRejectionEvent) => {
+      if (isExpectedCancellation(event.reason)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', suppressExpectedCancellation);
+    return () => window.removeEventListener('unhandledrejection', suppressExpectedCancellation);
+  }, []);
+
   const hasHydrated = useSyncExternalStore(
     subscribeToHydration,
     () => true,
@@ -195,7 +215,7 @@ export default function RepositoryExplorerClient({
       exactPath: true,
       searchPattern: searchParams.get('search') || undefined,
       scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
-      navigationNonce: createNavigationNonce(),
+      navigationNonce: 0,
     };
   }, [effectiveDirectTarget?.filePath, effectiveDirectTarget?.line, searchParams]);
 
@@ -380,6 +400,18 @@ export default function RepositoryExplorerClient({
   }, [hasHydrated, savedGuideSidebarOpen]);
 
   useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setFileSourceMode(getStoredCuratedRepoSourceMode());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       localStorage.setItem(WORKSPACE_THEME_STORAGE_KEY, workspaceTheme);
     } catch {
@@ -456,8 +488,7 @@ export default function RepositoryExplorerClient({
         } as CSSProperties
       }
     >
-      <h1
-        suppressHydrationWarning
+      <p
         style={{
           position: 'absolute',
           width: 1,
@@ -471,7 +502,7 @@ export default function RepositoryExplorerClient({
         }}
       >
         {owner}/{repo} Explorer
-      </h1>
+      </p>
       {_loadingDescription && (
         <p
           style={{

@@ -5,7 +5,7 @@ import { CURATED_TEST_REPOS } from './helpers/curated-repos';
  * Sanity checks for the static web app
  * Ensures basic functionality works and pages load without errors
  */
-test.describe('Sanity Checks', () => {
+test.describe('Sanity Checks', { tag: '@smoke' }, () => {
   test('homepage loads successfully', async ({ page }) => {
     const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
     expect(response?.status()).toBe(200);
@@ -39,10 +39,10 @@ test.describe('Sanity Checks', () => {
     expect(content).toContain('User-Agent');
   });
 
-  test('sitemap.xml is accessible', async ({ page }) => {
-    const response = await page.goto('/sitemap.xml', { waitUntil: 'domcontentloaded' });
-    expect(response?.status()).toBe(200);
-    const content = await page.textContent('body');
+  test('sitemap.xml is accessible', async ({ request }) => {
+    const response = await request.get('/sitemap.xml');
+    expect(response.status()).toBe(200);
+    const content = await response.text();
     expect(content).toContain('urlset');
   });
 });

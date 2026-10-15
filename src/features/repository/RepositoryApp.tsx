@@ -13,7 +13,12 @@ interface RepositoryAppProps {
 export default function RepositoryApp({ owner, repo, directTarget }: RepositoryAppProps) {
   return (
     <RepositoryAppProvider>
-      <RepositoryExplorerClient owner={owner} repo={repo} directTarget={directTarget} />
+      <RepositoryExplorerClient
+        owner={owner}
+        repo={repo}
+        directTarget={directTarget}
+        initialSourceMode="local-filesystem"
+      />
     </RepositoryAppProvider>
   );
 }

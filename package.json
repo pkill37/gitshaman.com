@@ -29,8 +29,7 @@
     "fix": "npm run fix:eslint && npm run fix:prettier",
     "fix:eslint": "eslint . --fix",
     "fix:prettier": "prettier --config prettier.config.mjs --write .",
-    "pretest": "node --import tsx --test tests/*.test.mjs tests/*.node.ts && tsx scripts/prepare-public-assets.ts",
-    "test": "playwright test && playwright show-report out/playwright-report"
+    "test": "node --import tsx --test tests/*.test.mjs tests/*.node.ts && playwright test --project=chromium --project=firefox --project=mobile-chromium"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",

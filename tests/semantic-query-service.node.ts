@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { test } from 'node:test';
+import { expect } from '@playwright/test';
 import { SemanticQueryService } from '@/lib/semantic-query-service';
 import type {
   BackendDefinition,

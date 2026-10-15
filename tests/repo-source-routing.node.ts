@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 
 import {
   buildCuratedRepoUrlForSource,
@@ -102,7 +103,7 @@ async function withMockedFetch<T>(
   }
 }
 
-test.describe('curated repo source routing', () => {
+describe('curated repo source routing', () => {
   test('builds local staged and R2 URLs from the selected source mode', () => {
     return withR2BaseUrl(() => {
       expect(

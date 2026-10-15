@@ -1,64 +1,73 @@
 import { defineConfig, devices } from '@playwright/test';
+import nextEnv from '@next/env';
 
-const NODE_ONLY_TEST_FILES = new Set([
-  'tests/code-index-builder.spec.ts',
-  'tests/corpus-sqlite-index.spec.ts',
-  'tests/deploy-r2.spec.ts',
-  'tests/github-url.spec.ts',
-  'tests/guide-lint.spec.ts',
-  'tests/repo-source-routing.spec.ts',
-  'tests/semantic-query-service.spec.ts',
-]);
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd(), true);
 
-function shouldStartWebServer(): boolean {
-  const requestedTestFiles = process.argv
-    .slice(2)
-    .filter((arg) => arg.endsWith('.spec.ts') || arg.startsWith('tests/'))
-    .map((arg) => arg.replace(/^\.\//, ''));
-
-  if (requestedTestFiles.length === 0) {
-    return true;
-  }
-
-  return !requestedTestFiles.every((file) => NODE_ONLY_TEST_FILES.has(file));
-}
-
-const useProductionExport = process.env.PERFORMANCE_BUILD === '1';
 const testPort = process.env.PLAYWRIGHT_PORT || '38080';
 const baseURL = process.env.BASE_URL || `http://localhost:${testPort}`;
+const testEnvironment = Object.entries(process.env).reduce<Record<string, string>>(
+  (environment, [key, value]) => {
+    if (key !== 'VSCODE_INJECTION' && typeof value === 'string') {
+      environment[key] = value;
+    }
+    return environment;
+  },
+  {}
+);
 
 /**
  * Playwright configuration for testing the static web app
  */
 export default defineConfig({
   testDir: './tests',
+  testMatch: '**/*.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
-  reporter: [['html', { outputFolder: 'out/playwright-report' }]],
+  // Allow the two browser projects to run concurrently, while keeping each
+  // browser's tests serial to avoid contention in the shared dev server.
+  workers: 2,
+  reporter: process.env.CI
+    ? [
+        ['github'],
+        ['html', { outputFolder: 'out/playwright-report', open: 'never' }],
+        ['junit', { outputFile: 'out/playwright-junit.xml' }],
+      ]
+    : [['html', { outputFolder: 'out/playwright-report', open: 'never' }]],
   outputDir: 'out/test-results',
+  preserveOutput: 'failures-only',
   use: {
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'on-first-retry',
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      workers: 1,
+      grepInvert: /@mobile/,
+      use: { ...devices['Desktop Chrome'], launchOptions: { env: testEnvironment } },
+    },
+    {
+      name: 'firefox',
+      workers: 1,
+      grepInvert: /@mobile/,
+      use: { ...devices['Desktop Firefox'], launchOptions: { env: testEnvironment } },
+    },
+    {
+      name: 'mobile-chromium',
+      workers: 1,
+      grep: /@mobile/,
+      use: { ...devices['Pixel 7'], launchOptions: { env: testEnvironment } },
     },
   ],
-  ...(shouldStartWebServer()
-    ? {
-        webServer: {
-          command: useProductionExport
-            ? `serve out -p ${testPort}`
-            : `tsx scripts/prepare-public-assets.ts --dev --sqljs && next dev --turbopack --port ${testPort}`,
-          url: baseURL,
-          reuseExistingServer: false,
-          timeout: 120000,
-        },
-      }
-    : {}),
+  webServer: {
+    command: `tsx scripts/prepare-public-assets.ts --dev --sqljs && tsx scripts/test-dev-server.ts --port ${testPort}`,
+    url: baseURL,
+    env: testEnvironment,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
+    timeout: 120000,
+  },
 });

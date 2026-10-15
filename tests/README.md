@@ -1,21 +1,12 @@
 # Test suite
 
-The suite has two layers:
-
-- **Default Playwright checks**: smoke, repository UI, SEO, accessibility, browser integration, and script-style specs.
-- **Opt-in performance budgets**: Core Web Vitals and bundle checks against the production export.
+The suite covers Node checks plus smoke, repository UI, SEO, accessibility, and browser integration.
 
 ## Commands
 
 ```bash
 # Default suite
 npm test
-
-# Same suite without opening the HTML report
-npm run test:e2e
-
-# Production performance budgets
-npm run test:perf
 
 # One file while iterating
 npx playwright test tests/quality.spec.ts
@@ -25,8 +16,7 @@ npx playwright test tests/quality.spec.ts
 
 `playwright.config.ts` starts the app automatically when a browser-backed spec needs it:
 
-- default: `tsx scripts/prepare-public-assets.ts --dev --sqljs && next dev --turbopack --port 38080`
-- performance: `serve out -p 38080` when `PERFORMANCE_BUILD=1`
+- default: `tsx scripts/prepare-public-assets.ts --dev --sqljs && tsx scripts/test-dev-server.ts --port 38080`
 
 Override the target with `BASE_URL` or `PLAYWRIGHT_PORT`.
 
@@ -36,7 +26,7 @@ Some tests validate optional local repository data under `repos/`. They skip whe
 
 ```bash
 npm run corpus:sync
-npm run test:e2e
+npm test
 ```
 
 ## Helpers
@@ -52,6 +42,5 @@ Prefer helpers over duplicating route setup, debug-log polling, or file-tree nav
 
 ## Notes
 
-- Performance tests are skipped unless `PERFORMANCE_BUILD=1`; dev-server timings are too noisy for budgets.
-- CI uses Playwright retries and a single worker through `playwright.config.ts`.
+- CI uses Playwright retries and two workers through `playwright.config.ts`.
 - Test output and reports are written under `out/`.

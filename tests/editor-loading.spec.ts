@@ -61,6 +61,7 @@ test.describe('Editor Loading', () => {
     await expect(page.getByRole('code').getByText('int nested_file = 24;')).toBeVisible();
     await page.locator('[data-file-path="main.c"]').click();
     await expect(page.getByRole('code').getByText('int root_file = 42;')).toBeVisible();
+    await page.waitForTimeout(500);
   });
 
   for (const target of ['blob/main/main.c', '?ref=main&file=main.c', 'blob/main/src/main.c']) {
@@ -84,14 +85,14 @@ test.describe('Editor Loading', () => {
       // Next observes native history changes as same-page client navigation.
       await page.evaluate(() => window.history.pushState(null, '', '/'));
       await expect(
-        page.getByRole('heading', { level: 1, name: 'Semantic Code Intelligence' })
+        page.getByRole('heading', { level: 1, name: 'Understand unfamiliar code faster' })
       ).toBeVisible();
       await expect(page.getByRole('code').getByText('int url_target = 42;')).toHaveCount(0);
       await page.goBack();
       await expect(page.getByRole('code').getByText('int url_target = 42;')).toBeVisible();
       await page.goForward();
       await expect(
-        page.getByRole('heading', { level: 1, name: 'Semantic Code Intelligence' })
+        page.getByRole('heading', { level: 1, name: 'Understand unfamiliar code faster' })
       ).toBeVisible();
     });
   }

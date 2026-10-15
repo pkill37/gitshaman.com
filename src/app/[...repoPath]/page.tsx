@@ -4,6 +4,7 @@ import RepositoryExplorerClient from '@/features/repository/RepositoryExplorerCl
 import { getCuratedRepoRouteParams, resolveCuratedRepoRoute } from '@/lib/curated-repos';
 import { getCuratedGuideByRepo, type GuideDocument } from '@/features/guides/docs-loader';
 import { parseGitHubUrl } from '@/lib/github-url';
+import { getDefaultCuratedRepoSourceMode } from '@/lib/curated-content-url';
 
 // Arbitrary repositories are served by the static app-shell fallback. Keeping
 // this false lets Next's static export remain valid for the curated paths.
@@ -141,6 +142,7 @@ export default async function RepositoryRoutePage({ params }: PageProps) {
             owner={directTarget.owner}
             repo={directTarget.repo}
             directTarget={directTarget}
+            initialSourceMode={getDefaultCuratedRepoSourceMode()}
             loadingTitle={`${directTarget.owner}/${directTarget.repo} source explorer`}
             loadingDescription="Loading the requested public GitHub repository."
           />
@@ -178,6 +180,7 @@ export default async function RepositoryRoutePage({ params }: PageProps) {
         <RepositoryExplorerClient
           owner={resolved.config.owner}
           repo={resolved.config.repo}
+          initialSourceMode={getDefaultCuratedRepoSourceMode()}
           guideContent={guide?.content}
           guideDefaultOpenIds={guide?.metadata.defaultOpenIds}
           loadingTitle={`${resolved.config.displayName} source explorer`}

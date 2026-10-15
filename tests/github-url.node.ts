@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 import {
   githubUrlToGitShamanUrl,
   parseGitHubUrl,
@@ -6,7 +7,7 @@ import {
   resolveRepositoryNavigation,
 } from '@/lib/github-url';
 
-test.describe('GitHub URL hacking', () => {
+describe('GitHub URL hacking', () => {
   test('parses repository, tree, and blob URLs', () => {
     expect(parseGitHubRepositoryPath('/torvalds/linux')).toEqual({
       owner: 'torvalds',
@@ -115,7 +116,7 @@ test('resolves fallback navigation with outer query overrides and line anchors',
   ).toBe('directory');
 });
 
-test.describe('runtime navigation targets', () => {
+describe('runtime navigation targets', () => {
   test('opens root-level blob targets without requiring a workspace index', () => {
     expect(
       resolveRepositoryNavigation(

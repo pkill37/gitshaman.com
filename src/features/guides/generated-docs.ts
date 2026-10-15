@@ -13,11 +13,10 @@ import llvmProjectMd9 from '../../../docs/llvm_project.md?raw';
 import microsoftTypescriptGoMd10 from '../../../docs/microsoft_typescript-go.md?raw';
 import mrcxlinuxSrv03rtmAnikaMd11 from '../../../docs/mrcxlinux_srv03rtm-anika.md?raw';
 import nextbsdReduxNextbsdKernelMd12 from '../../../docs/nextbsd-redux_nextbsd-kernel.md?raw';
-import ofdryadsMiniageosMd13 from '../../../docs/ofdryads_miniageos.md?raw';
-import pythonCpythonMd14 from '../../../docs/python_cpython.md?raw';
-import reactosReactosMd15 from '../../../docs/reactos_reactos.md?raw';
-import seL4SeL4Md16 from '../../../docs/seL4_seL4.md?raw';
-import torvaldsLinuxMd17 from '../../../docs/torvalds_linux.md?raw';
+import pythonCpythonMd13 from '../../../docs/python_cpython.md?raw';
+import reactosReactosMd14 from '../../../docs/reactos_reactos.md?raw';
+import seL4SeL4Md15 from '../../../docs/seL4_seL4.md?raw';
+import torvaldsLinuxMd16 from '../../../docs/torvalds_linux.md?raw';
 
 export const DOCS_MARKDOWN: Record<string, string> = {
   'GrapheneOS_platform_manifest.md': GrapheneOSPlatformManifestMd1,
@@ -32,9 +31,8 @@ export const DOCS_MARKDOWN: Record<string, string> = {
   'microsoft_typescript-go.md': microsoftTypescriptGoMd10,
   'mrcxlinux_srv03rtm-anika.md': mrcxlinuxSrv03rtmAnikaMd11,
   'nextbsd-redux_nextbsd-kernel.md': nextbsdReduxNextbsdKernelMd12,
-  'ofdryads_miniageos.md': ofdryadsMiniageosMd13,
-  'python_cpython.md': pythonCpythonMd14,
-  'reactos_reactos.md': reactosReactosMd15,
-  'seL4_seL4.md': seL4SeL4Md16,
-  'torvalds_linux.md': torvaldsLinuxMd17,
+  'python_cpython.md': pythonCpythonMd13,
+  'reactos_reactos.md': reactosReactosMd14,
+  'seL4_seL4.md': seL4SeL4Md15,
+  'torvalds_linux.md': torvaldsLinuxMd16,
 };

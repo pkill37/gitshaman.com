@@ -125,9 +125,10 @@ test.describe('SEO Checks', () => {
     expect(content).toContain('Sitemap:');
   });
 
-  test('sitemap.xml is valid', async ({ page }) => {
-    await page.goto('/sitemap.xml', { waitUntil: 'domcontentloaded' });
-    const content = await page.textContent('body');
+  test('sitemap.xml is valid', async ({ request }) => {
+    const response = await request.get('/sitemap.xml');
+    expect(response.ok()).toBe(true);
+    const content = await response.text();
 
     expect(content).toContain('urlset');
     expect(content).toContain('xmlns');
@@ -135,9 +136,10 @@ test.describe('SEO Checks', () => {
     expect(content).toContain('loc');
   });
 
-  test('sitemap contains all repository pages', async ({ page }) => {
-    await page.goto('/sitemap.xml', { waitUntil: 'domcontentloaded' });
-    const content = await page.textContent('body');
+  test('sitemap contains all repository pages', async ({ request }) => {
+    const response = await request.get('/sitemap.xml');
+    expect(response.ok()).toBe(true);
+    const content = await response.text();
 
     for (const repo of CURATED_TEST_SITEMAP_PATHS) {
       expect(content).toContain(repo);

@@ -24,6 +24,13 @@ export const metadata: Metadata = {
     template: `%s | ${siteName}`,
   },
   description: defaultDescription,
+  keywords: [
+    'codebase exploration',
+    'source code guide',
+    'semantic code intelligence',
+    'GitHub repository explorer',
+    'systems programming',
+  ],
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
   publisher: SITE_NAME,

@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { expect, test } from '@playwright/test';
+import { before, describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 
 import { CODE_INDEX_VERSION, MIN_SUPPORTED_CODE_INDEX_VERSION } from '@/lib/code-index';
 import { CURATED_REPOS } from '@/lib/curated-repos';
@@ -32,7 +33,12 @@ function getCodeIndexPath(repo: (typeof CURATED_REPOS)[number]): string {
   return path.join(getRepoDir(repo), 'code-index.sqlite');
 }
 
-function ensureFixtureCodeIndex(): void {
+function hasLittleKernelCorpus(): boolean {
+  const repo = CURATED_REPOS.find((entry) => entry.owner === 'littlekernel' && entry.repo === 'lk');
+  return Boolean(repo && fs.existsSync(path.join(getRepoDir(repo), 'repo-manifest.json')));
+}
+
+function ensureFixtureCodeIndex(): boolean {
   const repo = CURATED_REPOS.find((entry) => entry.owner === 'littlekernel' && entry.repo === 'lk');
   if (!repo) {
     throw new Error('Missing Little Kernel curated repo config');
@@ -44,12 +50,11 @@ function ensureFixtureCodeIndex(): void {
   if (fs.existsSync(codeIndexPath)) {
     const metadata = readCodeIndexMetadata(codeIndexPath);
     if (metadata.fileCount > 0) {
-      return;
+      return true;
     }
   }
   if (!fs.existsSync(manifestPath)) {
-    test.skip(true, 'Little Kernel corpus is not available locally');
-    return;
+    return false;
   }
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
@@ -64,6 +69,7 @@ function ensureFixtureCodeIndex(): void {
       warn: () => {},
     }
   );
+  return true;
 }
 
 function normalizeManifestTree(nodes: ManifestTreeNode[]): Parameters<typeof buildCodeIndex>[1] {
@@ -112,9 +118,11 @@ function readSqliteObjects(indexPath: string): Set<string> {
   }
 }
 
-test.describe('Corpus SQLite index', () => {
-  test.beforeAll(() => {
-    ensureFixtureCodeIndex();
+describe('Corpus SQLite index', { skip: !hasLittleKernelCorpus() }, () => {
+  before(() => {
+    if (!ensureFixtureCodeIndex()) {
+      throw new Error('Little Kernel corpus is not available locally');
+    }
   });
 
   test('exists for the local indexed corpus fixture', () => {

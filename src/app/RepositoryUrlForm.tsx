@@ -222,6 +222,7 @@ export default function RepositoryUrlForm({
               readOnly={isPortalOpening}
               aria-busy={isPortalOpening}
               aria-describedby={isPortalLoading ? 'github-url-loading-status' : undefined}
+              suppressHydrationWarning
             />
             {loadingUrl && (
               <div className="shaman-url-loading-text" aria-hidden="true">

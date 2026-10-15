@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
+import { describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 import matter from 'gray-matter';
 import { fetchRepositoryFile } from '../src/lib/github-api';
 import { getCuratedRepo } from '../src/lib/curated-repos';
@@ -78,7 +79,7 @@ function resolveInlineRef(repoRoot: string, ref: string): string | null {
   return resolveRepoPath(repoRoot, normalizeInlineRef(ref));
 }
 
-test.describe('guide reference linting', () => {
+describe('guide reference linting', () => {
   test('parses curated cross-repo guide links', () => {
     expect(
       parseRepoNavigationTarget(
@@ -533,7 +534,7 @@ The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
     }
   });
 
-  test('all inline prose file references resolve to corpus files', () => {
+  test('all inline prose file references resolve to corpus files', (t) => {
     const docFiles = listGuideMarkdownFiles();
     let checkedDocs = 0;
 
@@ -563,10 +564,11 @@ The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
       }
     }
 
-    test.skip(
-      checkedDocs === 0,
-      'No downloaded corpus roots found; run `npm run corpus:sync` to validate inline prose refs.'
-    );
+    if (checkedDocs === 0) {
+      t.skip(
+        'No downloaded corpus roots found; run `npm run corpus:sync` to validate inline prose refs.'
+      );
+    }
   });
 
   test('guide registry generation includes guides and excludes docs helpers', () => {

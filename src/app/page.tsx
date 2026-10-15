@@ -163,7 +163,7 @@ function LandingPage() {
               <div className="shaman-hero-portals mt-6 text-left">
                 <div className="mb-3 text-center text-xs uppercase tracking-[0.16em]">
                   <span className="shaman-panel-label">
-                    Curated with care for important free and open-source projects
+                    Guided paths through Linux, XNU, CPython, LLVM, Android, and more
                   </span>
                 </div>
                 <RepositoryMarquee>

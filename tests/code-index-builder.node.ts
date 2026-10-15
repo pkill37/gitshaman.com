@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { expect, test } from '@playwright/test';
+import { describe, test } from 'node:test';
+import { expect } from '@playwright/test';
 
 import { buildCodeIndex } from '../scripts/code-index-builder';
 import { enrichCodeIndexWithClangd } from '../scripts/clangd-semantic-index';
@@ -110,10 +111,13 @@ function createSyntheticRepo(): { tempDir: string; repoDir: string } {
   return { tempDir, repoDir };
 }
 
-test.describe('code index builder', () => {
-  test('indexes Linux SYSCALL_DEFINE wrappers as jumpable function definitions', () => {
+describe('code index builder', () => {
+  test('indexes Linux SYSCALL_DEFINE wrappers as jumpable function definitions', (t) => {
     const sourcePath = path.join(process.cwd(), 'repos/torvalds/linux/v6.1/fs/readdir.c');
-    test.skip(!fs.existsSync(sourcePath), 'Linux v6.1 corpus is not available locally');
+    if (!fs.existsSync(sourcePath)) {
+      t.skip('Linux v6.1 corpus is not available locally');
+      return;
+    }
 
     const symbols = findSymbolsInFile(fs.readFileSync(sourcePath, 'utf8'), 'fs/readdir.c');
     expect(

@@ -7,7 +7,7 @@ import path from 'node:path';
  * Quality and Accessibility Tests
  * Checks for accessibility issues, broken links, and code quality
  */
-test.describe('Quality Checks', () => {
+test.describe('Quality Checks', { tag: '@a11y' }, () => {
   test('homepage has no accessibility violations', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     const accessibilityScanResults = await new AxeBuilder({ page }).analyze();

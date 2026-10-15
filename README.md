@@ -4,126 +4,134 @@
 
 [![Featured on Hacker News](https://hackerbadge.now.sh/api?id=46066280)](https://news.ycombinator.com/item?id=46066280)
 
-GitShaman is a Next.js web application with a VS Code-like interface for browsing large source
-repositories through curated guides, indexed search, cross-references, diagrams, and knowledge
-checks.
+GitShaman is a static-first Next.js source browser. It combines curated guides, a VS Code-like
+workspace, indexed search, Monaco navigation, semantic graphs, and repository-scoped discussions.
 
-Build a local copy of the GitShaman application. The setup downloads the required repository data to
-your filesystem and builds a static shell that can run offline.
+## Local development
 
 ```bash
 npm install
-npm run dev      # starts at localhost:3000
+npm run dev # http://localhost:3000
 ```
 
-Guide contributions are markdown-centered: edit or add files in `docs/`, start new guides from
-`docs/_template.md`, and see `CONTRIBUTING.md` for the full workflow.
+Development prepares the SQL.js runtime and exposes the local corpus under `public/repos`. Guides
+live in `docs/`; start a new guide with `docs/_template.md`. See `CONTRIBUTING.md` for the guide
+workflow.
 
-Cloudflare Pages builds set `CF_PAGES=1`, so `npm run build` skips the expensive corpus
-generation phase and exports only the static shell. The shell loads repositories and indexes
-from the configured public R2 origin. Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to force a
-full local corpus build. Local corpus indexing requires Node.js 22.22.2 or newer because it loads the
-native `better-sqlite3` index builder.
+## Testing
 
-Pages serves exported routes and assets before its `404.html` fallback. Unlisted GitHub
-repository URLs use that fallback to open the client app through `?github_path=...`.
-Do not add catch-all `/:owner/:repo` rewrites: Pages applies them even to existing
-Next.js route-data files and images. After deploying a routing fix, purge Cloudflare's
-cached redirects and verify with a fresh browser context (308s can also be browser-cached).
+Run all checks with one command:
 
-Online you can visit **[https://gitshaman.com](https://gitshaman.com)** for free. To use the URL-hacking workflow, replace `github.com` with `gitshaman.com` in a repository URL.
+```bash
+npm test
+```
 
-## Semantic Editor Implementation
+The command runs Node tests followed by Playwright in Chromium, Firefox, and mobile Chromium.
+Playwright loads `.env.local` with Next.js environment loading, prepares local assets, and starts a
+development server automatically. Browser test reports and failure artifacts are written under `out/`.
 
-The repository now has a static-first semantic editor path. Curated repositories are analyzed during
-corpus generation, stored as versioned SQLite artifacts, and queried in the browser. The deployed
-application does not start a language server for each visitor.
+The optional Giscus integration test runs when `NEXT_PUBLIC_GISCUS_REPO_ID` is set. Set the related
+public Giscus variables in `.env.local`; see `docs/giscus-chat-integration.md`.
 
-Implemented:
+## Build and deployment
 
-- Monaco definitions, references, hover, diagnostics, document symbols, cross-file models, and
-  guarded call-hierarchy registration.
-- Build-time `clangd` JSON-RPC enrichment using native or generated source-only compilation commands.
-- Persisted compiler-backed references, symbol ranges, hover material, diagnostics, and call edges.
-- Indexed include/import dependencies and bounded intraprocedural def-use summaries.
-- A lazy semantic graph panel with Calls, Data flow, and Dependencies views.
-- Provider and confidence metadata so compiler results and heuristic fallbacks remain distinguishable.
-- Repository-scoped index loading shared by editor and search modes.
-- A canonical semantic query contract and coordinator for editor requests, so fallback behavior is
-  centralized instead of encoded separately in each Monaco provider.
-- Build tooling that checks cached curated repositories have on-disk `code-index.sqlite` artifacts.
+`npm run build` generates the guide registry, refreshes an out-of-date local corpus when needed,
+validates guides, stages shell assets, runs the static Next.js export, and writes a build report.
 
-Current boundaries:
+Cloudflare Pages sets `CF_PAGES=1`, which skips local corpus generation and publishes the static
+shell. The deployed shell reads curated snapshots and indexes from the configured public R2 origin.
+Set `EXPLORAR_SKIP_CORPUS_BUILD=0` to force corpus generation in that environment.
 
-- C and C++ are the first compiler-backed languages. Python, TypeScript, and JavaScript continue to
-  use indexed or heuristic navigation.
-- Data flow is intraprocedural and best effort; it is not pointer-alias, interprocedural, or taint
-  analysis.
-- Repositories without a usable compilation database keep working with explicitly labeled fallback
-  results.
-- Monaco versions without the public call-hierarchy registration API use the semantic graph instead
-  of exposing that native editor command.
+```bash
+# Refresh cached repository snapshots without compiler enrichment.
+npm run corpus:sync
 
-### Offline indexing architecture
+# Prepare compilation databases for semantic enrichment.
+npm run corpus:semantic
+
+# Check cached SQLite indexes.
+npm run corpus:check
+
+# Build and deploy the shell plus corpus artifacts.
+npm run deploy
+```
+
+Local corpus indexing requires Node.js 22.22.2 or newer because it uses native `better-sqlite3`.
+
+Cloudflare Pages serves exported routes and assets before its `404.html` fallback. Unknown GitHub
+repository URLs reach the client app through `?github_path=...`. Do not add catch-all
+`/:owner/:repo` rewrites: they also capture Next.js route-data files and images. After changing
+routing, purge cached redirects and verify in a fresh browser context.
+
+To use the URL-hacking workflow, replace `github.com` with `gitshaman.com` in a repository URL.
+
+## Architecture
+
+GitShaman does expensive source analysis before deployment. Visitors download prebuilt snapshots and
+SQLite indexes; the application does not launch a language server for each session.
+
+### Build and corpus pipeline
 
 ```mermaid
-graph LR
-  A["Curated repository manifest"] --> B["Repository snapshot"]
-  B --> C["Language detection"]
-  B --> D["Compilation database available?"]
-
-  C --> E["Heuristic parser and search indexer"]
-  D -->|yes| F["clangd JSON-RPC enrichment"]
-  D -->|no| G["Partial capability records"]
-
-  F --> H["Parser-backed symbols, references, diagnostics, hover, and calls"]
-  E --> I["Files, symbols, dependencies, macros, and def-use summaries"]
-  G --> J["Capability metadata"]
-  H --> J
-
-  I --> K["Versioned code-index.sqlite"]
-  J --> K
-  K --> L["public/repos symlink or static/R2 corpus"]
-  M["corpus:check-indexes"] --> K
+flowchart LR
+  Guides["Markdown guides"] --> Registry["Guide registry"]
+  Config["Curated repository config"] --> Corpus["Repository snapshots"]
+  Corpus --> Manifest["Repository manifests"]
+  Corpus --> Detect["Language and source analysis"]
+  Detect --> Heuristic["Files, symbols, search, edges, concepts"]
+  Detect -->|compile_commands.json or generated commands| Clangd["clangd enrichment"]
+  Clangd --> Semantic["Definitions, references, hover, diagnostics, calls"]
+  Heuristic --> Index["code-index.sqlite"]
+  Semantic --> Index
+  Manifest --> Index
+  Registry --> Shell["Static Next.js shell"]
+  Index --> Local["Local public/repos symlink"]
+  Index --> R2["Cloudflare R2 corpus"]
+  Shell --> Pages["Cloudflare Pages"]
 ```
 
-### Browser query architecture
+The index schema currently supports files, symbols, references, file relationships, guide links,
+concepts, diagnostics, capability records, and full-text search. `code-index.sqlite` is versioned;
+the browser accepts compatible versions and falls back gracefully when an index is unavailable.
+
+### Browser workspace
 
 ```mermaid
-graph TB
-  A["Repository workspace"] --> B["Repository-scoped index loader"]
-  B --> C["Browser SQLite cache v2"]
+flowchart TB
+  Route["Repository route or GitHub URL fallback"] --> Workspace["Repository workspace"]
+  Workspace --> Source{"Source mode"}
+  Source -->|development| Local["/repos local snapshot"]
+  Source -->|production or selected| R2["Public R2 origin"]
+  Local --> Files["Repository files and manifests"]
+  R2 --> Files
+  Local --> IndexFile["code-index.sqlite"]
+  R2 --> IndexFile
+  IndexFile --> SQLJS["SQL.js in-memory database and bounded cache"]
 
-  D["Monaco editor providers"] --> E["SemanticQueryService"]
-  F["Semantic graph panel"] --> E
-  G["Indexed search"] --> C
+  Workspace --> Editor["Monaco editor"]
+  Workspace --> Search["Indexed file and symbol search"]
+  Workspace --> Graph["Lazy semantic graph tab"]
+  Workspace --> Guide["Guide panel"]
+  Workspace --> Chat["Lazy Chat tab"]
+  Chat --> Giscus["Giscus discussion iframe"]
 
-  E --> H["IndexedLanguageBackend"]
-  E --> I["HeuristicLanguageBackend"]
-  H --> C
-
-  E --> J["First-result queries: definition, hover, document symbols"]
-  E --> K["Merged queries: references, diagnostics, relationships"]
-  E --> L["Indexed-only queries: type members, include chains"]
-
-  D --> M["Deep definition candidate resolver"]
-  M --> E
-  M --> N["Exact symbol search, ranked workspace scans, known kernel header paths"]
-
-  J --> D
-  K --> D
-  K --> F
-  L --> F
-  N --> D
+  Editor --> Service["SemanticQueryService"]
+  Graph --> SQLJS
+  Search --> SQLJS
+  Service --> Indexed["IndexedLanguageBackend"]
+  Service --> Heuristic["HeuristicLanguageBackend"]
+  Indexed --> SQLJS
 ```
 
-### Semantic flow details
+The workspace can switch curated content between local staged files and a configured R2 origin while
+developing. In production, it uses the public R2 origin. The code-index cache is keyed by repository,
+revision, and source mode so local and remote artifacts do not overlap.
 
-Monaco navigation is wired through a static-first query service. `MonacoCodeEditor` still owns the
-editor lifecycle, event handlers, panels, and Monaco result conversion, but semantic fallback policy
-lives in `SemanticQueryService`. The service registers `IndexedLanguageBackend` and
-`HeuristicLanguageBackend` in deterministic order, checks backend capabilities, isolates provider
-errors, and normalizes results from the canonical `SemanticQuery` contract.
+The Guide/Chat sidebar mounts the Giscus widget only after Chat is selected. Each repository uses a
+specific discussion term (`gitshaman:repo:<owner>/<repo>`). When Giscus is not configured, the UI
+shows setup guidance instead of loading an iframe.
+
+### Semantic query flow
 
 ```mermaid
 sequenceDiagram
@@ -132,149 +140,51 @@ sequenceDiagram
   participant Editor as MonacoCodeEditor
   participant Service as SemanticQueryService
   participant Indexed as IndexedLanguageBackend
-  participant SQLite as code-index.sqlite
-  participant Resolver as Deep definition resolver
+  participant SQLite as SQL.js code index
   participant Heuristic as HeuristicLanguageBackend
 
-  User->>Monaco: hover / definition / references / symbols
-  Monaco->>Editor: provider callback with one-based cursor context
-  Editor->>Service: typed SemanticQuery
-  Service->>Indexed: query when capability is available
-  Indexed->>SQLite: symbols, references, diagnostics, edges
-  SQLite-->>Indexed: normalized semantic rows
-  Indexed-->>Service: provider, confidence, complete, items
-  alt first-result query has no indexed answer
-    Service->>Heuristic: same SemanticQuery contract
-    Heuristic-->>Service: best-effort items
-  else merged query
-    Service->>Heuristic: mergeable fallback query
-    Heuristic-->>Service: additional deduped items
+  User->>Monaco: definition, references, hover, symbols, or diagnostics
+  Monaco->>Editor: provider callback and cursor context
+  Editor->>Service: typed semantic query
+  Service->>Indexed: query supported indexed capability
+  Indexed->>SQLite: indexed symbols, references, diagnostics, or edges
+  SQLite-->>Indexed: normalized rows
+  alt first-result query has an indexed answer
+    Indexed-->>Service: indexed result
+  else no indexed answer
+    Service->>Heuristic: fallback query
+    Heuristic-->>Service: best-effort result
   end
-  Service-->>Editor: normalized semantic values
-  opt go to definition needs deeper candidates
-    Editor->>Resolver: exact symbol lookup + ranked workspace/header scans
-    Resolver->>SQLite: exact and fuzzy symbol queries
-    Resolver-->>Editor: single target or candidate list
+  opt mergeable query
+    Service->>Heuristic: merge references or relationships
+    Heuristic-->>Service: additional locations or edges
   end
-  Editor-->>Monaco: ranges, hover markdown, markers, or locations
+  Service-->>Editor: normalized and deduplicated result
+  Editor-->>Monaco: locations, hover markdown, symbols, or markers
 ```
 
-Fallback behavior is explicit:
+`SemanticQueryService` orders registered backends by capability and priority, isolates provider
+failures, and exposes a shared query contract. Definitions, hover, and document symbols use the first
+useful result. References and relationships merge and deduplicate provider results. Type members and
+include chains require indexed data; diagnostics are available when the loaded index supports them.
 
-- Definitions, hover, and document symbols prefer indexed/parser-backed answers and fall back only
-  when no indexed result exists.
-- References and relationships merge indexed and heuristic results, then dedupe by stable location
-  or graph-edge keys.
-- Diagnostics come from backends that explicitly provide diagnostics; there is no synthetic
-  heuristic diagnostic fallback.
-- Type members and include chains use the indexed backend when available and otherwise return empty
-  results.
-- Deep definition navigation augments the service result with exact index searches, current-file
-  symbols, ranked workspace scans, and known Linux helper header paths such as `include/linux/printk.h`,
-  `include/linux/list.h`, and `include/linux/spinlock.h`.
+The indexed backend supports C, C++, Python, TypeScript, and JavaScript. Compiler-backed enrichment
+currently targets C-family repositories. Other languages continue to use indexed structural data and
+heuristic navigation where compiler data is unavailable.
 
-The indexed query helper surface lives mostly in `src/lib/code-index.ts`:
+### Semantic graph
 
-- `searchCodeIndexFiles` searches indexed file paths and content.
-- `searchCodeIndexSymbols` and `findCodeIndexSymbolsByName` find symbol rows and exact definitions.
-- `getCodeIndexReferencesForSymbol` resolves persisted reference locations, optionally including
-  the declaration.
-- `getCodeIndexGraphNeighbors` returns file graph edges for calls, data flow, dependencies, and
-  other relationships.
-- `getCodeIndexGuideLinks` maps guide sections to indexed files, symbols, and lines.
-- `searchCodeIndexConcepts` searches persisted concept records.
-- `getCodeIndexDiagnostics` and `getCodeIndexCapabilities` expose backend metadata used by the
-  editor to label confidence and availability.
+The Semantic Graph tab loads only when selected. It reads bounded relationship data from the SQLite
+index during idle time, classifies edges as calls, data flow, dependencies, or other relationships,
+and renders them with provider and confidence metadata. This keeps large indexes out of the critical
+workspace path.
 
-NPM tooling keeps the local corpus and indexes aligned:
+## Current scope and boundaries
 
-- `npm run corpus:sync` downloads curated repositories and writes SQLite indexes, skipping semantic
-  enrichment for quick local refreshes.
-- `npm run corpus:prepare-compilation-databases` prepares missing compilation databases in cached
-  snapshots. Semantic indexing also prepares them automatically. Generated commands cover C, C++, and
-  Objective-C source files and carry an explicit source-only marker; their capabilities are `partial`
-  because native build flags, SDKs, and generated headers may be missing. Native databases in `build/`
-  or `out/` take precedence. Snapshots without C-family sources are reported as not applicable.
-  After preparing cached snapshots, use `npm run corpus:sync -- --reindex` to refresh semantic indexes.
-- `npm run corpus:check-indexes` verifies cached curated repositories have saved `code-index.sqlite`
-  artifacts.
-
-## Roadmap
-
-GitShaman should stay a guide-first source browser. The goal is to improve guides, search, graph
-views, and editor navigation with structured indexing and language-aware retrieval, not to turn the
-product into a chat-first tool.
-
-For public web deployment, expensive analysis should happen in offline index builders. The browser
-client and read-only query APIs should consume prebuilt source snapshots and semantic artifacts
-rather than spawning per-user language-server sessions.
-
-### Milestone 0: Index Foundation
-
-- [x] Generate a SQLite code index for curated repository snapshots.
-- [x] Store files, symbols, references, file edges, guide links, concept links, and search tables in
-      the index schema.
-- [x] Load and cache `code-index.sqlite` in the browser for static deployments.
-- [x] Keep heuristic navigation available as a fallback when an index is missing or incomplete.
-
-### Milestone 1: Editor Backend Abstraction
-
-- [x] Add a live editor language backend interface keyed by `languageId`.
-- [x] Wire Monaco definition, reference, and hover flows through the indexed backend before falling
-      back to heuristics.
-- [x] Provide indexed symbol, file, reference, graph-neighbor, guide-link, and concept query helpers.
-- [x] Share one backend contract between offline indexing and live editor queries.
-- [x] Implement backend-provided diagnostics and document symbols with heuristic fallback.
-
-### Milestone 2: C / C++ Semantic Navigation
-
-- [x] Integrate build-time `clangd` indexing for repositories with `compile_commands.json`.
-- [x] Replace heuristic-only C/C++ navigation where persisted `clangd` data is available.
-- [x] Support parser-backed hover, definitions, references, diagnostics, type/member traversal, and
-      include chains.
-- [ ] Validate on Linux, XNU, seL4, and CPython native runtime code.
-
-### Milestone 3: Python Semantic Navigation
-
-- [ ] Integrate `pyright` or `basedpyright` for Python indexing and editor queries.
-- [ ] Resolve Python symbols across stdlib, tests, tools, and scripts.
-- [ ] Support Python hover, definitions, references, and diagnostics through the backend path.
-
-### Milestone 4: Graph Retrieval And Concepts
-
-- [x] Persist basic file edges, guide links, and concept links in the index.
-- [x] Add a contextual calls, data-flow, and dependency graph panel with provenance.
-- [ ] Resolve guide mentions to multiple symbol candidates instead of only file paths.
-- [ ] Add concept views that group docs, tests, headers, and implementations.
-- [ ] Add scoped search tabs for files, symbols, and references.
-
-### Milestone 5: CPython Mixed Traversal
-
-- [ ] Connect `Include/*.h`, `Objects/*.c`, `Python/*.c`, `Lib/*.py`, `Lib/test/*.py`, `Tools/*.py`,
-      and `docs/python_cpython.md` in one retrieval model.
-- [ ] Make `PyObject`, `PyTypeObject`, and `PyDictObject` resolve correctly.
-- [ ] Make a concept like `dict` jump across docs, tests, headers, implementations, constructors,
-      and guide chapters.
-- [ ] Prove the same retrieval model on Linux and XNU kernel code.
-
-### Milestone 6: Optional Semantic Retrieval
-
-- [ ] Add embeddings only after exact symbol and graph retrieval are strong.
-- [ ] Keep semantic search additive; exact structural lookup remains the primary retrieval path.
-
-### UX Backlog
-
-- [ ] Deep-linkable file, line, and symbol URLs.
-- [ ] File outline panel.
-- [ ] Per-file metadata strip with language, size, source, and related guide sections.
-- [x] Persist open tabs and workspace state locally.
-- [ ] Side-by-side file compare for two refs or branches.
-- [ ] Guide-aware navigation polish such as opening all files in a chapter.
-- [ ] Subsystem map / architecture view.
-- [ ] Blame and history overlays.
-- [ ] Dependency graph explorer.
-- [ ] API surface explorer.
-- [ ] Version-aware guides.
-- [ ] Ownership or maintainer overlays.
-- [ ] Build-target awareness.
-- [ ] Automatic interesting-files ranking.
+- C and C++ have the first compiler-backed enrichment path through `clangd`.
+- Generated source-only compilation commands are explicitly partial; native compilation databases in
+  `build/` or `out/` take precedence.
+- Data-flow relationships are intraprocedural and best effort, not alias, interprocedural, or taint
+  analysis.
+- Repositories without a usable index continue with source browsing and heuristic editor behavior.
+- The semantic graph and Giscus chat are lazy features, so neither blocks initial workspace loading.
