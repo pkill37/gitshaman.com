@@ -1,7 +1,5 @@
 {
   "ignores": [
-    "@tailwindcss/postcss",
-    "tailwindcss",
     "raw-loader",
     "@types/node",
     "@types/react-dom",

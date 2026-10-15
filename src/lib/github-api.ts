@@ -28,24 +28,10 @@ type GitHubConfig = {
 
 const MAX_EDITOR_FILE_BYTES = 2 * 1024 * 1024;
 
-let currentConfig: GitHubConfig = {
+const currentConfig: GitHubConfig = {
   ...GITHUB_CONFIG,
   corpusSourceMode: getDefaultCuratedRepoSourceMode(),
 };
-
-/**
- * Check if a branch/version is unstable (main or master)
- */
-export function isUnstableBranch(branch: string): boolean {
-  return branch === 'main' || branch === 'master';
-}
-
-/**
- * Filter out unstable branches (main/master) from a list
- */
-export function filterUnstableBranches(branches: string[]): string[] {
-  return branches.filter((branch) => !isUnstableBranch(branch));
-}
 
 /**
  * Get trusted version for a repository
@@ -72,56 +58,6 @@ export async function getGitHubDefaultBranch(owner: string, repo: string): Promi
 }
 
 /**
- * Set GitHub repository and automatically detect default branch if 'master' or unstable branch is specified
- * Main/master branches are never allowed - will be replaced with first trusted version
- */
-export async function setGitHubRepoWithDefaultBranch(
-  owner: string,
-  repo: string,
-  branch: string = 'v6.1',
-  options?: { preserveBranch?: boolean }
-): Promise<void> {
-  if (options?.preserveBranch) {
-    currentConfig = { ...currentConfig, owner, repo, branch };
-    return;
-  }
-  // Never allow main/master branches - they are unstable
-  if (isUnstableBranch(branch)) {
-    const trusted = getTrustedVersion(owner, repo);
-    if (trusted) {
-      currentConfig = { ...currentConfig, owner, repo, branch: trusted };
-      return;
-    }
-    currentConfig = { ...currentConfig, owner, repo, branch };
-    return;
-  }
-
-  const trusted = getTrustedVersion(owner, repo);
-
-  if (trusted) {
-    // If branch is not the trusted version, use trusted version
-    if (trusted !== branch) {
-      currentConfig = { ...currentConfig, owner, repo, branch: trusted };
-      return;
-    }
-  }
-
-  currentConfig = { ...currentConfig, owner, repo, branch };
-}
-
-export function getCurrentRepoLabel(): string {
-  return `${currentConfig.owner}/${currentConfig.repo}`;
-}
-
-export function getCurrentBranch(): string {
-  return currentConfig.branch;
-}
-
-export function setCurrentCorpusSourceMode(sourceMode: CuratedRepoSourceMode): void {
-  currentConfig = { ...currentConfig, corpusSourceMode: sourceMode };
-}
-
-/**
  * Get repository identifier for current config
  */
 export function getRepoIdentifier(owner?: string, repo?: string): string {
@@ -130,7 +66,7 @@ export function getRepoIdentifier(owner?: string, repo?: string): string {
   return getGitHubRepoIdentifier(ownerName, repoName);
 }
 
-export class GitHubApiError extends Error {
+class GitHubApiError extends Error {
   constructor(
     message: string,
     public status?: number

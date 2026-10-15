@@ -65,10 +65,6 @@
   line-height: 1.6;
   margin: 8px 0 12px;
 }
-.repository-chat .repository-chat-repo {
-  color: var(--vscode-text-primary);
-  font-family: monospace;
-}
 .repository-chat a {
   color: var(--repo-accent, var(--vscode-text-accent));
 }

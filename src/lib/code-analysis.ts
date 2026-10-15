@@ -1,9 +1,7 @@
 /**
- * Static code analysis: symbol extraction + cross-file relationship detection.
+ * Static code analysis: symbol extraction.
  * All analysis is heuristic / regex-based — no AST required.
  */
-
-export type RelationshipType = 'includes' | 'imports' | 'calls';
 
 export interface FileSymbols {
   filePath: string;
@@ -15,25 +13,6 @@ export interface FileSymbols {
   rawIncludes: string[]; // verbatim #include paths
   rawImports: string[]; // verbatim import paths
 }
-
-export interface CodeRelationship {
-  source: string;
-  target: string;
-  type: RelationshipType;
-  symbols: string[]; // which symbols triggered this edge
-}
-
-export const RELATIONSHIP_COLORS: Record<RelationshipType, string> = {
-  includes: '#38bdf8', // sky blue
-  imports: '#4ade80', // green
-  calls: '#fb923c', // orange
-};
-
-export const RELATIONSHIP_LABELS: Record<RelationshipType, string> = {
-  includes: '#include',
-  imports: 'import',
-  calls: 'calls',
-};
 
 function createUniquePusher(): (set: string[], val: string) => void {
   const seen = new Set<string>();
@@ -322,99 +301,4 @@ export function parseSymbols(filePath: string, content: string): FileSymbols {
     rawIncludes: [],
     rawImports: [],
   };
-}
-
-// ─── Cross-file relationship detection ──────────────────────────────────────
-
-// Module-level cache so compiled regexes survive across analysis runs
-const callRegexCache = new Map<string, RegExp>();
-
-export function findRelationships(
-  symbolsMap: Map<string, FileSymbols>,
-  allFilePaths: string[],
-  contentsMap: Map<string, string>
-): CodeRelationship[] {
-  console.time('[code-analysis] findRelationships');
-  const rels: CodeRelationship[] = [];
-  const seen = new Set<string>();
-
-  function add(r: CodeRelationship) {
-    if (r.source === r.target) return;
-    const key = `${r.source}→${r.target}:${r.type}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      rels.push(r);
-    }
-  }
-
-  // Index: basename (with/without ext) → file paths
-  const byBasename = new Map<string, string[]>();
-  for (const p of allFilePaths) {
-    const bn = p.split('/').pop() ?? p;
-    const bnNoExt = bn.replace(/\.[^.]+$/, '');
-    for (const k of [bn, bnNoExt]) {
-      if (!byBasename.has(k)) byBasename.set(k, []);
-      byBasename.get(k)!.push(p);
-    }
-  }
-
-  // Index: defined function name → file that defines it
-  const funcFile = new Map<string, string>();
-  for (const [fp, sym] of symbolsMap) {
-    for (const fn of sym.functions) if (!funcFile.has(fn)) funcFile.set(fn, fp);
-  }
-
-  console.log(
-    `[code-analysis] findRelationships: ${symbolsMap.size} files, ${funcFile.size} unique functions, ${allFilePaths.length} paths`
-  );
-
-  for (const [srcPath, sym] of symbolsMap) {
-    const content = contentsMap.get(srcPath) ?? '';
-
-    // ── 1. Include / import edges ──────────────────────────────────────────
-    for (const rawPath of [...sym.rawIncludes, ...sym.rawImports]) {
-      const isInclude = sym.rawIncludes.includes(rawPath);
-      const relType: RelationshipType = isInclude ? 'includes' : 'imports';
-
-      // Try exact suffix match first, then basename
-      const bn = rawPath.split('/').pop()?.split('.')[0] ?? '';
-      const candidates = new Set<string>([
-        ...allFilePaths.filter(
-          (p) =>
-            p.endsWith(rawPath) ||
-            p.endsWith(rawPath + '.h') ||
-            p.endsWith(rawPath + '.py') ||
-            p.endsWith(rawPath + '.ts')
-        ),
-        ...(byBasename.get(rawPath.split('/').pop() ?? '') ?? []),
-        ...(byBasename.get(bn) ?? []),
-      ]);
-      for (const target of candidates) {
-        add({ source: srcPath, target, type: relType, symbols: [rawPath] });
-      }
-    }
-
-    // ── 2. Function call edges ─────────────────────────────────────────────
-    // Only check functions with ≥4 chars to reduce noise
-    for (const [fn, defFile] of funcFile) {
-      if (defFile === srcPath || fn.length < 4) continue;
-      // Quick check before expensive regex
-      if (!content.includes(fn)) continue;
-      // Reuse compiled regex — no `g` flag so lastIndex is irrelevant
-      let re = callRegexCache.get(fn);
-      if (!re) {
-        re = new RegExp(`\\b${fn}\\s*\\(`);
-        callRegexCache.set(fn, re);
-      }
-      if (re.test(content)) {
-        add({ source: srcPath, target: defFile, type: 'calls', symbols: [fn] });
-      }
-    }
-  }
-
-  console.log(
-    `[code-analysis] findRelationships → ${rels.length} relationships (${callRegexCache.size} cached regexes)`
-  );
-  console.timeEnd('[code-analysis] findRelationships');
-  return rels;
 }

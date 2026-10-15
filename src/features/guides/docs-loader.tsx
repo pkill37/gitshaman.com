@@ -6,7 +6,7 @@ import { DOCS_MARKDOWN } from './generated-docs';
 /**
  * Guide metadata extracted from frontmatter
  */
-export interface GuideMetadata {
+interface GuideMetadata {
   curatedRepoId: string;
   owner: string;
   repo: string;
@@ -111,7 +111,7 @@ let guidesCacheSignature: string | null = null;
 /**
  * Get all guide documents, parsed and cached
  */
-export function getAllGuideDocuments(): Map<string, GuideDocument> {
+function getAllGuideDocuments(): Map<string, GuideDocument> {
   const signature = getDocsMarkdownSignature();
 
   if (guidesCache && guidesCacheSignature === signature) {
@@ -154,19 +154,6 @@ export function getGuideByRepo(owner: string, repo: string): GuideDocument | nul
   }
 
   return null;
-}
-
-export function getAllCuratedGuideDocuments(): Map<string, GuideDocument> {
-  const guides = getAllGuideDocuments();
-  const curatedGuides = new Map<string, GuideDocument>();
-
-  for (const [guideId, doc] of guides) {
-    if (isCuratedRepo(doc.metadata.owner, doc.metadata.repo)) {
-      curatedGuides.set(guideId, doc);
-    }
-  }
-
-  return curatedGuides;
 }
 
 export function getCuratedGuideByRepo(owner: string, repo: string): GuideDocument | null {
