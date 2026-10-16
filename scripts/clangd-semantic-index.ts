@@ -40,6 +40,15 @@ type CompileCommand = { file: string; directory: string; gitshaman?: string };
 
 export type ClangdSemanticIndexStats = SemanticIndexStats;
 
+class JsonRpcError extends Error {
+  constructor(
+    public readonly code: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
 class ClangdClient {
   private process: ChildProcessWithoutNullStreams | null = null;
   private nextId = 1;
@@ -151,7 +160,7 @@ class ClangdClient {
     if (!request) return;
     clearTimeout(request.timer);
     this.pending.delete(message.id);
-    if (message.error) request.reject(new Error(message.error.message));
+    if (message.error) request.reject(new JsonRpcError(message.error.code, message.error.message));
     else request.resolve(message.result);
   }
 }
@@ -308,10 +317,22 @@ export async function enrichCodeIndexWithClangd(
   );
   let filesAnalyzed = 0;
   let callEdges = 0;
+  let callsUnavailable: string | null = null;
+
+  const requestCalls = async (method: string, params: unknown): Promise<unknown> => {
+    if (callsUnavailable) return null;
+    try {
+      return await client.request(method, params);
+    } catch (error) {
+      if (!(error instanceof JsonRpcError) || error.code !== -32601) throw error;
+      callsUnavailable = `clangd does not support ${method}: ${error.message}`;
+      return null;
+    }
+  };
 
   try {
     client.start();
-    await client.request('initialize', {
+    const initialized = (await client.request('initialize', {
       processId: process.pid,
       rootUri: pathToFileURL(repoDir).href,
       capabilities: {
@@ -320,7 +341,10 @@ export async function enrichCodeIndexWithClangd(
           documentSymbol: { hierarchicalDocumentSymbolSupport: true },
         },
       },
-    });
+    })) as { capabilities?: { callHierarchyProvider?: boolean | object } };
+    if (!initialized.capabilities?.callHierarchyProvider) {
+      callsUnavailable = 'clangd does not advertise call hierarchy support.';
+    }
     client.notify('initialized', {});
 
     const fileIdQuery = db.prepare('SELECT Id AS id FROM Files WHERE Path = ?');
@@ -478,13 +502,13 @@ export async function enrichCodeIndexWithClangd(
           }
         }
 
-        const prepared = (await client.request('textDocument/prepareCallHierarchy', {
+        const prepared = (await requestCalls('textDocument/prepareCallHierarchy', {
           textDocument: { uri },
           position: symbol.selectionRange.start,
         })) as LspCallItem[] | null;
         const root = prepared?.[0];
         if (!root) continue;
-        const outgoing = (await client.request('callHierarchy/outgoingCalls', { item: root })) as
+        const outgoing = (await requestCalls('callHierarchy/outgoingCalls', { item: root })) as
           LspCall[] | null;
         for (const call of outgoing ?? []) {
           if (!call.to) continue;
@@ -506,10 +530,19 @@ export async function enrichCodeIndexWithClangd(
       filesAnalyzed++;
     }
 
-    const status = generated || sourceFiles.length < commands.length ? 'partial' : 'available';
-    const detail = `clangd analyzed ${filesAnalyzed} compilation units and emitted ${callEdges} call edges.${generated ? ' Source-only compilation commands were generated; native build flags and generated headers may be missing.' : ''}`;
+    const status =
+      generated || sourceFiles.length < commands.length || callsUnavailable
+        ? 'partial'
+        : 'available';
+    const detail = `clangd analyzed ${filesAnalyzed} compilation units and emitted ${callEdges} call edges.${generated ? ' Source-only compilation commands were generated; native build flags and generated headers may be missing.' : ''}${callsUnavailable ? ` ${callsUnavailable}` : ''}`;
     for (const feature of CLANGD_BACKEND_FEATURES) {
-      recordBackendCapability(recordCapability, feature, 'clangd', status, detail);
+      recordBackendCapability(
+        recordCapability,
+        feature,
+        'clangd',
+        feature === 'calls' && callsUnavailable ? 'unavailable' : status,
+        feature === 'calls' && callsUnavailable ? callsUnavailable : detail
+      );
     }
     recordBackendCapability(
       recordCapability,

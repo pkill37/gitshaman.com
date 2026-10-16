@@ -1270,19 +1270,10 @@
   position: relative;
   display: inline-block;
   margin: 0 1px;
-  color: #f2c46d;
-  text-shadow: 0 0 14px rgba(242, 196, 109, 0.45);
-}
-
-.shaman-wordmark-sha::after {
-  position: absolute;
-  right: 0;
-  bottom: -5px;
-  left: 0;
-  height: 2px;
-  border-radius: 999px;
+  padding: 0 0.12em;
   background: linear-gradient(90deg, #8b5cf6, #f2c46d, #56d6c9);
-  content: '';
+  color: #171321;
+  text-shadow: none;
 }
 
 .shaman-wordmark-domain {
