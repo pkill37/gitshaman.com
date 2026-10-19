@@ -185,14 +185,14 @@ test.describe('repository source mode browser behavior', () => {
 
     await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
 
-    await page.getByRole('button', { name: 'Entities' }).click();
+    await page.getByRole('button', { name: 'Entities', exact: true }).click();
     await expect(page.getByText('local_entity_marker')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('r2_entity_marker')).not.toBeVisible();
 
     await page.getByRole('button', { name: 'File editor' }).click();
     await storageSourceSelector(page).selectOption('r2-bucket');
     await expect(storageSourceStatus(page, 'Storage source: R2')).toBeVisible();
-    await page.getByRole('button', { name: 'Entities' }).click();
+    await page.getByRole('button', { name: 'Entities', exact: true }).click();
 
     await expect(page.getByText('r2_entity_marker')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('local_entity_marker')).not.toBeVisible();

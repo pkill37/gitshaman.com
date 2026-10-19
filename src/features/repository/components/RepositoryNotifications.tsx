@@ -33,7 +33,7 @@ export default function RepositoryNotifications({ children }: { children: ReactN
   return (
     <NotificationContext.Provider value={notify}>
       {children}
-      <div className="repository-notifications" aria-label="Repository notifications">
+      <div className="repository-notifications" role="region" aria-label="Repository notifications">
         {notifications
           .filter((notification) => notification.scope === scope && !notification.dismissed)
           .map((notification) => (

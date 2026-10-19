@@ -54,7 +54,7 @@ Start with [hello world's application](samples/hello_world/src/main.c) and [its 
 
 Keep three inputs separate: application policy, board hardware description, and software feature selection. A source file alone cannot tell which driver instances or kernel options a particular image contains.
 
-The application's `prj.conf` requests Kconfig values; board defaults, dependencies, and other configuration fragments contribute to the resolved result. Devicetree starts from board and SoC descriptions, with application overlays modifying the hardware description. Bindings describe node properties and supply information used to generate devicetree macros. An overlay does not replace the driver's software configuration.
+The application's configuration file requests Kconfig values; [hello world's configuration](samples/hello_world/prj.conf) leaves these requests empty. Board defaults, dependencies, and other configuration fragments contribute to the resolved result. Devicetree starts from board and SoC descriptions, with application overlays modifying the hardware description. Bindings describe node properties and supply information used to generate devicetree macros. An overlay does not replace the driver's software configuration.
 
 After configuring an image, inspect these build outputs, which are generated artifacts rather than tracked repository sources:
 

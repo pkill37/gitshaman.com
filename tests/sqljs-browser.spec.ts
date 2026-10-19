@@ -246,7 +246,12 @@ test.describe('SQL.js browser runtime', () => {
       await page.locator('.vscode-tree-search-input').fill('main');
 
       await waitForDebugLog(page, '[explorar:code-index-static] success');
-      await expect(page.locator('.vscode-tree-search-index-badge')).toHaveText('ready');
+      await expect(
+        page
+          .getByRole('region', { name: 'Repository notifications' })
+          .getByRole('status')
+          .filter({ hasText: /^Index ready$/ })
+      ).toBeVisible();
       await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
       await waitForDebugEntry(
         page,
