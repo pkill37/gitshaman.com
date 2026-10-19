@@ -110,13 +110,9 @@ function renderPedagogyPanel(
   openFileInTab: OpenFileInTab
 ): React.ReactNode {
   const learningGoals = sectionMeta.learningGoals ?? [];
-  const questions = sectionMeta.questions ?? [];
   const trace = sectionMeta.trace ?? [];
   const hasPedagogy =
-    Boolean(sectionMeta.difficulty) ||
-    learningGoals.length > 0 ||
-    questions.length > 0 ||
-    trace.length > 0;
+    Boolean(sectionMeta.difficulty) || learningGoals.length > 0 || trace.length > 0;
 
   if (!hasPedagogy) return null;
 
@@ -158,7 +154,7 @@ function renderPedagogyPanel(
       )}
 
       {learningGoals.length > 0 && (
-        <div style={{ marginBottom: trace.length > 0 || questions.length > 0 ? '10px' : 0 }}>
+        <div style={{ marginBottom: trace.length > 0 ? '10px' : 0 }}>
           <p style={labelStyle}>Learning Goals</p>
           <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: 1.45 }}>
             {learningGoals.map((goal) => (
@@ -169,7 +165,7 @@ function renderPedagogyPanel(
       )}
 
       {trace.length > 0 && (
-        <div style={{ marginBottom: questions.length > 0 ? '10px' : 0 }}>
+        <div>
           <p style={labelStyle}>Trace</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {trace.map((item, index) => (
@@ -202,25 +198,37 @@ function renderPedagogyPanel(
           </div>
         </div>
       )}
-
-      {questions.length > 0 && (
-        <div>
-          <p style={labelStyle}>Check Yourself</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {questions.map((question) => (
-              <details key={question.prompt}>
-                <summary style={{ cursor: 'pointer', fontSize: '12px', lineHeight: 1.45 }}>
-                  {question.prompt}
-                </summary>
-                <p style={{ margin: '6px 0 0 16px', fontSize: '12px', lineHeight: 1.45 }}>
-                  {question.answer}
-                </p>
-              </details>
-            ))}
-          </div>
-        </div>
-      )}
     </aside>
+  );
+}
+
+function renderKnowledgeCheck(questions: SectionFrontmatter['questions']): React.ReactNode {
+  if (!questions?.length) return null;
+
+  return (
+    <div className="guide-recommendations">
+      <section
+        className="guide-recommendation-group guide-knowledge-check"
+        aria-label="Check Yourself"
+      >
+        <div className="guide-recommendation-header">
+          <div className="guide-recommendation-heading">
+            <div className="guide-recommendation-title">Check Yourself</div>
+          </div>
+          <div className="guide-recommendation-count">{questions.length}</div>
+        </div>
+        <div className="guide-recommendation-list">
+          {questions.map((question, index) => (
+            <details className="guide-knowledge-check-question" key={`${index}-${question.prompt}`}>
+              <summary className="guide-recommendation-item">
+                <span className="guide-recommendation-item-title">{question.prompt}</span>
+              </summary>
+              <p className="guide-knowledge-check-answer">{question.answer}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -597,6 +605,7 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
               sectionMeta.fileRecommendations?.directories || [],
               openFileInTab
             )}
+          {renderKnowledgeCheck(sectionMeta.questions)}
         </div>
       );
 

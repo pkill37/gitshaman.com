@@ -306,7 +306,8 @@ export async function downloadDirectoryContents(
   repo: string,
   branch: string,
   path: string,
-  onProgress?: (progress: DownloadProgress) => void
+  onProgress?: (progress: DownloadProgress) => void,
+  signal?: AbortSignal
 ): Promise<FileEntry[]> {
   const identifier = getGitHubRepoIdentifier(owner, repo);
 
@@ -334,20 +335,26 @@ export async function downloadDirectoryContents(
         Accept: 'application/vnd.github.v3+json',
         'User-Agent': 'gitshaman.com',
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+        : AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
       if (response.status === 404) {
-        throw new Error(`Directory "${path}" not found`);
-      } else if (response.status === 403) {
+        throw new Error(
+          `Cannot load ${path ? `directory "${path}"` : 'the repository root'} in ${owner}/${repo}@${branch}. Check that the repository is public and the revision${path ? ' and directory exist' : ' exists'}.`
+        );
+      } else if (response.status === 403 || response.status === 429) {
         const rateLimitReset = response.headers.get('x-ratelimit-reset');
         const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
         const resetTime = rateLimitReset
           ? new Date(parseInt(rateLimitReset) * 1000).toLocaleString()
           : 'unknown';
         throw new Error(
-          `GitHub API rate limit exceeded. Remaining: ${rateLimitRemaining}, Resets at ${resetTime}`
+          rateLimitRemaining === '0' || response.status === 429
+            ? `GitHub API rate limit exceeded. Retry after ${resetTime}.`
+            : 'GitHub denied this request. Check that the repository and revision are publicly accessible, then retry.'
         );
       } else {
         throw new Error(
@@ -423,6 +430,7 @@ export async function downloadDirectoryContents(
       message: errorMessage,
     });
 
+    signal?.throwIfAborted();
     console.error(`Failed to download directory ${path}:`, error);
     throw new Error(errorMessage);
   }

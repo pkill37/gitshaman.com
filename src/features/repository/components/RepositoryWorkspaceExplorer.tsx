@@ -16,6 +16,7 @@ import {
   getGitHubDefaultBranch,
 } from '@/lib/github-api';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
+import { useRepositoryGuide } from '../useRepositoryGuide';
 import { getCuratedRepoPath } from '@/lib/curated-repos';
 import { loadGuideFromMarkdown } from '@/features/guides/guide-loader';
 import { useRepository } from '@/contexts/RepositoryContext';
@@ -243,6 +244,8 @@ export default function RepositoryWorkspaceExplorer({
 
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const setupKey = JSON.stringify([owner, repo, branch, sourceMode]);
+  const [resolvedSetupKey, setResolvedSetupKey] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string>('');
   useEffect(() => {
@@ -395,6 +398,7 @@ export default function RepositoryWorkspaceExplorer({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let cancelled = false;
     const checkRepositorySetup = async () => {
       if (!owner || !repo) {
         // No repository specified in URL, redirect to main page
@@ -415,9 +419,11 @@ export default function RepositoryWorkspaceExplorer({
               ? config?.defaultRevision || trustedBranch
               : branch) || (isCurated ? trustedBranch : await getGitHubDefaultBranch(owner, repo));
         const targetBranch = branch || defaultBranch;
+        if (cancelled) return;
 
         // Repository exists, set it in context
         await setRepository('github', identifier, `${owner}/${repo}`, targetBranch);
+        if (cancelled) return;
 
         setRepoLabel(`${owner}/${repo}`);
 
@@ -431,6 +437,7 @@ export default function RepositoryWorkspaceExplorer({
           const staticTree = await getTreeStructureFromStatic(owner, repo, targetBranch, {
             sourceMode: fileSourceMode,
           });
+          if (cancelled) return;
           setIsTreeStructureReady(staticTree !== null && staticTree.length > 0);
           setWorkspaceFilePaths(staticTree ? flattenFilePaths(staticTree) : []);
         } else {
@@ -440,14 +447,20 @@ export default function RepositoryWorkspaceExplorer({
           setIsTreeStructureReady(true);
           setWorkspaceFilePaths([]);
         }
+        setSetupError(null);
+        setResolvedSetupKey(setupKey);
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to setup repository:', error);
         setSetupError(error instanceof Error ? error.message : 'Failed to load repository');
       }
     };
 
     checkRepositorySetup();
-  }, [owner, repo, branch, router, setRepository, fileSourceMode]);
+    return () => {
+      cancelled = true;
+    };
+  }, [owner, repo, branch, router, setRepository, fileSourceMode, setupKey]);
 
   useEffect(() => {
     if (!shouldLoadWorkspaceSearchIndex) {
@@ -1162,9 +1175,17 @@ export default function RepositoryWorkspaceExplorer({
     [openFileInTab]
   );
 
+  const discoveredGuide = useRepositoryGuide({
+    owner: owner || '',
+    repo: repo || '',
+    revision: branch || (repoIdentifier === `${owner}~${repo}` ? currentBranch : null),
+    enabled: !projectConfig && !hideGuidePanel && !!owner && !!repo,
+    onOpen: handleOpenFileFromExplorer,
+    location: selectedFile,
+  });
   const guideSections = useMemo(() => {
     if (!projectConfig) {
-      return createGenericGuide(owner || 'torvalds', repo || 'linux');
+      return discoveredGuide;
     }
 
     const guideId = projectConfig.guides[0]?.id;
@@ -1178,7 +1199,7 @@ export default function RepositoryWorkspaceExplorer({
     }
 
     return createGenericGuide(projectConfig.owner, projectConfig.repo);
-  }, [projectConfig, owner, repo, guideOpenFileInTab]);
+  }, [projectConfig, guideOpenFileInTab, discoveredGuide]);
 
   const onTabSelect = (tabId: string) => {
     setActiveTabId(tabId);
@@ -1600,46 +1621,52 @@ export default function RepositoryWorkspaceExplorer({
               className="vscode-sidebar-content"
               style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
             >
-              <FileTree
-                key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}`}
-                onFileSelect={(filePath: string) => {
-                  handleOpenFileFromExplorer(filePath);
-                  // On mobile, switch to editor view when file is selected
-                  if (isMobile) {
-                    setMobileView('editor');
+              {resolvedSetupKey !== setupKey ? (
+                <p role="status">Resolving repository revision…</p>
+              ) : (
+                <FileTree
+                  key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}`}
+                  onFileSelect={(filePath: string) => {
+                    handleOpenFileFromExplorer(filePath);
+                    // On mobile, switch to editor view when file is selected
+                    if (isMobile) {
+                      setMobileView('editor');
+                    }
+                  }}
+                  selectedFile={selectedFile}
+                  listDirectory={listDirectoryFromSelectedSource}
+                  titleLabel={repoLabel}
+                  expandDirectoryRequest={directoryExpandRequest}
+                  searchQuery={workspaceSearchQuery}
+                  onSearchQueryChange={setWorkspaceSearchQuery}
+                  searchResults={workspaceSearchResults}
+                  isSearchLoading={workspaceSearchLoading}
+                  isSearchIndexLoading={workspaceSearchIndexLoading}
+                  isSearchIndexReady={
+                    !!workspaceSearchIndex &&
+                    !workspaceSearchIndexLoading &&
+                    !workspaceSearchIndexError
                   }
-                }}
-                selectedFile={selectedFile}
-                listDirectory={listDirectoryFromSelectedSource}
-                titleLabel={repoLabel}
-                expandDirectoryRequest={directoryExpandRequest}
-                searchQuery={workspaceSearchQuery}
-                onSearchQueryChange={setWorkspaceSearchQuery}
-                searchResults={workspaceSearchResults}
-                isSearchLoading={workspaceSearchLoading}
-                isSearchIndexLoading={workspaceSearchIndexLoading}
-                isSearchIndexReady={
-                  !!workspaceSearchIndex &&
-                  !workspaceSearchIndexLoading &&
-                  !workspaceSearchIndexError
-                }
-                searchIndexProgress={workspaceSearchIndexProgress}
-                searchIndexCached={workspaceSearchIndexCached}
-                searchError={workspaceSearchError}
-                searchHasMore={workspaceSearchHasMore}
-                searchScopeLabel={repoLabel ? `${repoLabel}@${selectedVersion}` : selectedVersion}
-                searchScopeFileCount={workspaceSearchIndex?.fileCount ?? workspaceFilePaths.length}
-                onSearchResultSelect={(result) => {
-                  handleOpenFileFromExplorer(result.file, workspaceSearchQuery, result.line);
-                  if (isMobile) {
-                    setMobileView('editor');
+                  searchIndexProgress={workspaceSearchIndexProgress}
+                  searchIndexCached={workspaceSearchIndexCached}
+                  searchError={workspaceSearchError}
+                  searchHasMore={workspaceSearchHasMore}
+                  searchScopeLabel={repoLabel ? `${repoLabel}@${selectedVersion}` : selectedVersion}
+                  searchScopeFileCount={
+                    workspaceSearchIndex?.fileCount ?? workspaceFilePaths.length
                   }
-                }}
-                showSearch={layoutMode === 'search'}
-                onDirectoryExpand={(path: string) => {
-                  setSelectedFile(path);
-                }}
-              />
+                  onSearchResultSelect={(result) => {
+                    handleOpenFileFromExplorer(result.file, workspaceSearchQuery, result.line);
+                    if (isMobile) {
+                      setMobileView('editor');
+                    }
+                  }}
+                  showSearch={layoutMode === 'search'}
+                  onDirectoryExpand={(path: string) => {
+                    setSelectedFile(path);
+                  }}
+                />
+              )}
             </div>
           </div>
         )}

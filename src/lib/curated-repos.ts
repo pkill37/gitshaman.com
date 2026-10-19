@@ -36,6 +36,44 @@ export function getCuratedRepoAvatarUrl(
 
 export const CURATED_REPOS: CuratedRepoConfig[] = [
   {
+    id: 'freertos-kernel-v11.1.0',
+    owner: 'FreeRTOS',
+    repo: 'FreeRTOS-Kernel',
+    slug: 'freertos-kernel',
+    ref: 'V11.1.0',
+    revision: 'V11.1.0',
+    guideId: 'freertos-kernel-guide',
+    displayName: 'FreeRTOS',
+    icon: '⏱️',
+    gradient: 'from-green-500/10 to-blue-500/10',
+    category: 'Operating Systems',
+    description:
+      'FreeRTOS kernel, with priority scheduling, queues, interrupt handoffs, software timers, and portable embedded memory management.',
+    seoDescription:
+      'Explore FreeRTOS-Kernel V11.1.0 with a curated source guide. Trace task scheduling, queues, interrupt-safe APIs, timers, heap policies, and Cortex-M context switching.',
+    seoKeywords: ['FreeRTOS', 'RTOS', 'embedded systems', 'real-time scheduling', 'Cortex-M'],
+    sitemapPriority: 0.8,
+  },
+  {
+    id: 'zephyr-v3.7.0',
+    owner: 'zephyrproject-rtos',
+    repo: 'zephyr',
+    slug: 'zephyr-rtos',
+    ref: 'v3.7.0',
+    revision: 'v3.7.0',
+    guideId: 'zephyr-rtos-guide',
+    displayName: 'Zephyr',
+    icon: '🌬️',
+    gradient: 'from-purple-500/10 to-blue-500/10',
+    category: 'Operating Systems',
+    description:
+      'Zephyr RTOS, with build-time hardware configuration, device initialization, threads, interrupt handling, and embedded subsystems.',
+    seoDescription:
+      'Explore Zephyr RTOS at the v3.7.0 LTS baseline. Study Kconfig, devicetree, device drivers, scheduling, work queues, memory protection, and application integration.',
+    seoKeywords: ['Zephyr', 'RTOS', 'devicetree', 'Kconfig', 'embedded systems'],
+    sitemapPriority: 0.8,
+  },
+  {
     id: 'linux-v6.1',
     owner: 'torvalds',
     repo: 'linux',

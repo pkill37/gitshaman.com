@@ -18,6 +18,7 @@ import GuidePanel from './components/GuidePanel';
 import IconSidebarToggleButton from './components/IconSidebarToggleButton';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
 import StatusBar from './components/StatusBar';
+import { useRepositoryGuide } from './useRepositoryGuide';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
 import { parseGuideMarkdown } from '@/features/guides/parser';
 import { debugLog } from '@/lib/browser-debug';
@@ -134,7 +135,8 @@ export default function RepositoryExplorerClient({
   const requestedBranch = projectConfig
     ? undefined
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
-  const { currentBranch } = useRepository();
+  const { currentBranch, identifier } = useRepository();
+  const [guideLocation, setGuideLocation] = useState('');
   const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
   // This value is calculated by the Server Component and serialized into the
   // RSC payload, so the server render and hydration render use the same source.
@@ -344,6 +346,26 @@ export default function RepositoryExplorerClient({
   ]);
 
   // ── Guide sections ──────────────────────────────────────────────────────────
+  const handleDiscoveredFile = useCallback((path: string) => {
+    setInitialFile(
+      path.endsWith('/')
+        ? {
+            kind: 'directory',
+            path: path.replace(/\/+$/, ''),
+            navigationNonce: createNavigationNonce(),
+          }
+        : { path, exactPath: true, navigationNonce: createNavigationNonce() }
+    );
+    setMode('editor');
+  }, []);
+  const discoveredGuide = useRepositoryGuide({
+    owner,
+    repo,
+    revision: requestedBranch || (identifier === `${owner}~${repo}` ? currentBranch : null),
+    enabled: !projectConfig && !guideContent,
+    onOpen: handleDiscoveredFile,
+    location: guideLocation,
+  });
   const guideSections = useMemo(() => {
     if (guideContent) {
       try {
@@ -352,8 +374,8 @@ export default function RepositoryExplorerClient({
         // fall through to generic
       }
     }
-    return createGenericGuide(owner, repo);
-  }, [guideContent, owner, repo, handleEnterFile]);
+    return projectConfig ? createGenericGuide(owner, repo) : discoveredGuide;
+  }, [guideContent, owner, repo, handleEnterFile, projectConfig, discoveredGuide]);
 
   const defaultOpenIds = useMemo(
     () =>
@@ -625,6 +647,7 @@ export default function RepositoryExplorerClient({
               branch={requestedBranch}
               initialFile={initialFile ?? urlInitialFile}
               hideGuidePanel
+              onSelectedFileChange={setGuideLocation}
               layoutMode={
                 mode === 'search'
                   ? 'search'

@@ -143,6 +143,7 @@ export async function fetchRepositoryFile(
   options?: {
     sourceMode?: CuratedRepoSourceMode;
     allowGitHubFallback?: boolean;
+    signal?: AbortSignal;
   }
 ): Promise<FileFetchResult> {
   const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
@@ -170,7 +171,11 @@ export async function fetchRepositoryFile(
       'https://raw.githubusercontent.com/'
     ).toString();
     try {
-      const response = await fetch(rawUrl, { signal: AbortSignal.timeout(15_000) });
+      const response = await fetch(rawUrl, {
+        signal: options?.signal
+          ? AbortSignal.any([options.signal, AbortSignal.timeout(15_000)])
+          : AbortSignal.timeout(15_000),
+      });
       if (response.ok) {
         const contentLength = Number(response.headers.get('content-length'));
         if (Number.isFinite(contentLength) && contentLength > MAX_EDITOR_FILE_BYTES) {
@@ -191,6 +196,7 @@ export async function fetchRepositoryFile(
         };
       }
     } catch (error) {
+      options?.signal?.throwIfAborted();
       if (error instanceof GitHubApiError) {
         throw error;
       }

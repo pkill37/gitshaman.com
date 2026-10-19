@@ -831,6 +831,7 @@ export function EntityView({
         onQueryChange={onSearchQueryChange ?? (() => undefined)}
         placeholder="Search entities"
         ariaLabel="Search entities"
+        statusNotificationId="entities-ready"
         statusVisible={loading || scored.length > 0}
         statusLoading={loading}
         statusReady={!loading && scored.length > 0}

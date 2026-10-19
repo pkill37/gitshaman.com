@@ -556,6 +556,7 @@ const FileTree: React.FC<FileTreeProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
       {shouldShowHeader && (
         <SidebarSearchHeader
+          statusNotificationId="index-ready"
           query={searchQuery}
           onQueryChange={onSearchQueryChange ?? (() => undefined)}
           placeholder="Search all files"

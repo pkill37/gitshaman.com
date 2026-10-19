@@ -288,6 +288,66 @@
   color: var(--vscode-text-secondary);
 }
 
+.repository-notifications {
+  position: fixed;
+  bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+  left: max(16px, env(safe-area-inset-left, 0px));
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: 50dvh;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.repository-notification {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--vscode-border);
+  border-radius: 8px;
+  background: var(--vscode-bg-secondary);
+  color: var(--vscode-text-primary);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 25%);
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.repository-notification > .codicon {
+  color: var(--vscode-text-success);
+}
+
+.repository-notification > [role='status'] {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.repository-notification button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-text-secondary);
+  cursor: pointer;
+}
+
+.repository-notification button:hover {
+  background: var(--vscode-bg-hover);
+  color: var(--vscode-text-primary);
+}
+
+.repository-notification button:focus-visible {
+  outline: 2px solid var(--vscode-text-accent);
+  outline-offset: 2px;
+}
+
 .vscode-tree-search-index-status {
   display: flex;
   flex-direction: column;

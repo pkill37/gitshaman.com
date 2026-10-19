@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { useRepositoryNotification } from './RepositoryNotifications';
 
 interface SidebarSearchHeaderProps {
   titleLabel?: string;
@@ -19,6 +20,7 @@ interface SidebarSearchHeaderProps {
   statusProgress?: number;
   statusLabel?: string;
   statusBadgeLabel?: string;
+  statusNotificationId?: string;
   meta?: ReactNode;
 }
 
@@ -39,9 +41,11 @@ export default function SidebarSearchHeader({
   statusProgress = 0,
   statusLabel,
   statusBadgeLabel,
+  statusNotificationId,
   meta,
 }: SidebarSearchHeaderProps) {
   const normalizedQuery = query.trim();
+  const notify = useRepositoryNotification();
   const clampedProgress = Math.max(0, Math.min(100, statusProgress));
 
   const resolvedStatusLabel =
@@ -58,6 +62,15 @@ export default function SidebarSearchHeader({
   const resolvedBadgeLabel =
     statusBadgeLabel ??
     (statusCached ? 'cached' : statusLoading ? 'loading' : statusError ? 'error' : 'ready');
+
+  const showReadyNotification =
+    !!statusNotificationId && statusVisible && statusReady && !statusLoading && !statusError;
+
+  useEffect(() => {
+    if (showReadyNotification && statusNotificationId) {
+      notify(statusNotificationId, resolvedStatusLabel);
+    }
+  }, [notify, showReadyNotification, statusNotificationId, resolvedStatusLabel]);
 
   return (
     <div
@@ -127,7 +140,7 @@ export default function SidebarSearchHeader({
           )}
         </div>
       )}
-      {statusVisible && (
+      {statusVisible && !showReadyNotification && (
         <div className="vscode-tree-search-index-status">
           <div className="vscode-tree-search-index-status-header">
             <span>{resolvedStatusLabel || 'Loading index'}</span>

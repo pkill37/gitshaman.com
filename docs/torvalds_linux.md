@@ -16,6 +16,7 @@ defaultOpenIds:
   - ch7
   - ch8
   - ch9
+  - ch10
 ---
 
 # Linux Kernel In The Mind
@@ -372,8 +373,58 @@ Scheduling and I/O interact constantly: a task blocked on I/O sits in `TASK_INTE
 KVM turns Linux into a Type-1 hypervisor. In VMX root mode the host kernel manages guest CPU state (`struct kvm_vcpu`). When the guest executes a privileged instruction the CPU performs a VMEXIT, saving all guest registers. KVM inspects the exit reason, emulates or delegates to user-space QEMU, and resumes the guest with `VMRESUME` — all transparent to the guest OS.
 
 ---
+id: ch10
+title: Chapter 9 — RTLinux and Real-Time Linux
+fileRecommendations:
+  readingOrder:
+    - path: Documentation/scheduler/sched-rt-group.rst
+      description: Real-time scheduling bandwidth and group controls
+      type: docs
+    - path: Documentation/scheduler/sched-deadline.rst
+      description: Deadline scheduling model and admission constraints
+      type: docs
+    - path: Documentation/locking/locktypes.rst
+      description: Lock semantics, including differences under PREEMPT_RT
+      type: docs
+    - path: Documentation/locking/rt-mutex-design.rst
+      description: Priority inheritance and RT-mutex design
+      type: docs
+    - path: kernel/sched/rt.c
+      description: Linux FIFO and round-robin real-time scheduling class
+      type: source
+    - path: kernel/locking/rtmutex.c
+      description: Priority-inheritance locking infrastructure
+      type: source
+    - path: kernel/irq/manage.c
+      description: Interrupt registration and threaded interrupt handling
+      type: source
+---
+
+### RTLinux Is a Specific Historical Architecture
+
+Real-time computing asks whether a result arrives before its deadline, not whether average throughput is high. Historical **RTLinux** placed a small real-time executive beneath Linux. That layer controlled hardware interrupts and ran real-time tasks ahead of Linux; Linux ran as its lowest-priority background activity. Linux interrupt masking was virtualized so ordinary kernel critical sections could not prevent the real-time layer from handling its own interrupts.
+
+This split created two execution environments. The real-time side handled deadline-sensitive work and exchanged data with Linux through explicit communication mechanisms such as FIFOs. Calling arbitrary Linux services from that path would reintroduce the delays the split was designed to avoid. RTLinux is not the name of Linux's real-time scheduler, and its executive is not part of the vanilla v6.1 source tree used by this guide.
+
+### PREEMPT_RT Changes Linux Itself
+
+**PREEMPT_RT** follows a different design: make more Linux execution preemptible, move most interrupt handling into schedulable threads, and replace eligible spinning locks with priority-inheritance-aware sleeping locks. The application remains within Linux's task and system-call model. Raw spinlocks and low-level interrupt paths still impose nonpreemptible regions.
+
+Read [lock type semantics](Documentation/locking/locktypes.rst) before assuming that a lock behaves the same across configurations. Then connect [RT-mutex priority inheritance](Documentation/locking/rt-mutex-design.rst) to [threaded interrupt handling](kernel/irq/manage.c). Inheritance lets a lock holder make progress on behalf of a higher-priority waiter; it does not remove blocking or bound every driver operation.
+
+This guide is pinned to **vanilla Linux v6.1**. It contains RT-related infrastructure, but a full PREEMPT_RT setup for that kernel generation requires the matching external RT patch set. Mainline integration reached Linux 6.12 for supported architectures. Do not read the presence of RT-mutex code in v6.1 as evidence that this snapshot is a fully RT-patched kernel.
+
+### Scheduling Policy Is Only Part of the Deadline
+
+Linux supports `SCHED_FIFO` and `SCHED_RR` through [the real-time scheduler class](kernel/sched/rt.c), including without PREEMPT_RT. FIFO runs eligible tasks by priority without a round-robin time slice; RR adds time slicing among equal-priority tasks. [Real-time bandwidth controls](Documentation/scheduler/sched-rt-group.rst) can throttle execution, so priority alone does not describe CPU availability.
+
+`SCHED_DEADLINE` uses runtime, deadline, and period parameters with admission control, as described in [the deadline scheduler documentation](Documentation/scheduler/sched-deadline.rst). Neither selecting a policy nor reserving CPU time proves an end-to-end hardware deadline. Account for page faults, lock contention, interrupt latency, firmware interference, driver behavior, and I/O.
+
+Trace a periodic control loop from timer or device interrupt to task wakeup, computation, and output. Prefault and lock required memory, inspect scheduling and IRQ priorities, and measure wakeup latency under representative load with tools such as cyclictest. Treat the largest observed delay as measurement evidence, not a proof of the worst possible delay.
+
+---
 id: ch9
-title: Chapter 9 — Where to Go Next
+title: Chapter 10 — Where to Go Next
 fileRecommendations:
   readingOrder:
     - path: Documentation/process/howto.rst#how-to-participate-in-the-linux-community
