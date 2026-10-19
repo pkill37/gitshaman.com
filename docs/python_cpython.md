@@ -58,8 +58,11 @@ fileRecommendations:
     - path: Python/bytecodes.c
       description: Instruction definitions that generate the interpreter cases
       type: source
-    - path: Modules/gcmodule.c:gc_collect_main
-      description: Cyclic garbage collector
+    - path: Python/gc.c
+      description: Default-build incremental cyclic garbage collector
+      type: source
+    - path: Python/gc_free_threading.c:gc_collect_main
+      description: Free-threaded cyclic garbage collector
       type: source
 ---
 
@@ -76,13 +79,13 @@ In Python, everything is an object—integers, functions, classes, modules, even
 
 ### The Global Interpreter Lock (GIL): Concurrency in CPython
 
-In the default CPython build, the Global Interpreter Lock (GIL) protects access to Python objects and prevents native threads from executing Python bytecode at the same time. CPython 3.14 also contains free-threaded build paths guarded by `Py_GIL_DISABLED`, so read GIL-related code with the build mode in mind. For the lower layers, compare glibc's [`pthread_create`](repo:bminor/glibc/nptl/pthread_create.c:pthread_create) with Linux's [`kernel_clone`](repo:torvalds/linux/kernel/fork.c:kernel_clone): a Python thread ultimately depends on both the POSIX user-space API and a kernel task.
+In the default CPython build, the Global Interpreter Lock (GIL) protects access to Python objects and serializes bytecode execution by native threads sharing that GIL. Subinterpreters configured with their own GIL can execute in parallel. CPython 3.14 also supports optional free-threaded builds guarded by `Py_GIL_DISABLED`, so read GIL-related code with the build mode in mind. On Linux with glibc, compare [`pthread_create`](repo:bminor/glibc/nptl/pthread_create.c:pthread_create) with Linux's [`kernel_clone`](repo:torvalds/linux/kernel/fork.c:kernel_clone): a Python thread depends on both the POSIX user-space API and a kernel task.
 
 See [Doc/c-api/init.rst](Doc/c-api/init.rst) for interpreter initialization and the GIL lifecycle.
 
 ### Memory Management: Reference Counting and Garbage Collection
 
-CPython uses a combination of reference counting and a cyclic garbage collector for memory management. Most objects are deallocated when their reference count reaches zero, while selected constants and runtime singletons can be immortal. Free-threaded builds also split some reference-count operations into local and shared paths. Reference counting alone cannot handle circular references, so CPython includes a garbage collector that detects and collects cycles.
+CPython uses a combination of reference counting and a cyclic garbage collector for memory management. Most objects are deallocated when their reference count reaches zero, while selected constants and runtime singletons can be immortal. Free-threaded builds use biased reference counting with local and shared counts, plus deferred reference counting for selected objects whose reclamation requires GC. Reference counting alone cannot handle circular references, so CPython includes a garbage collector that detects and collects cycles.
 
 See [Doc/c-api/gcsupport.rst](Doc/c-api/gcsupport.rst) for garbage collector support documentation.
 
@@ -127,8 +130,8 @@ fileRecommendations:
 ```chapter-graph
 Parser/lexer/lexer.c -> Parser/parser.c : tokens → AST
 Grammar/python.gram -> Parser/parser.c : pegen generates parser
-Parser/parser.c -> Python/ast.c : parse tree → AST
-Python/ast.c -> Python/compile.c : AST → bytecode
+Parser/parser.c -> Python/compile.c : parser constructs AST for compilation
+Python/compile.c -> Python/ast.c : validates AST
 Python/compile.c -> Include/opcode_ids.h : emits opcode IDs
 Python/bytecodes.c -> Python/generated_cases.c.h : generate instruction cases
 Python/generated_cases.c.h -> Python/ceval.c : bytecode execution cases
@@ -141,7 +144,7 @@ CPython's compilation process transforms Python source code into bytecode throug
 
 ### The Execution Model: Bytecode to Results
 
-CPython executes bytecode using a stack-based interpreter. The main frame executor lives in [Python/ceval.c](Python/ceval.c), while instruction bodies are defined in [Python/bytecodes.c](Python/bytecodes.c) and generated into [Python/generated_cases.c.h](Python/generated_cases.c.h). The interpreter manipulates stack references, maintains frames, specializes hot operations, and may hand optimized traces to tier-two executor machinery.
+CPython executes bytecode using a stack-based interpreter. The main frame executor lives in [Python/ceval.c](Python/ceval.c), while instruction bodies are defined in [Python/bytecodes.c](Python/bytecodes.c) and generated into [Python/generated_cases.c.h](Python/generated_cases.c.h). The interpreter manipulates stack references, maintains frames, and specializes hot operations. Tier-two execution and the experimental JIT depend on build options and runtime configuration; they are not the default execution path in every build.
 
 See [Include/opcode_ids.h](Include/opcode_ids.h) for generated opcode IDs, [Include/internal/pycore_opcode_metadata.h](Include/internal/pycore_opcode_metadata.h) for generated metadata, and [Python/frame.c](Python/frame.c) for frame management.
 
@@ -171,8 +174,11 @@ fileRecommendations:
     - path: Objects/typeobject.c:type_new
       description: Type system (about 10,600 lines)
       type: source
-    - path: Modules/gcmodule.c:gc_collect_main
-      description: Cyclic garbage collector
+    - path: Python/gc.c
+      description: Default-build incremental cyclic garbage collector
+      type: source
+    - path: Python/gc_free_threading.c:gc_collect_main
+      description: Free-threaded cyclic garbage collector
       type: source
     - path: Objects/abstract.c
       description: Abstract object protocol dispatch
@@ -186,7 +192,8 @@ Objects/object.c -> Objects/typeobject.c : base ops → type slots
 Include/cpython/object.h -> Include/object.h : internal details extend public API
 Objects/abstract.c -> Objects/typeobject.c : protocol dispatch via type slots
 Objects/object.c -> Include/cpython/object.h : ob_type → PyTypeObject
-Modules/gcmodule.c -> Include/internal/pycore_gc.h : cyclic GC tracks PyObject
+Python/gc.c -> Include/internal/pycore_gc.h : default-build GC state
+Python/gc_free_threading.c -> Include/internal/pycore_gc.h : free-threaded GC state
 ```
 
 ### PyObject: The Base of Everything
@@ -201,13 +208,15 @@ See [Doc/c-api/typeobj.rst](Doc/c-api/typeobj.rst) for the full type object slot
 
 ### Reference Counting: Automatic Memory Management
 
-CPython uses reference counting as its primary memory management mechanism. Ordinary objects are deallocated when their count reaches zero, but CPython 3.14 also uses immortal objects for selected constants and has alternate local/shared reference-count paths in free-threaded builds. The memory below CPython's object layer is a useful cross-reference: glibc's [`__libc_malloc`](repo:bminor/glibc/malloc/malloc.c:__libc_malloc) manages user-space heap storage, while Linux's [`do_mmap`](repo:torvalds/linux/mm/mmap.c:do_mmap) creates the virtual-memory areas that back larger mappings.
+CPython uses reference counting as its primary memory management mechanism. Ordinary reference-counted objects are deallocated when their count reaches zero. CPython 3.14 also uses immortal objects for selected constants. Free-threaded builds use biased reference counting, which separates local and shared counts, and deferred reference counting, which leaves some references uncounted until GC determines whether an object is reclaimable. The memory below CPython's object layer is a useful cross-reference: glibc's [`__libc_malloc`](repo:bminor/glibc/malloc/malloc.c:__libc_malloc) manages user-space heap storage, while Linux's [`do_mmap`](repo:torvalds/linux/mm/mmap.c:do_mmap) creates virtual-memory areas. CPython also uses specialized allocators; free-threaded builds require mimalloc for object allocation.
 
 The macros `Py_INCREF` and `Py_DECREF` in [Objects/object.c](Objects/object.c) and [Include/object.h](Include/object.h) provide reference counting.
 
 ### Garbage Collection: Handling Cycles
 
 While reference counting handles most memory management, it cannot detect or break circular references. CPython includes a cyclic garbage collector that periodically scans for unreachable cycles and collects them. Understanding the garbage collector reveals how CPython handles complex object graphs and why some objects may survive until a later collection.
+
+In the default build of **3.14.0**, [Python/gc.c](Python/gc.c) implements incremental collection, spreading old-generation work across collections. The free-threaded build uses a separate collector in [Python/gc_free_threading.c](Python/gc_free_threading.c), with stop-the-world coordination and support for deferred reference counting. [Modules/gcmodule.c](Modules/gcmodule.c) exposes the Python-level `gc` module. These details are pinned to 3.14.0; later maintenance releases can change collector behavior.
 
 ---
 id: ch4
@@ -251,7 +260,7 @@ Include/object.h -> Objects/listobject.c : PyObject head + ob_item[]
 Include/object.h -> Objects/dictobject.c : PyObject head + hash table
 Include/object.h -> Objects/setobject.c : PyObject head + hash table
 Objects/longobject.c -> Objects/dictobject.c : int keys require hash
-Objects/unicodeobject.c -> Objects/dictobject.c : str keys are interned
+Objects/unicodeobject.c -> Objects/dictobject.c : string hashing and equality for keys
 ```
 
 ### Integers: Arbitrary Precision
@@ -299,8 +308,11 @@ fileRecommendations:
     - path: Python/frame.c
       description: Execution frame management
       type: source
-    - path: Include/frameobject.h
-      description: Frame object structure
+    - path: Include/internal/pycore_interpframe_structs.h
+      description: Internal execution frame structure
+      type: source
+    - path: Include/internal/pycore_frame.h
+      description: Python-visible frame object structure
       type: source
     - path: Lib/dis.py:dis
       description: Python bytecode disassembler
@@ -313,18 +325,19 @@ Python/bytecodes.c -> Python/generated_cases.c.h : instruction definitions gener
 Python/generated_cases.c.h -> Python/ceval.c : included by the frame executor
 Python/compile.c -> Include/opcode_ids.h : compiler emits opcode IDs
 Python/ceval.c -> Python/frame.c : creates frame per call
-Include/frameobject.h -> Python/frame.c : frame struct definition
+Include/internal/pycore_interpframe_structs.h -> Python/frame.c : internal execution frame definition
+Include/internal/pycore_frame.h -> Python/frame.c : Python-visible frame object definition
 Python/frame.c -> Python/compile.c : reads f_code (PyCodeObject)
 Include/opcode_ids.h -> Lib/dis.py : disassembler decodes generated opcode IDs
 ```
 
 ### The Main Loop: ceval.c
 
-The heart of CPython is the frame executor in [Python/ceval.c](Python/ceval.c), centered on `_PyEval_EvalFrameDefault`. In 3.14, most instruction behavior is written in [Python/bytecodes.c](Python/bytecodes.c) and generated into [Python/generated_cases.c.h](Python/generated_cases.c.h). The loop manipulates stack references, checks eval-breaker events, specializes hot instructions, and supports tier-two executor paths.
+The heart of CPython is the frame executor in [Python/ceval.c](Python/ceval.c), centered on `_PyEval_EvalFrameDefault`. In 3.14, most instruction behavior is written in [Python/bytecodes.c](Python/bytecodes.c) and generated into [Python/generated_cases.c.h](Python/generated_cases.c.h). The loop manipulates stack references, checks eval-breaker events, and specializes hot instructions. Builds can also enable tier-two executor paths or the experimental JIT. The optional tail-call interpreter changes C-level instruction dispatch, not Python's function-call semantics.
 
 ### Frames: Execution Context
 
-Each function call creates a new execution frame that contains local variables, the value stack, and execution state. Frames are linked together to form a call stack, enabling function calls, returns, and exception propagation. Understanding frames reveals how Python manages execution context and enables features like generators and coroutines.
+Each Python function invocation has an internal execution frame containing local variables, the value stack, and execution state. Active frames are linked together to form a call stack. A Python-visible `PyFrameObject` is materialized when needed for introspection or tracebacks, rather than allocated for every call. Generators and coroutines keep internal frames across suspension and resumption.
 
 ### Bytecode Instructions: The Language of the VM
 
@@ -374,7 +387,7 @@ Python/ceval.c -> Python/import.c : calls PyImport_ImportModuleLevelObject
 
 Python's import system finds, loads, and initializes modules. It searches through a list of paths (sys.path), caches loaded modules, and handles both built-in modules (written in C) and Python modules. Understanding the import system reveals how Python organizes code and enables dynamic program structure.
 
-Importing an extension or shared library also crosses repository boundaries: glibc's [`_dl_start`](repo:bminor/glibc/elf/rtld.c:_dl_start) begins dynamic-linker startup, and Linux's [`load_elf_binary`](repo:torvalds/linux/fs/exec.c:load_elf_binary) maps executable segments before control reaches user space. Pure Python imports still travel through bytecode such as `IMPORT_NAME` and the `importlib` bootstrap code.
+Importing a dynamically loaded C extension also crosses into the platform loader. On relevant Unix platforms, [Python/dynload_shlib.c](Python/dynload_shlib.c) calls `dlopen()` and looks up the extension's initialization function. This happens inside the running Python process, rather than restarting executable loading. Pure Python imports travel through bytecode such as `IMPORT_NAME` and the `importlib` bootstrap code.
 
 ### Module Objects: Namespaces as Objects
 
@@ -516,7 +529,7 @@ This distinction matters when reading source. A lock, refcount operation, object
 
 ### Default Build: One Bytecode Executor at a Time
 
-In the default build, the GIL protects Python object internals and serializes bytecode execution across native threads. Threads still overlap during I/O or C code that releases the GIL, but two Python threads do not run Python bytecode at the same instant.
+In the default build, the GIL protects Python object internals and serializes bytecode execution across native threads sharing that GIL. Threads still overlap during I/O or C code that releases the GIL. Subinterpreters configured with `PyInterpreterConfig_OWN_GIL` have separate locks and can execute bytecode in parallel; the restriction is not necessarily process-wide.
 
 `Python/ceval_gil.c` is the center of this model. It stores the GIL state, implements the switch interval, handles drop requests, and attaches or detaches thread states around blocking regions.
 
@@ -531,7 +544,7 @@ The actual interpreter uses more detailed control flow, but this shape captures 
 
 ### Free-Threaded Build: GIL Optional, Synchronization Localized
 
-The free-threaded build is selected at build time with GIL support disabled. In that build, `Py_GIL_DISABLED` activates alternate paths across the runtime. CPython replaces the single global protection point with more localized mechanisms: biased reference counting, object-level synchronization, critical sections, deferred refcount merging, and stop-the-world coordination for runtime-wide events.
+The free-threaded build is selected with the `--disable-gil` configure option. It defaults to running without the GIL but retains support for enabling it at runtime. In that build, `Py_GIL_DISABLED` activates alternate paths across the runtime. CPython uses biased reference counting with local and shared counts, deferred reference counting for selected objects, object-level synchronization, critical sections, and stop-the-world coordination for runtime-wide events.
 
 Use these runtime checks when experimenting:
 
@@ -544,7 +557,7 @@ print(sysconfig.get_config_var("Py_GIL_DISABLED"))
 print(sys._is_gil_enabled())
 ```
 
-The build can support free threading while the process still has the GIL enabled. Python 3.14 exposes runtime controls through `PYTHON_GIL` and `-X gil`, and importing a C extension that has not declared free-threading support can enable the GIL for compatibility.
+The build can support free threading while the process still has the GIL enabled. Python 3.14 exposes runtime controls through `PYTHON_GIL` and `-X gil`. When the GIL is disabled by default, importing a C extension that has not declared free-threading support enables it with a warning. Explicitly forcing it off with `PYTHON_GIL=0` or `-X gil=0` prevents that fallback; it does not make the extension thread-safe.
 
 ### Thread State Still Matters
 
@@ -552,15 +565,17 @@ Free-threaded does not mean unmanaged. A native thread must still attach to the 
 
 ```c
 PyGILState_STATE state = PyGILState_Ensure();
-/* Safe to call Python C API with an attached thread state. */
+/* Attached to the main interpreter; shared state still needs synchronization. */
 PyGILState_Release(state);
 ```
+
+`PyGILState_*` assumes the main interpreter and is not suitable for attaching a native thread to a subinterpreter. Use the `PyThreadState_*` APIs with the intended interpreter for that case. An attached thread state permits C API access, but does not replace locks around extension-owned shared state in a free-threaded build.
 
 Read `Python/pystate.c` beside `Python/ceval_gil.c`: the first file explains which thread state is current, while the second explains whether that attached thread must also own the GIL.
 
 ### C Extensions: Declare Safety or Re-Enable the GIL
 
-C extensions are the compatibility boundary. An extension built around old assumptions may rely on the GIL to protect borrowed references, global caches, or direct struct-field access. Python 3.14 asks extensions to declare free-threading support. Without that declaration, importing the extension can enable the GIL at runtime.
+C extensions are the compatibility boundary. An extension built around old assumptions may rely on the GIL to protect borrowed references, global caches, or direct struct-field access. Python 3.14 asks extensions to declare free-threading support. Without that declaration, importing the extension enables the GIL unless the user explicitly forced it off.
 
 Multi-phase modules declare support with a module slot:
 
@@ -596,6 +611,9 @@ The core rule is simple: in default CPython, the GIL is the broad runtime guard;
 ---
 ## References
 
+- [CPython 3.14.0 release notes](https://github.com/python/cpython/blob/v3.14.0/Doc/whatsnew/3.14.rst) — Version-pinned free-threading status, interpreter changes, and incremental GC
+- [CPython 3.14.0 thread-state documentation](https://github.com/python/cpython/blob/v3.14.0/Doc/c-api/init.rst) — GIL ownership, subinterpreters, and C API attachment
+- [CPython 3.14.0 extension import implementation](https://github.com/python/cpython/blob/v3.14.0/Python/import.c) — GIL compatibility fallback and explicit overrides
 - [Python Developer's Guide](https://devguide.python.org/) — Official Python development guide
 - [Exploring CPython's Internals](https://devguide.python.org/internals/exploring/) — Official guide to exploring CPython
 - [Python Documentation](https://docs.python.org/) — Official Python documentation

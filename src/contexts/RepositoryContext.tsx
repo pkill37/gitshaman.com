@@ -304,18 +304,3 @@ export function useRepository(): RepositoryContextValue {
 
   return context;
 }
-
-// Hook to check if repository is set up (for redirects)
-export function useRepositorySetup(): {
-  isSetup: boolean;
-  isLoading: boolean;
-  checkSetup: () => Promise<boolean>;
-} {
-  const { isSetup, isLoading, checkSetupStatus } = useRepository();
-
-  return {
-    isSetup,
-    isLoading,
-    checkSetup: checkSetupStatus,
-  };
-}

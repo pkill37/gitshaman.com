@@ -52,9 +52,21 @@ npm run corpus:semantic
 # Check cached SQLite indexes.
 npm run corpus:check
 
-# Build and deploy the shell plus corpus artifacts.
+# Upload changed/missing files from the prepared local corpus to R2.
 npm run deploy
 ```
+
+Cloudflare Pages publishes the website shell separately. `deploy` (an alias for `corpus:deploy`) uploads only the current
+curated repository revisions, using content hashes rather than timestamps or file sizes.
+It lists each current remote prefix on every run to repair missing objects, but uploads only
+the diff. Unchanged runs perform no uploads, including deployment metadata. Missing metadata is
+recreated without re-uploading matching single-part objects. Old revisions remain untouched.
+Local hashes are cached under `.cache/r2-deploy`;
+the first run reads every local file, while later runs reuse hashes when file metadata matches.
+Set `R2_DEPLOY_VERIFY=1` to force rehashing. Remote multipart objects without a recorded content
+hash may need a one-time upload to establish an inventory. Per-repository logs report scan,
+upload, verification times, and skipped/uploaded file counts. `R2_SYNC_CONCURRENCY` controls
+concurrent repositories (default 2); AWS CLI transfer settings control each upload pool.
 
 Local corpus indexing requires Node.js 22.22.2 or newer because it uses native `better-sqlite3`.
 

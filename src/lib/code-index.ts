@@ -98,8 +98,6 @@ export interface CodeIndexEdgeEntry {
   confidence: SemanticConfidence;
 }
 
-export type SemanticGraphKind = 'call' | 'dependency' | 'dataflow' | 'other';
-
 export interface CodeIndexCapabilityEntry {
   language: string;
   feature: SemanticBackendFeature;
@@ -203,15 +201,6 @@ function normalizeSemanticFeature(feature: string): SemanticBackendFeature {
     default:
       return 'relationships';
   }
-}
-
-export function buildFtsQuery(query: string): string | null {
-  const terms = normalizeSearchTerms(query);
-  if (terms.length === 0) {
-    return null;
-  }
-
-  return terms.map((term) => `${term}*`).join(' AND ');
 }
 
 export function searchCodeIndexFiles(

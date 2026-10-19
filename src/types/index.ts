@@ -51,17 +51,6 @@ export interface GitHubApiResponse {
   encoding?: string;
 }
 
-export interface GitHubTag {
-  name: string;
-  commit: {
-    sha: string;
-    url: string;
-  };
-  zipball_url: string;
-  tarball_url: string;
-  node_id: string;
-}
-
 // File System Access API types (for browser compatibility)
 declare global {
   interface R2Object {

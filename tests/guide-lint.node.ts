@@ -122,8 +122,7 @@ describe('guide reference linting', () => {
         'repo:torvalds/linux/kernel/fork.c:kernel_clone',
         'repo:bminor/glibc/malloc/malloc.c:__libc_malloc',
         'repo:torvalds/linux/mm/mmap.c:do_mmap',
-        'repo:bminor/glibc/elf/rtld.c:_dl_start',
-        'repo:torvalds/linux/fs/exec.c:load_elf_binary',
+        
       ],
     } as const;
 

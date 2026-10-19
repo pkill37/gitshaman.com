@@ -627,14 +627,6 @@ export function getCuratedRepoRevision(owner: string, repo: string): string {
   return getCuratedRepo(owner, repo)?.revision ?? '';
 }
 
-export function getCuratedRepoRef(owner: string, repo: string): string {
-  return getCuratedRepo(owner, repo)?.ref ?? '';
-}
-
-export function getCuratedRepoId(owner: string, repo: string): string {
-  return getCuratedRepo(owner, repo)?.id ?? '';
-}
-
 const CURATED_REPO_ACCENTS: Record<string, string> = {
   'torvalds/linux': '#0ea5e9',
   'apple-oss-distributions/xnu': '#f97316',

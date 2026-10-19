@@ -144,14 +144,6 @@ export interface SemanticIndexStats {
   detail: string;
 }
 
-export type SemanticCapabilityRecord = {
-  language: string;
-  feature: SemanticBackendFeature;
-  provider: string;
-  status: SemanticCapabilityStatus;
-  detail: string | null;
-};
-
 export const CLANGD_BACKEND_FEATURES = [
   'definition',
   'references',

@@ -2,8 +2,6 @@
 // Provides storage for GitHub-downloaded repositories
 // Falls back gracefully if IndexedDB is not available
 
-import type { FileNode } from '@/types';
-
 export interface FileEntry {
   name: string;
   path: string;
@@ -26,15 +24,6 @@ export interface StorageUsage {
   availableSpace?: number; // If available from browser
 }
 
-export interface TreeStructure {
-  key: string;
-  source: 'github' | 'uploaded';
-  identifier: string;
-  branch: string;
-  tree: FileNode[]; // Complete tree structure
-  createdAt: number;
-}
-
 const DB_NAME = 'explorar-repo-storage';
 const DB_VERSION = 4; // Increment version to ensure tree structure store exists
 const FILES_STORE = 'files';
@@ -44,10 +33,6 @@ const TREE_STRUCTURE_STORE = 'treeStructure'; // Store complete tree structure
 
 let db: IDBDatabase | null = null;
 let initPromise: Promise<void> | null = null;
-
-// Debounce metadata updates to avoid transaction conflicts during bulk downloads
-const metadataUpdateQueue = new Map<string, ReturnType<typeof setTimeout>>();
-const METADATA_UPDATE_DELAY = 1000; // Update metadata at most once per second per repository
 
 function resetDatabaseConnection(database?: IDBDatabase): void {
   if (!database || database === db) {
@@ -229,18 +214,6 @@ async function ensureDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Generate storage key for a file
- */
-function getFileKey(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string,
-  filePath: string
-): string {
-  return `repos/${source}/${identifier}/${branch}/${filePath}`;
-}
-
-/**
  * Get metadata key for a repository
  */
 function getMetadataKey(source: 'github' | 'uploaded', identifier: string): string {
@@ -397,146 +370,6 @@ export async function getDirectoryMetadata(
 }
 
 /**
- * Check if a file is available locally (downloaded)
- */
-export async function isFileAvailable(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string,
-  path: string
-): Promise<boolean> {
-  try {
-    const database = await ensureDB();
-    const key = `repos/${source}/${identifier}/${branch}/${path}`;
-
-    return (await getFromStore(database, FILES_STORE, key)) !== null;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Store file in storage
- */
-export async function storeFileInStorage(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string,
-  filePath: string,
-  content: string | ArrayBuffer
-): Promise<void> {
-  try {
-    const database = await ensureDB();
-    const key = getFileKey(source, identifier, branch, filePath);
-
-    // Convert content to ArrayBuffer for consistent storage
-    let contentBuffer: ArrayBuffer;
-    if (typeof content === 'string') {
-      const encoder = new TextEncoder();
-      contentBuffer = encoder.encode(content).buffer;
-    } else {
-      contentBuffer = content;
-    }
-
-    const size = contentBuffer.byteLength;
-
-    // Store file in its own transaction
-    await putInStore(database, FILES_STORE, {
-      key,
-      source,
-      identifier,
-      branch,
-      filePath,
-      content: contentBuffer,
-      size,
-      lastModified: Date.now(),
-    });
-
-    // Update metadata with debouncing to avoid transaction conflicts during bulk downloads
-    scheduleMetadataUpdate(source, identifier, branch);
-  } catch (error) {
-    console.error('Failed to store file in storage:', error);
-    throw new Error(`Failed to store file: ${filePath}`);
-  }
-}
-
-/**
- * Schedule a debounced metadata update to avoid transaction conflicts
- */
-function scheduleMetadataUpdate(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): void {
-  const metadataKey = getMetadataKey(source, identifier);
-
-  // Clear existing timeout if any
-  if (metadataUpdateQueue.has(metadataKey)) {
-    clearTimeout(metadataUpdateQueue.get(metadataKey)!);
-  }
-
-  // Schedule new update
-  const timeout = setTimeout(async () => {
-    metadataUpdateQueue.delete(metadataKey);
-    try {
-      await updateRepositoryMetadata(source, identifier, branch);
-    } catch (error) {
-      console.error('Failed to update repository metadata:', {
-        source,
-        identifier,
-        branch,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Metadata update failure is non-critical - file storage still succeeded
-    }
-  }, METADATA_UPDATE_DELAY);
-
-  metadataUpdateQueue.set(metadataKey, timeout);
-}
-
-/**
- * Update repository metadata (called separately to avoid transaction conflicts)
- */
-async function updateRepositoryMetadata(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): Promise<void> {
-  try {
-    const database = await ensureDB();
-    const metadataKey = getMetadataKey(source, identifier);
-
-    // Get existing metadata in a separate transaction
-    const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
-
-    const branches = includeRepositoryBranch(metadata, branch);
-
-    // Create display name
-    let displayName = identifier;
-    if (source === 'github') {
-      displayName = identifier.replace('~', '/');
-    }
-
-    // Update metadata in its own transaction
-    // Note: We don't recalculate totalSize on every file write to avoid performance issues
-    // The size will be recalculated when needed (e.g., when viewing storage usage)
-    await putInStore(database, METADATA_STORE, {
-      id: metadataKey,
-      source,
-      identifier,
-      branches: branches.sort(),
-      totalSize: metadata?.totalSize || 0, // Keep existing size, recalculate when needed
-      lastAccessed: Date.now(),
-      displayName,
-    });
-  } catch (error) {
-    // Don't throw - metadata update failure shouldn't block file storage
-    // Error is logged by caller with more context
-    throw error; // Re-throw so caller can log with context
-  }
-}
-
-/**
  * Force immediate metadata update
  * Call this when root directory metadata is downloaded to ensure metadata is stored
  * Note: We don't calculate total size since we're always lazy loading (size is unknown)
@@ -546,12 +379,7 @@ export async function finalizeRepositoryMetadata(
   identifier: string,
   branch: string
 ): Promise<void> {
-  // Clear any pending debounced updates
   const metadataKey = getMetadataKey(source, identifier);
-  if (metadataUpdateQueue.has(metadataKey)) {
-    clearTimeout(metadataUpdateQueue.get(metadataKey)!);
-    metadataUpdateQueue.delete(metadataKey);
-  }
 
   try {
     const database = await ensureDB();
@@ -733,35 +561,6 @@ export async function clearRepository(
 }
 
 /**
- * Check if repository exists (has any branches)
- */
-export async function repositoryExists(
-  source: 'github' | 'uploaded',
-  identifier: string
-): Promise<boolean> {
-  try {
-    console.log('[Repo Storage] Checking repository existence:', { source, identifier });
-    const branches = await getAvailableBranches(source, identifier);
-    console.log('[Repo Storage] Available branches:', {
-      source,
-      identifier,
-      branches,
-      count: branches.length,
-    });
-    const exists = branches.length > 0;
-    console.log('[Repo Storage] Repository exists:', { source, identifier, exists });
-    return exists;
-  } catch (error) {
-    console.error('[Repo Storage] Error checking repository existence:', {
-      source,
-      identifier,
-      error,
-    });
-    return false;
-  }
-}
-
-/**
  * Generate repository identifier for GitHub repos
  */
 export function getGitHubRepoIdentifier(owner: string, repo: string): string {
@@ -774,152 +573,4 @@ export function getGitHubRepoIdentifier(owner: string, repo: string): string {
 export function parseGitHubRepoIdentifier(identifier: string): { owner: string; repo: string } {
   const [owner, repo] = identifier.split('~');
   return { owner, repo };
-}
-
-/**
- * Get tree structure key
- */
-function getTreeStructureKey(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): string {
-  return `tree/${source}/${identifier}/${branch}`;
-}
-
-/**
- * Store complete tree structure for a repository branch
- */
-export async function storeTreeStructure(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string,
-  tree: FileNode[]
-): Promise<void> {
-  try {
-    console.log('[Repo Storage] Storing tree structure:', {
-      source,
-      identifier,
-      branch,
-      treeSize: tree.length,
-    });
-    const database = await ensureDB();
-
-    // Check if TREE_STRUCTURE_STORE exists
-    if (!database.objectStoreNames.contains(TREE_STRUCTURE_STORE)) {
-      console.error('[Repo Storage] TREE_STRUCTURE_STORE not found in database');
-      throw new Error('TREE_STRUCTURE_STORE not found in database - database needs upgrade');
-    }
-
-    const key = getTreeStructureKey(source, identifier, branch);
-    console.log('[Repo Storage] Tree structure key:', { key });
-
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction([TREE_STRUCTURE_STORE], 'readwrite');
-      const treeStore = transaction.objectStore(TREE_STRUCTURE_STORE);
-
-      const treeData = {
-        key,
-        source,
-        identifier,
-        branch,
-        tree,
-        createdAt: Date.now(),
-      };
-      console.log('[Repo Storage] Putting tree structure data:', {
-        key,
-        source,
-        identifier,
-        branch,
-        treeLength: tree.length,
-      });
-
-      const request = treeStore.put(treeData);
-
-      request.onsuccess = () => {
-        transaction.oncomplete = () => {
-          console.log('[Repo Storage] Tree structure stored successfully:', {
-            source,
-            identifier,
-            branch,
-          });
-          resolve();
-        };
-        transaction.onerror = () => {
-          console.error(
-            '[Repo Storage] Transaction error storing tree structure:',
-            transaction.error
-          );
-          reject(transaction.error);
-        };
-      };
-      request.onerror = () => {
-        console.error('[Repo Storage] Request error storing tree structure:', request.error);
-        reject(request.error);
-      };
-    });
-  } catch (error) {
-    console.error('[Repo Storage] Failed to store tree structure:', {
-      source,
-      identifier,
-      branch,
-      error,
-    });
-    throw new Error(`Failed to store tree structure: ${source}/${identifier}/${branch}`);
-  }
-}
-
-/**
- * Get complete tree structure for a repository branch
- */
-export async function getTreeStructure(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): Promise<FileNode[] | null> {
-  try {
-    return await withOpenDatabase((database) => {
-      // Check if TREE_STRUCTURE_STORE exists
-      if (!database.objectStoreNames.contains(TREE_STRUCTURE_STORE)) {
-        console.warn('TREE_STRUCTURE_STORE not found in database - database may need upgrade');
-        return Promise.resolve(null);
-      }
-
-      const key = getTreeStructureKey(source, identifier, branch);
-
-      return new Promise<FileNode[] | null>((resolve, reject) => {
-        const transaction = database.transaction([TREE_STRUCTURE_STORE], 'readonly');
-        const treeStore = transaction.objectStore(TREE_STRUCTURE_STORE);
-        const request = treeStore.get(key);
-
-        request.onsuccess = () => {
-          transaction.oncomplete = () => {
-            const result = request.result as TreeStructure | undefined;
-            resolve(result ? result.tree : null);
-          };
-          transaction.onerror = () => reject(transaction.error);
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
-  } catch (error) {
-    console.warn('Failed to get tree structure:', error);
-    return null;
-  }
-}
-
-/**
- * Check if tree structure exists for a repository branch
- */
-export async function hasTreeStructure(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): Promise<boolean> {
-  try {
-    const tree = await getTreeStructure(source, identifier, branch);
-    return tree !== null && tree.length > 0;
-  } catch {
-    return false;
-  }
 }

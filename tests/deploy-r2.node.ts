@@ -9,8 +9,6 @@ import {
   buildRepoCodeIndexKey,
   buildRepoManifestKey,
   buildRepoRequiredArtifactKeys,
-  buildRepoSyncArgs,
-  buildBulkCorpusSyncArgs,
   buildCanonicalDeploymentPayload,
   computeDeploymentSignature,
 } from '../scripts/deploy-r2';
@@ -32,34 +30,6 @@ describe('R2 deploy', () => {
         `repos/${repo.owner}/${repo.repo}/${repo.revision}/code-index.sqlite`,
       ]);
     }
-  });
-
-  test('sync args are incremental and non-destructive', () => {
-    const args = buildRepoSyncArgs(
-      '/tmp/explorar-repos/littlekernel/lk/a521fe60e1a16d5670fe24b7fca2c5155b3339c4',
-      's3://explorar-repos/repos/littlekernel/lk/a521fe60e1a16d5670fe24b7fca2c5155b3339c4/'
-    );
-
-    expect(args).toEqual([
-      's3',
-      'sync',
-      '/tmp/explorar-repos/littlekernel/lk/a521fe60e1a16d5670fe24b7fca2c5155b3339c4/',
-      's3://explorar-repos/repos/littlekernel/lk/a521fe60e1a16d5670fe24b7fca2c5155b3339c4/',
-      '--no-progress',
-      '--size-only',
-    ]);
-    expect(args).not.toContain('--delete');
-  });
-
-  test('builds one non-destructive bulk corpus sync', () => {
-    expect(buildBulkCorpusSyncArgs('/tmp/repos', 'explorar-repos')).toEqual([
-      's3',
-      'sync',
-      '/tmp/repos/',
-      's3://explorar-repos/repos/',
-      '--no-progress',
-      '--size-only',
-    ]);
   });
 
   test('canonical deployment signatures are order-independent but content-sensitive', () => {

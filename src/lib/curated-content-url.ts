@@ -37,10 +37,6 @@ export function getR2BucketBaseUrl(): string {
   return '';
 }
 
-export function getCuratedContentBaseUrl(): string {
-  return getR2BucketBaseUrl();
-}
-
 export function hasConfiguredR2BucketBaseUrl(): boolean {
   return getR2BucketBaseUrl().length > 0;
 }

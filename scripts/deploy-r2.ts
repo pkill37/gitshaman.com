@@ -5,6 +5,7 @@ import { createHash } from 'crypto';
 import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 import { loadDeployEnv } from './deploy-env';
@@ -12,6 +13,12 @@ import { getCorpusBuildSignature, type CorpusBuildTreeNode } from './corpus-buil
 import { CORPUS_REPOS_DIR } from './static-asset-paths';
 import { CURATED_REPOS } from '../src/lib/curated-repos';
 import { runPhase } from './tqdm';
+import {
+  scanArtifacts,
+  selectUploads,
+  type PublishedInventory,
+  type RemoteArtifact,
+} from './deploy-inventory';
 
 type DeployEnv = {
   bucketName: string;
@@ -27,8 +34,6 @@ export const DEPLOYMENT_MANIFEST_KEY = 'deployments/curated-corpus.json';
 const DEFAULT_R2_RETRY_ATTEMPTS = 3;
 const DEFAULT_R2_RETRY_BASE_DELAY_MS = 2_000;
 const DEFAULT_R2_SYNC_CONCURRENCY = 2;
-const DEFAULT_AWS_S3_MAX_CONCURRENT_REQUESTS = 10;
-const R2_SYNC_COMPARISON_ARGS = ['--size-only'] as const;
 
 export type DeploymentArtifactCounts = {
   corpusFiles: number;
@@ -73,10 +78,6 @@ function awsEnv(env: DeployEnv): NodeJS.ProcessEnv {
     AWS_ACCESS_KEY_ID: env.accessKeyId,
     AWS_SECRET_ACCESS_KEY: env.secretAccessKey,
     AWS_DEFAULT_REGION: 'auto',
-    // AWS documents this setting as the S3 transfer worker limit. Keep it in
-    // one process instead of multiplying independent sync processes.
-    AWS_S3_MAX_CONCURRENT_REQUESTS:
-      process.env.AWS_S3_MAX_CONCURRENT_REQUESTS ?? String(DEFAULT_AWS_S3_MAX_CONCURRENT_REQUESTS),
   };
 }
 
@@ -138,15 +139,6 @@ function captureAws(args: string[], env: DeployEnv): Promise<string> {
   });
 }
 
-function headObject(env: DeployEnv, key: string): Promise<boolean> {
-  return captureAws(['s3api', 'head-object', '--bucket', env.bucketName, '--key', key], env)
-    .then(() => true)
-    .catch((error: Error) => {
-      if (/status (1|254)\b/.test(error.message)) return false;
-      throw error;
-    });
-}
-
 export function ensureOutDir(): void {
   if (!fs.existsSync(path.join(process.cwd(), 'out')))
     fail('The `out/` directory does not exist. Run `npm run build` first.');
@@ -183,19 +175,6 @@ export function buildRepoRequiredArtifactKeys(repo: {
   revision: string;
 }): string[] {
   return [buildRepoManifestKey(repo), buildRepoCodeIndexKey(repo)];
-}
-export function buildRepoSyncArgs(repoDir: string, bucketPrefix: string): string[] {
-  return ['s3', 'sync', `${repoDir}/`, bucketPrefix, '--no-progress', ...R2_SYNC_COMPARISON_ARGS];
-}
-export function buildBulkCorpusSyncArgs(repoDir: string, bucketName: string): string[] {
-  return [
-    's3',
-    'sync',
-    `${repoDir.replace(/\/$/, '')}/`,
-    `s3://${bucketName}/repos/`,
-    '--no-progress',
-    ...R2_SYNC_COMPARISON_ARGS,
-  ];
 }
 export function buildDeploymentManifestKey(): string {
   return DEPLOYMENT_MANIFEST_KEY;
@@ -241,27 +220,6 @@ export function buildDeploymentManifest(
   };
 }
 
-function countFiles(dirPath: string): number {
-  return fs
-    .readdirSync(dirPath, { withFileTypes: true })
-    .reduce(
-      (total, entry) =>
-        total + (entry.isDirectory() ? countFiles(path.join(dirPath, entry.name)) : 1),
-      0
-    );
-}
-function directorySizeBytes(dirPath: string): number {
-  return fs
-    .readdirSync(dirPath, { withFileTypes: true })
-    .reduce(
-      (total, entry) =>
-        total +
-        (entry.isDirectory()
-          ? directorySizeBytes(path.join(dirPath, entry.name))
-          : fs.statSync(path.join(dirPath, entry.name)).size),
-      0
-    );
-}
 function readPositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) return fallback;
@@ -288,6 +246,7 @@ async function withRetries<T>(label: string, operation: () => Promise<T>): Promi
       return await operation();
     } catch (error) {
       last = error;
+      console.warn(`${label}: attempt ${attempt}/${attempts} failed: ${String(error)}`);
       if (attempt < attempts) await sleep(delay * 2 ** (attempt - 1));
     }
   }
@@ -315,54 +274,54 @@ function localRepoSignature(repo: Repo): string {
     fail(`Invalid or missing repository manifest: ${manifestPath}`);
   }
 }
-function validateLocalArtifacts(): {
-  payload: CanonicalDeploymentPayload;
-  counts: DeploymentArtifactCounts;
-} {
-  ensureDir(CORPUS_REPOS_DIR, 'corpus repos');
-  const repositories = CURATED_REPOS.map((repo) => {
-    const dir = path.join(CORPUS_REPOS_DIR, repo.owner, repo.repo, repo.revision);
-    ensureDir(dir, `${repo.owner}/${repo.repo}@${repo.revision}`);
-    for (const file of ['repo-manifest.json', 'code-index.sqlite'])
-      if (!fs.existsSync(path.join(dir, file)))
-        fail(`Missing local corpus artifact: ${path.join(dir, file)}`);
-    return {
-      id: repo.id,
-      owner: repo.owner,
-      repo: repo.repo,
-      revision: repo.revision,
-      buildSignature: localRepoSignature(repo),
-    };
+async function readRemoteJson(env: DeployEnv, key: string): Promise<unknown> {
+  return withRetries(`read ${key}`, async () => {
+    let raw: string;
+    try {
+      raw = await captureAws(['s3', 'cp', `s3://${env.bucketName}/${key}`, '-'], env);
+    } catch (error) {
+      if (/\(404\)|\(NoSuchKey\)/.test(String(error))) return null;
+      throw error;
+    }
+    return JSON.parse(raw);
   });
-  const payload = buildCanonicalDeploymentPayload(repositories);
-  return {
-    payload,
-    counts: {
-      corpusFiles: countFiles(CORPUS_REPOS_DIR),
-      corpusBytes: directorySizeBytes(CORPUS_REPOS_DIR),
-    },
-  };
 }
 
-async function readRemoteDeploymentManifest(env: DeployEnv): Promise<DeploymentManifest | null> {
-  try {
-    return JSON.parse(
-      await captureAws(['s3', 'cp', `s3://${env.bucketName}/${DEPLOYMENT_MANIFEST_KEY}`, '-'], env)
-    ) as DeploymentManifest;
-  } catch {
-    return null;
-  }
+async function readPublishedInventory(env: DeployEnv, key: string): Promise<PublishedInventory> {
+  const inventory = (await readRemoteJson(env, key)) as {
+    schemaVersion: number;
+    files: PublishedInventory;
+  } | null;
+  if (inventory === null) return {};
+  if (inventory.schemaVersion !== 1 || !inventory.files || typeof inventory.files !== 'object')
+    throw new Error(`Invalid deployment inventory: ${key}`);
+  return inventory.files as PublishedInventory;
 }
-async function verifyArtifacts(env: DeployEnv): Promise<void> {
-  const keys = CURATED_REPOS.flatMap(buildRepoRequiredArtifactKeys);
-  const missing: string[] = [];
-  await withConcurrency(
-    keys.map((key) => async () => {
-      if (!(await withRetries(`verify ${key}`, () => headObject(env, key)))) missing.push(key);
-    }),
-    readPositiveIntEnv('R2_SYNC_CONCURRENCY', DEFAULT_R2_SYNC_CONCURRENCY)
-  );
-  if (missing.length) fail(`Missing uploaded artifact(s): ${missing.join(', ')}`);
+
+async function listRemoteArtifacts(
+  env: DeployEnv,
+  prefix: string
+): Promise<Record<string, RemoteArtifact>> {
+  const files: Record<string, RemoteArtifact> = Object.create(null);
+  // Let the CLI paginate inside one process, and return only comparison fields.
+  const args = [
+    's3api',
+    'list-objects-v2',
+    '--bucket',
+    env.bucketName,
+    '--prefix',
+    prefix,
+    '--output',
+    'json',
+    '--query',
+    'Contents[].[Key,Size,ETag]',
+  ];
+  const objects = JSON.parse(await withRetries(`list ${prefix}`, () => captureAws(args, env))) as
+    [string, number, string][] | null;
+  for (const [key, size, etag] of objects ?? []) {
+    files[key.slice(prefix.length)] = { size, etag: etag.replaceAll('"', '') };
+  }
+  return files;
 }
 async function syncPhase(args: string[], env: DeployEnv, label: string): Promise<void> {
   await runPhase(
@@ -373,47 +332,166 @@ async function syncPhase(args: string[], env: DeployEnv, label: string): Promise
 }
 
 export async function runAwsSync(env: DeployEnv): Promise<void> {
-  const local = validateLocalArtifacts();
-  const manifest = buildDeploymentManifest(local.payload, local.counts);
-  const remote = await withRetries('deployment manifest read', () =>
-    readRemoteDeploymentManifest(env)
-  );
-  const forcedVerify = process.env.R2_DEPLOY_VERIFY === '1';
-  if (remote?.deploymentSignature === manifest.deploymentSignature) {
-    if (forcedVerify) await verifyArtifacts(env);
-    console.log(
-      forcedVerify
-        ? 'Deployment manifest matches; verification completed without uploads.'
-        : 'Deployment manifest matches; skipping R2 uploads.'
-    );
-    return;
-  }
-
+  const started = Date.now();
+  ensureDir(CORPUS_REPOS_DIR, 'corpus repos');
+  const repositories = CURATED_REPOS.map((repo) => {
+    const dir = path.join(CORPUS_REPOS_DIR, repo.owner, repo.repo, repo.revision);
+    for (const file of ['repo-manifest.json', 'code-index.sqlite']) {
+      if (!fs.existsSync(path.join(dir, file)))
+        fail(
+          `Missing local corpus artifact: ${path.join(dir, file)}. Run npm run corpus:sync first.`
+        );
+    }
+    return {
+      id: repo.id,
+      owner: repo.owner,
+      repo: repo.repo,
+      revision: repo.revision,
+      buildSignature: localRepoSignature(repo),
+    };
+  });
   runAwsCommand(
     ['s3api', 'head-bucket', '--bucket', env.bucketName],
     env,
     `R2 bucket access preflight failed for s3://${env.bucketName}`
   );
+  const counts = { corpusFiles: 0, corpusBytes: 0 };
+  let uploaded = 0;
+  let uploadedBytes = 0;
   await withConcurrency(
-    [
-      () =>
-        syncPhase(buildBulkCorpusSyncArgs(CORPUS_REPOS_DIR, env.bucketName), env, '📦 Sync corpus'),
-    ],
+    CURATED_REPOS.map((repo) => async () => {
+      const label = `${repo.owner}/${repo.repo}@${repo.revision}`;
+      const prefix = `repos/${repo.owner}/${repo.repo}/${repo.revision}/`;
+      const inventoryKey = `deployments/inventory/${repo.owner}/${repo.repo}/${repo.revision}.json`;
+      const dir = path.join(CORPUS_REPOS_DIR, repo.owner, repo.repo, repo.revision);
+      const scanStarted = Date.now();
+      console.log(`[${label}] scanning local hashes and remote inventory…`);
+      const [local, remote, published] = await Promise.all([
+        scanArtifacts(
+          dir,
+          path.join(
+            process.cwd(),
+            '.cache',
+            'r2-deploy',
+            repo.owner,
+            repo.repo,
+            `${repo.revision}.json`
+          ),
+          process.env.R2_DEPLOY_VERIFY === '1'
+        ),
+        listRemoteArtifacts(env, prefix),
+        readPublishedInventory(env, inventoryKey),
+      ]);
+      const keys = Object.keys(local.files);
+      const changed = selectUploads(local.files, remote, published);
+      counts.corpusFiles += keys.length;
+      counts.corpusBytes += local.bytes;
+      console.log(
+        `[${label}] scan ${((Date.now() - scanStarted) / 1000).toFixed(1)}s; ${local.hashed} hashed; ${changed.length} to upload; ${keys.length - changed.length} unchanged`
+      );
+      let verified = remote;
+      if (changed.length) {
+        const uploadStarted = Date.now();
+        const staging = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'r2-deploy-'));
+        try {
+          // Stage only the diff. Recursive cp deliberately uploads same-size edits,
+          // and uses one AWS transfer pool instead of one process per file.
+          const source = changed.length === keys.length ? dir : staging;
+          if (source === staging) {
+            for (const key of changed) {
+              const target = path.join(staging, key);
+              await fs.promises.mkdir(path.dirname(target), { recursive: true });
+              await fs.promises.symlink(path.join(dir, key), target);
+            }
+          }
+          await syncPhase(
+            [
+              's3',
+              'cp',
+              `${source}/`,
+              buildRepoBucketPrefix(env.bucketName, repo),
+              '--recursive',
+              '--follow-symlinks',
+              '--no-progress',
+            ],
+            env,
+            `Upload ${label}`
+          );
+        } finally {
+          await fs.promises.rm(staging, { recursive: true, force: true });
+        }
+        console.log(`[${label}] upload ${((Date.now() - uploadStarted) / 1000).toFixed(1)}s`);
+        const verifyStarted = Date.now();
+        verified = await listRemoteArtifacts(env, prefix);
+        for (const key of keys) {
+          const object = verified[key];
+          if (
+            !object ||
+            object.size !== local.files[key].size ||
+            (/^[a-f0-9]{32}$/i.test(object.etag) &&
+              object.etag.toLowerCase() !== local.files[key].hash)
+          )
+            throw new Error(`Uploaded artifact verification failed: ${prefix}${key}`);
+        }
+        console.log(`[${label}] verification ${((Date.now() - verifyStarted) / 1000).toFixed(1)}s`);
+        uploaded += changed.length;
+        uploadedBytes += changed.reduce((sum, key) => sum + local.files[key].size, 0);
+      }
+      const inventory: PublishedInventory = Object.create(null);
+      for (const key of keys) inventory[key] = { ...local.files[key], etag: verified[key].etag };
+      if (
+        Object.keys(published).length !== keys.length ||
+        keys.some(
+          (key) =>
+            published[key]?.size !== inventory[key].size ||
+            published[key]?.hash !== inventory[key].hash ||
+            published[key]?.etag !== inventory[key].etag
+        )
+      ) {
+        runAwsCommand(
+          [
+            's3',
+            'cp',
+            '-',
+            `s3://${env.bucketName}/${inventoryKey}`,
+            '--content-type',
+            'application/json',
+          ],
+          env,
+          `Inventory upload failed for ${label}`,
+          JSON.stringify({ schemaVersion: 1, files: inventory })
+        );
+      }
+    }),
     readPositiveIntEnv('R2_SYNC_CONCURRENCY', DEFAULT_R2_SYNC_CONCURRENCY)
   );
-  await verifyArtifacts(env);
-  runAwsCommand(
-    [
-      's3',
-      'cp',
-      '-',
-      `s3://${env.bucketName}/${DEPLOYMENT_MANIFEST_KEY}`,
-      '--content-type',
-      'application/json',
-    ],
+  const manifest = buildDeploymentManifest(buildCanonicalDeploymentPayload(repositories), counts);
+  const previousManifest = (await readRemoteJson(
     env,
-    'Deployment manifest upload failed',
-    `${JSON.stringify(manifest)}\n`
+    DEPLOYMENT_MANIFEST_KEY
+  )) as DeploymentManifest | null;
+  // generatedAt records a manifest change, not each invocation of deploy.
+  if (previousManifest && typeof previousManifest.generatedAt === 'string') {
+    manifest.generatedAt = previousManifest.generatedAt;
+  }
+  if (JSON.stringify(previousManifest) !== JSON.stringify(manifest)) {
+    manifest.generatedAt = new Date().toISOString();
+    runAwsCommand(
+      [
+        's3',
+        'cp',
+        '-',
+        `s3://${env.bucketName}/${DEPLOYMENT_MANIFEST_KEY}`,
+        '--content-type',
+        'application/json',
+      ],
+      env,
+      'Deployment manifest upload failed',
+      `${JSON.stringify(manifest)}\n`
+    );
+  }
+  console.log(
+    `Corpus: ${uploaded} uploaded (${uploadedBytes.toLocaleString()} bytes), ${counts.corpusFiles - uploaded} unchanged; total ${((Date.now() - started) / 1000).toFixed(1)}s.`
   );
 }
 
