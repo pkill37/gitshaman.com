@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import SidebarSearchHeader from './SidebarSearchHeader';
+import ExplorerIcon from './ExplorerIcon';
 import { FileNode, WorkspaceSearchResult } from '@/types';
-import { buildFileTree, getFileIcon, sortFileNodes } from '@/lib/github-api';
+import { buildFileTree, sortFileNodes } from '@/lib/github-api';
 
 interface FileTreeProps {
   onFileSelect: (path: string) => void;
@@ -175,7 +176,9 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
           {isLoading ? (
             <div className="vscode-spinner" style={{ width: '12px', height: '12px' }} />
           ) : (
-            getFileIcon({ ...node, isExpanded })
+            <ExplorerIcon
+              kind={node.type === 'directory' ? (isExpanded ? 'folder-open' : 'folder') : 'file'}
+            />
           )}
         </span>
         <span className="name">{node.name}</span>
@@ -237,8 +240,8 @@ const FileTree: React.FC<FileTreeProps> = ({
   const normalizedSearchQuery = searchQuery.trim();
 
   const clampedSearchIndexProgress = Math.max(0, Math.min(100, searchIndexProgress));
-  const shouldShowSearchIndexIndicator =
-    showSearch && (isSearchIndexLoading || isSearchIndexReady || !!searchError);
+  const isScanningFiles = isLoading || (showSearch && (isSearchIndexLoading || isSearchLoading));
+  const shouldShowSearchIndexIndicator = isScanningFiles || (showSearch && !!searchError);
   const rootNodeVersion = rootNodes.length;
   const searchIndexStatusLabel = isSearchIndexReady
     ? searchIndexCached
@@ -556,22 +559,29 @@ const FileTree: React.FC<FileTreeProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
       {shouldShowHeader && (
         <SidebarSearchHeader
-          statusNotificationId="index-ready"
           query={searchQuery}
           onQueryChange={onSearchQueryChange ?? (() => undefined)}
-          placeholder="Search all files"
+          placeholder="Search…"
           ariaLabel="Search all files"
           searchVisible={showSearch && !!onSearchQueryChange}
           isRegex={searchIsRegex}
           onRegexChange={onSearchIsRegexChange}
           statusVisible={shouldShowSearchIndexIndicator}
-          statusLoading={isSearchIndexLoading}
-          statusReady={isSearchIndexReady}
+          statusLoading={isScanningFiles}
+          statusReady={!isScanningFiles && isSearchIndexReady}
           statusCached={searchIndexCached}
           statusError={!!searchError}
-          statusProgress={isSearchIndexReady ? 100 : clampedSearchIndexProgress}
-          statusLabel={searchIndexStatusLabel || 'Loading repository index'}
-          statusBadgeLabel={searchIndexBadgeLabel}
+          statusProgress={
+            isScanningFiles
+              ? isSearchIndexLoading
+                ? clampedSearchIndexProgress
+                : 35
+              : isSearchIndexReady
+                ? 100
+                : clampedSearchIndexProgress
+          }
+          statusLabel={isScanningFiles ? 'Scanning files' : searchIndexStatusLabel}
+          statusBadgeLabel={isScanningFiles ? 'loading' : searchIndexBadgeLabel}
           meta={searchMeta}
         />
       )}
@@ -583,31 +593,44 @@ const FileTree: React.FC<FileTreeProps> = ({
         aria-label={showSearch ? 'Repository file search results' : 'Repository file tree'}
         style={{ flex: 1, minHeight: 0 }}
       >
-        {isLoading ? (
-          <div className="vscode-loading">
-            <div className="vscode-spinner" />
-            <div>Loading source tree...</div>
+        {isScanningFiles && !error && !searchError ? (
+          <div
+            role="status"
+            style={{
+              minHeight: 320,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'monospace',
+              color: 'var(--vscode-text-tertiary)',
+              gap: 10,
+            }}
+          >
+            <div
+              className="vscode-spinner"
+              aria-hidden="true"
+              style={{
+                width: 24,
+                height: 24,
+                border: '2px solid var(--vscode-border)',
+                borderTopColor: 'var(--vscode-text-secondary)',
+                borderRadius: '50%',
+                animation: 'spin 0.9s linear infinite',
+              }}
+            />
+            <span style={{ fontSize: 11 }}>scanning files…</span>
           </div>
         ) : error ? (
           <div className="vscode-loading">
-            <div>⚠️ Failed to load</div>
+            <div>
+              <ExplorerIcon kind="warning" /> Failed to load
+            </div>
             <div style={{ fontSize: '12px', marginTop: '4px' }}>{error}</div>
           </div>
         ) : showSearch ? (
           <div className="vscode-tree-search-results">
-            {!normalizedSearchQuery ? (
-              <div className="vscode-tree-search-empty">Type to search files.</div>
-            ) : isSearchIndexLoading || isSearchLoading ? (
-              <div className="vscode-tree-search-empty">
-                <div style={{ marginTop: '8px' }}>
-                  {isSearchIndexLoading
-                    ? `${clampedSearchIndexProgress.toFixed(1)}% loaded`
-                    : `Searching ${searchScopeFileCount ?? 'all'} file${
-                        (searchScopeFileCount ?? 0) === 1 ? '' : 's'
-                      }${searchScopeLabel ? ` in ${searchScopeLabel}` : ''}...`}
-                </div>
-              </div>
-            ) : searchError ? (
+            {!normalizedSearchQuery ? null : searchError ? (
               <div className="vscode-tree-search-empty">{searchError}</div>
             ) : searchResults.length === 0 ? (
               <div className="vscode-tree-search-empty">No matches found.</div>
@@ -633,7 +656,7 @@ const FileTree: React.FC<FileTreeProps> = ({
                       title={`${primaryMatch.file}:${primaryMatch.line}`}
                     >
                       <span className="icon" aria-hidden="true">
-                        📄
+                        <ExplorerIcon />
                       </span>
                       <span className="name">{group.fileName}</span>
                       <span className="vscode-tree-search-relevance" title="Relevance score">

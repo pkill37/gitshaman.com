@@ -2,15 +2,15 @@
 :root {
   /* VSCode Dark Theme Colors */
   --vscode-bg-primary: #17151c;
-  --vscode-bg-secondary: #211c2b;
-  --vscode-bg-tertiary: #2b2436;
+  --vscode-bg-secondary: #1c1922;
+  --vscode-bg-tertiary: #25212d;
   --vscode-bg-quaternary: #3c3147;
   --vscode-bg-hover: #342b40;
   --vscode-bg-selected: #39415a;
   --vscode-bg-focus: #2d3748;
 
-  --vscode-border: #473850;
-  --vscode-border-light: #5b4660;
+  --vscode-border: #302a38;
+  --vscode-border-light: #443b4d;
 
   --vscode-text-primary: #eee8dc;
   --vscode-text-secondary: #aaa2b0;
@@ -38,15 +38,15 @@
   color-scheme: light;
 
   --vscode-bg-primary: #fbf7ed;
-  --vscode-bg-secondary: #f1eadb;
-  --vscode-bg-tertiary: #e8deca;
+  --vscode-bg-secondary: #f6f1e7;
+  --vscode-bg-tertiary: #eee7da;
   --vscode-bg-quaternary: #d5c7ad;
   --vscode-bg-hover: #e9dfcf;
   --vscode-bg-selected: #d9eee9;
   --vscode-bg-focus: #c6e4df;
 
-  --vscode-border: #d2c4aa;
-  --vscode-border-light: #c5b594;
+  --vscode-border: #e5ddce;
+  --vscode-border-light: #d4c9b6;
 
   --vscode-text-primary: #29232e;
   --vscode-text-secondary: #665d6b;
@@ -92,7 +92,6 @@
 /* Sidebar */
 .vscode-sidebar {
   background: var(--vscode-bg-secondary);
-  border-right: 1px solid var(--vscode-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -100,7 +99,6 @@
 
 .vscode-sidebar-header {
   background: var(--vscode-bg-secondary);
-  border-bottom: 1px solid var(--vscode-border);
 }
 
 .sidebar-tabs {
@@ -617,7 +615,6 @@
   --vscode-tab-bar-height: 36px;
 
   background: var(--vscode-bg-secondary);
-  border-bottom: 1px solid var(--vscode-border);
   display: flex;
   overflow: hidden;
   height: var(--vscode-tab-bar-height);
@@ -631,7 +628,6 @@
   min-width: 28px;
   height: calc(var(--vscode-tab-bar-height) - 1px);
   border: none;
-  border-right: 1px solid var(--vscode-border);
   background: var(--vscode-bg-secondary);
   color: var(--vscode-text-secondary);
   font-size: 18px;
@@ -673,7 +669,7 @@
   align-items: center;
   padding: 0 12px;
   background: var(--vscode-bg-secondary);
-  border-right: 1px solid var(--vscode-border);
+  border-right: 0;
   border-bottom: 0;
   cursor: pointer;
   color: var(--vscode-text-secondary);
@@ -694,7 +690,7 @@
 .vscode-tab-strip > .vscode-tab.active {
   background: var(--vscode-bg-primary);
   color: var(--vscode-text-primary);
-  box-shadow: inset 0 -1px 0 var(--vscode-bg-primary);
+  box-shadow: inset 0 -2px 0 var(--repo-accent, var(--vscode-text-accent));
 }
 
 .vscode-tab-strip > .vscode-tab .icon {
@@ -754,7 +750,6 @@
 
 .vscode-editor-header {
   background: var(--vscode-bg-primary);
-  border-bottom: 1px solid var(--vscode-border);
   padding: 8px 16px;
   color: var(--vscode-text-secondary);
   font-size: 12px;
@@ -1458,11 +1453,9 @@
   }
 }
 
-/* Shared shell finish: keep every surface in the same GitShaman palette. */
+/* Flat workspace surfaces use spacing and muted fills for hierarchy. */
 .vscode-container {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(167, 139, 250, 0.06), transparent 24rem),
-    var(--vscode-bg-primary);
+  background: var(--vscode-bg-primary);
 }
 
 .vscode-sidebar,
@@ -1474,24 +1467,23 @@
 
 .vscode-sidebar,
 .vscode-panel {
-  box-shadow: inset 0 1px rgba(239, 198, 111, 0.035);
+  box-shadow: none;
 }
 
 .vscode-file-item:hover,
 .vscode-tab:hover {
-  background: color-mix(in srgb, var(--vscode-bg-hover) 88%, var(--shaman-gold, #efc66f) 12%);
+  background: var(--vscode-bg-hover);
 }
 
 .vscode-file-item.selected,
 .vscode-tab.active {
-  background: color-mix(in srgb, var(--vscode-bg-selected) 82%, var(--shaman-teal, #63d8c9) 18%);
-  border-color: var(--shaman-gold, #efc66f);
+  background: var(--repo-selection-bg, var(--vscode-bg-selected));
   color: var(--vscode-text-primary);
 }
 
 .vscode-file-item .icon,
 .vscode-sidebar .icon {
-  color: var(--shaman-gold, #efc66f);
+  color: var(--vscode-text-secondary);
 }
 
 .vscode-empty-state,
@@ -1500,7 +1492,35 @@
 }
 
 .vscode-empty-icon {
-  filter: drop-shadow(0 0 10px rgba(239, 198, 111, 0.25));
+  filter: none;
+}
+
+.workspace-activity-button {
+  background: transparent;
+  color: var(--vscode-text-secondary);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.workspace-left-pane-resizer:hover,
+.workspace-left-pane-resizer:focus-visible {
+  background: var(--repo-accent, var(--vscode-text-accent));
+}
+
+.workspace-activity-button:hover {
+  background: var(--vscode-bg-hover);
+  color: var(--vscode-text-primary);
+}
+
+.workspace-activity-button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--repo-accent) 12%, transparent);
+  color: var(--repo-accent, var(--vscode-text-accent));
+}
+
+.workspace-activity-button:focus-visible {
+  outline: 2px solid var(--repo-accent, var(--vscode-text-accent));
+  outline-offset: 2px;
 }
 
 .vscode-container button:focus-visible,

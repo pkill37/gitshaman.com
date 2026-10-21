@@ -22,9 +22,7 @@ test('waits for the actual default branch before loading the root directory', as
     (route) => route.fulfill({ body: '# Default branch resolved correctly' })
   );
   await page.goto('/guide-test/default-branch/');
-  await expect(
-    page.getByRole('status').filter({ hasText: 'Resolving repository revision' })
-  ).toBeVisible();
+  await expect(page.getByText('Resolving repository revision…', { exact: true })).toBeVisible();
   expect(revisions).toEqual([]);
   releaseMetadata();
   await expect(

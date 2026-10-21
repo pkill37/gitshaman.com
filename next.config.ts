@@ -3,6 +3,9 @@ import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 import { withMonacoEditor } from './scripts/monaco-plugin';
 
 const nextConfig: NextConfig = {
+  // Playwright captures browser diagnostics directly, including intentional
+  // failures in retry tests. Avoid duplicating them in the server output.
+  logging: process.env.GITSHAMAN_TEST_SERVER === '1' ? { browserToTerminal: false } : undefined,
   // Curated routes are exported. Arbitrary GitHub routes use the static app
   // shell fallback (404.html) and are loaded in the browser.
   output: process.env.NEXT_OUTPUT_EXPORT === 'false' ? undefined : 'export',

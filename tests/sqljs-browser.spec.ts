@@ -243,16 +243,8 @@ test.describe('SQL.js browser runtime', () => {
       expect(response?.status()).toBe(200);
 
       await page.getByRole('button', { name: 'File search' }).click();
-      await page.locator('.vscode-tree-search-input').fill('main');
 
       await waitForDebugLog(page, '[explorar:code-index-static] success');
-      await expect(
-        page
-          .getByRole('region', { name: 'Repository notifications' })
-          .getByRole('status')
-          .filter({ hasText: /^Index ready$/ })
-      ).toBeVisible();
-      await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
       await waitForDebugEntry(
         page,
         (entry) => {
@@ -267,6 +259,8 @@ test.describe('SQL.js browser runtime', () => {
         },
         'Expected search index to load from the local staged corpus by default'
       );
+      await page.locator('.vscode-tree-search-input').fill('main');
+      await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
 
       await expect
         .poll(
@@ -305,10 +299,10 @@ test.describe('SQL.js browser runtime', () => {
       await page.reload();
       await page.getByRole('button', { name: 'File search' }).click();
       await page.locator('.vscode-tree-search-input').fill('main');
-      await expect(page.getByText('Cached index ready', { exact: true })).toBeVisible();
       await expect(page.locator('.vscode-tree-search-group-header').first()).toBeVisible();
       await page.unroute('**/code-index.sqlite');
 
+      await page.locator('.vscode-tree-search-input').fill('');
       await page.getByLabel('Storage source').selectOption('r2-bucket');
       await waitForDebugEntry(
         page,

@@ -822,17 +822,19 @@ export function EntityView({
         width: '100%',
         height: '100%',
         background: 'var(--vscode-bg-secondary)',
-        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        overflow: 'hidden',
         position: 'relative',
       }}
     >
       <SidebarSearchHeader
         query={searchQuery}
         onQueryChange={onSearchQueryChange ?? (() => undefined)}
-        placeholder="Search entities"
+        placeholder="Search…"
         ariaLabel="Search entities"
-        statusNotificationId="entities-ready"
-        statusVisible={loading || scored.length > 0}
+        statusVisible={loading}
         statusLoading={loading}
         statusReady={!loading && scored.length > 0}
         statusCached={isEntityCacheReady}
@@ -853,7 +855,7 @@ export function EntityView({
           ) : null
         }
       />
-      {content}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>{content}</div>
     </div>
   );
 }

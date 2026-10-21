@@ -894,6 +894,35 @@ function readSymbolRows(statement: CodeIndexStatementLike): CodeIndexSymbolEntry
   return results;
 }
 
+export function buildSearchOccurrences(content: string, query: string): SearchPreview[] {
+  const terms = [
+    ...new Set([
+      ...extractQuotedPhrases(query),
+      ...normalizeSearchTerms(query.replace(/"[^"]+"/g, ' ')),
+    ]),
+  ];
+  if (terms.length === 0) return [];
+
+  const results: SearchPreview[] = [];
+  content.split('\n').forEach((originalLine, index) => {
+    const line = originalLine.toLowerCase();
+    const columns = new Set<number>();
+    for (const term of terms) {
+      let start = 0;
+      while (start < line.length) {
+        const column = line.indexOf(term, start);
+        if (column === -1) break;
+        columns.add(column + 1);
+        start = column + 1;
+      }
+    }
+    for (const column of [...columns].sort((a, b) => a - b)) {
+      results.push({ line: index + 1, column, preview: originalLine.trim() });
+    }
+  });
+  return results;
+}
+
 export function buildSearchPreview(content: string, query: string): SearchPreview | null {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {

@@ -17,6 +17,7 @@ import RepositoryWorkspaceExplorer, {
 import GuidePanel from './components/GuidePanel';
 import IconSidebarToggleButton from './components/IconSidebarToggleButton';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
+import RepositoryChatPanel from './components/RepositoryChatPanel';
 import StatusBar from './components/StatusBar';
 import { useRepositoryGuide } from './useRepositoryGuide';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
@@ -41,7 +42,10 @@ import '@/app/vscode.css';
 const GUIDE_DEFAULT_WIDTH = 300;
 const GUIDE_MIN_WIDTH = 200;
 const GUIDE_MAX_WIDTH = 520;
-const ENTITY_CONTEXT_WIDTH = 420;
+const LEFT_PANE_DEFAULT_WIDTH = 300;
+const LEFT_PANE_MIN_WIDTH = 200;
+const LEFT_PANE_MAX_WIDTH = 520;
+const LEFT_PANE_WIDTH_STORAGE_KEY = 'repository-workspace-explorer-sidebar-width';
 const GUIDE_SIDEBAR_OPEN_STORAGE_KEY = 'repository-explorer-guide-sidebar-open';
 const WORKSPACE_THEME_STORAGE_KEY = 'repository-workspace-explorer-theme';
 let navigationNonceCounter = 0;
@@ -137,7 +141,10 @@ export default function RepositoryExplorerClient({
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch, identifier } = useRepository();
   const [guideLocation, setGuideLocation] = useState('');
-  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic'>('editor');
+  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic' | 'chat' | null>(
+    'editor'
+  );
+  const [chatMounted, setChatMounted] = useState(false);
   // This value is calculated by the Server Component and serialized into the
   // RSC payload, so the server render and hydration render use the same source.
   const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(initialSourceMode);
@@ -205,6 +212,30 @@ export default function RepositoryExplorerClient({
   });
   // The server and hydration pass must render the same sidebar structure.
   const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : true;
+  const [savedLeftPaneWidth, setLeftPaneWidth] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem(LEFT_PANE_WIDTH_STORAGE_KEY));
+      if (Number.isFinite(saved) && saved > 0) {
+        return Math.min(LEFT_PANE_MAX_WIDTH, Math.max(LEFT_PANE_MIN_WIDTH, saved));
+      }
+    } catch {
+      // Use the default when storage is unavailable.
+    }
+    return LEFT_PANE_DEFAULT_WIDTH;
+  });
+  const leftPaneWidth = hasHydrated ? savedLeftPaneWidth : LEFT_PANE_DEFAULT_WIDTH;
+  const leftPaneDrag = useRef<{ x: number; width: number } | null>(null);
+  const resizeLeftPane = (width: number) => {
+    setLeftPaneWidth(Math.min(LEFT_PANE_MAX_WIDTH, Math.max(LEFT_PANE_MIN_WIDTH, width)));
+  };
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try {
+      localStorage.setItem(LEFT_PANE_WIDTH_STORAGE_KEY, String(savedLeftPaneWidth));
+    } catch {
+      // Resizing remains available without persistence.
+    }
+  }, [hasHydrated, savedLeftPaneWidth]);
   // Keep EntityView mounted once first activated to preserve per-chapter cache
   const [entitiesMounted, setEntitiesMounted] = useState(false);
   const urlInitialFile = useMemo<InitialFileTarget | null>(() => {
@@ -553,6 +584,7 @@ export default function RepositoryExplorerClient({
       >
         {/* ── Activity bar ── */}
         <div
+          className="workspace-activity-bar"
           style={{
             width: 48,
             flexShrink: 0,
@@ -561,7 +593,6 @@ export default function RepositoryExplorerClient({
             alignItems: 'stretch',
             gap: 8,
             padding: '10px 8px',
-            borderRight: '1px solid var(--vscode-border)',
             background: 'var(--vscode-bg-secondary)',
           }}
         >
@@ -569,56 +600,83 @@ export default function RepositoryExplorerClient({
             {
               id: 'editor',
               title: 'File editor',
-              label: '</>',
+              icon: (
+                <>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                  <path d="M14 2v6h6M10 12l-3 3 3 3m4-6 3 3-3 3" />
+                </>
+              ),
             },
             {
               id: 'search',
               title: 'File search',
-              label: '⌕',
+              icon: (
+                <>
+                  <circle cx="10.5" cy="10.5" r="6.5" />
+                  <path d="m16 16 5 5" />
+                </>
+              ),
             },
             {
               id: 'entities',
               title: 'Entities',
-              label: '{}',
+              icon: (
+                <>
+                  <rect x="9" y="3" width="6" height="6" rx="1" />
+                  <rect x="3" y="15" width="6" height="6" rx="1" />
+                  <rect x="15" y="15" width="6" height="6" rx="1" />
+                  <path d="M12 9v3M6 15v-3h12v3" />
+                </>
+              ),
+            },
+            {
+              id: 'chat',
+              title: 'Chat',
+              icon: (
+                <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 3V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5ZM7 10h8m-8 4h5" />
+              ),
             },
           ].map((tab) => {
             const isActive = mode === tab.id;
             return (
               <button
+                className="workspace-activity-button"
                 key={tab.id}
                 onClick={() => {
                   if (tab.id === 'entities') {
                     setEntitiesMounted(true);
                   }
-                  setMode(tab.id as typeof mode);
+                  if (tab.id === 'chat') setChatMounted(true);
+                  setMode((current) => (current === tab.id ? null : (tab.id as typeof mode)));
                 }}
                 title={tab.title}
                 aria-label={tab.title}
+                aria-pressed={isActive}
+                aria-expanded={isActive}
                 style={{
                   width: 36,
                   height: 36,
-                  borderRadius: 8,
-                  border: '1px solid',
-                  borderColor: isActive
-                    ? 'var(--repo-accent, var(--vscode-text-accent, #0078d4))'
-                    : 'var(--vscode-border)',
-                  background: isActive
-                    ? 'var(--repo-selection-bg, var(--vscode-bg-selected))'
-                    : 'var(--vscode-bg-tertiary)',
-                  color: isActive ? 'var(--vscode-text-primary)' : 'var(--vscode-text-secondary)',
+                  borderRadius: 6,
+                  border: 0,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontFamily: 'monospace',
-                  fontSize: tab.id === 'editor' ? 15 : 21,
-                  fontWeight: 700,
-                  boxShadow: isActive
-                    ? '0 0 0 1px color-mix(in srgb, var(--repo-accent, #0078d4) 25%, transparent)'
-                    : 'none',
                 }}
               >
-                {tab.label}
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {tab.icon}
+                </svg>
               </button>
             );
           })}
@@ -626,6 +684,50 @@ export default function RepositoryExplorerClient({
 
         {/* ── Main content area ── */}
         <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+          {mode !== null && mode !== 'semantic' && (
+            <div
+              role="separator"
+              aria-label="Resize left pane"
+              aria-orientation="vertical"
+              aria-valuemin={LEFT_PANE_MIN_WIDTH}
+              aria-valuemax={LEFT_PANE_MAX_WIDTH}
+              aria-valuenow={leftPaneWidth}
+              tabIndex={0}
+              className="workspace-left-pane-resizer"
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: leftPaneWidth,
+                width: 4,
+                zIndex: 3,
+                cursor: 'col-resize',
+                touchAction: 'none',
+              }}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                leftPaneDrag.current = { x: event.clientX, width: leftPaneWidth };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const drag = leftPaneDrag.current;
+                if (drag) resizeLeftPane(drag.width + event.clientX - drag.x);
+              }}
+              onPointerUp={(event) => {
+                leftPaneDrag.current = null;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }}
+              onLostPointerCapture={() => {
+                leftPaneDrag.current = null;
+              }}
+              onKeyDown={(event) => {
+                const delta = event.key === 'ArrowLeft' ? -16 : event.key === 'ArrowRight' ? 16 : 0;
+                if (!delta) return;
+                event.preventDefault();
+                resizeLeftPane(leftPaneWidth + delta);
+              }}
+            />
+          )}
           {/* Explorer surface — used by both editor and search tabs */}
           <div
             style={{
@@ -633,7 +735,7 @@ export default function RepositoryExplorerClient({
               top: 0,
               right: 0,
               bottom: 0,
-              left: mode === 'entities' ? ENTITY_CONTEXT_WIDTH : 0,
+              left: mode === 'entities' || mode === 'chat' ? leftPaneWidth + 4 : 0,
               opacity: 1,
               pointerEvents: 'auto',
               transition: 'opacity 0.35s ease',
@@ -647,11 +749,12 @@ export default function RepositoryExplorerClient({
               branch={requestedBranch}
               initialFile={initialFile ?? urlInitialFile}
               hideGuidePanel
+              leftPaneWidth={leftPaneWidth}
               onSelectedFileChange={setGuideLocation}
               layoutMode={
                 mode === 'search'
                   ? 'search'
-                  : mode === 'entities'
+                  : mode === 'entities' || mode === 'chat' || mode === null
                     ? 'viewer'
                     : mode === 'semantic'
                       ? 'semantic'
@@ -664,20 +767,42 @@ export default function RepositoryExplorerClient({
             />
           </div>
 
-          {/* Entities context — kept mounted to preserve per-chapter cache */}
           <div
+            hidden={mode !== 'chat'}
+            className="repository-panel-chat"
             style={{
               position: 'absolute',
               top: 0,
               bottom: 0,
               left: 0,
-              width: ENTITY_CONTEXT_WIDTH,
+              width: leftPaneWidth,
+              background: 'var(--vscode-bg-secondary)',
+            }}
+          >
+            {chatMounted && (
+              <RepositoryChatPanel
+                key={`${owner}/${repo}`}
+                owner={owner}
+                repo={repo}
+                theme={workspaceTheme}
+              />
+            )}
+          </div>
+
+          {/* Entities context — kept mounted to preserve per-chapter cache */}
+          <div
+            hidden={mode !== 'entities'}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: leftPaneWidth,
               opacity: mode === 'entities' ? 1 : 0,
               pointerEvents: mode === 'entities' ? 'auto' : 'none',
               transition: 'opacity 0.35s ease',
               zIndex: mode === 'entities' ? 2 : 0,
-              borderRight: '1px solid var(--vscode-border)',
-              background: 'var(--vscode-bg-primary)',
+              background: 'var(--vscode-bg-secondary)',
             }}
           >
             {(mode === 'entities' || entitiesMounted) && (
@@ -744,7 +869,6 @@ export default function RepositoryExplorerClient({
             overflow: 'hidden',
             flexShrink: 0,
             background: 'var(--vscode-bg-secondary)',
-            borderLeft: '1px solid var(--vscode-border)',
             transition: 'width 0.18s ease',
           }}
         >
@@ -758,12 +882,7 @@ export default function RepositoryExplorerClient({
               flexDirection: 'column',
             }}
           >
-            <RepositoryRightPanel
-              owner={owner}
-              repo={repo}
-              theme={workspaceTheme}
-              onClose={() => setIsGuideSidebarOpen(false)}
-            >
+            <RepositoryRightPanel onClose={() => setIsGuideSidebarOpen(false)}>
               <GuidePanel
                 sections={guideSections}
                 activeChapterId={activeChapterId}

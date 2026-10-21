@@ -43,31 +43,6 @@ const TabBar: React.FC<TabBarProps> = ({
     }
   }, []);
 
-  const getFileIcon = (tab: EditorTab): string => {
-    const path = tab.path;
-    const extension = path.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'c':
-        return '⚙️';
-      case 'h':
-        return '🔧';
-      case 's':
-      case 'S':
-        return '🔩';
-      case 'py':
-        return '🐍';
-      case 'sh':
-        return '🐚';
-      case 'md':
-      case 'rst':
-        return '📖';
-      case 'json':
-        return '📋';
-      default:
-        return '📄';
-    }
-  };
-
   const getFileName = (path: string): string => {
     return path.split('/').pop() || path;
   };
@@ -151,13 +126,11 @@ const TabBar: React.FC<TabBarProps> = ({
             onMouseDown={(e) => handleTabMiddleClick(tab, e)}
             title={tab.path}
           >
-            <span className="icon">
-              {tab.isLoading ? (
+            {tab.isLoading && (
+              <span className="icon">
                 <div className="vscode-spinner" style={{ width: '10px', height: '10px' }} />
-              ) : (
-                getFileIcon(tab)
-              )}
-            </span>
+              </span>
+            )}
 
             <span className="name">{getFileName(tab.title || tab.path)}</span>
 

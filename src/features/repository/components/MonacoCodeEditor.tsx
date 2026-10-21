@@ -2130,7 +2130,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         fontFamily:
           "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', Consolas, monospace",
         lineNumbers: 'on',
-        minimap: { enabled: true },
+        minimap: { enabled: false },
         scrollBeyondLastLine: false,
         wordWrap: 'off',
         readOnly: true, // Read-only for now since we're just viewing
@@ -2870,7 +2870,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             readOnly: true,
             automaticLayout: true,
             scrollBeyondLastLine: false,
-            minimap: { enabled: true },
+            minimap: { enabled: false },
             fontSize: 14,
             fontFamily:
               "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', Consolas, monospace",

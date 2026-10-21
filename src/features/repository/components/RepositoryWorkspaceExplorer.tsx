@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import FileTree from './FileTree';
+import ExplorerIcon from './ExplorerIcon';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
 import GuidePanel from './GuidePanel';
@@ -31,8 +32,7 @@ import {
 import { normalizeCuratedRepoSourceMode } from '@/lib/curated-content-url';
 import { getStoredCuratedRepoSourceMode } from '@/lib/repository-preferences';
 import {
-  buildSearchPreview,
-  CODE_INDEX_PREVIEW_ENRICH_LIMIT,
+  buildSearchOccurrences,
   CODE_INDEX_SEARCH_RESULT_LIMIT,
   searchCodeIndexFiles,
   type LoadedCodeIndex,
@@ -213,6 +213,7 @@ interface RepositoryWorkspaceExplorerProps {
   initialFile?: InitialFileTarget;
   /** When true, suppresses the internal right guide panel (guide is shown by parent layout) */
   hideGuidePanel?: boolean;
+  leftPaneWidth?: number;
   onSelectedFileChange?: (path: string) => void;
   layoutMode?: 'editor' | 'search' | 'viewer' | 'semantic';
   sourceMode?: CuratedRepoSourceMode;
@@ -227,6 +228,7 @@ export default function RepositoryWorkspaceExplorer({
   branch,
   initialFile,
   hideGuidePanel = false,
+  leftPaneWidth,
   onSelectedFileChange,
   layoutMode = 'editor',
   sourceMode,
@@ -744,10 +746,10 @@ export default function RepositoryWorkspaceExplorer({
 
   // Save state to localStorage (only after hydration)
   useEffect(() => {
-    if (isHydrated) {
+    if (isHydrated && leftPaneWidth === undefined) {
       saveToLocalStorage(`${EXPLORER_STORAGE_KEY_PREFIX}-sidebar-width`, sidebarWidth);
     }
-  }, [sidebarWidth, isHydrated]);
+  }, [sidebarWidth, isHydrated, leftPaneWidth]);
 
   useEffect(() => {
     if (isHydrated) {
@@ -1330,54 +1332,56 @@ export default function RepositoryWorkspaceExplorer({
           setWorkspaceSearchResults(immediateResults);
           setWorkspaceSearchHasMore(indexedResults.length >= CODE_INDEX_SEARCH_RESULT_LIMIT);
 
-          const previewTargets = indexedResults.slice(0, CODE_INDEX_PREVIEW_ENRICH_LIMIT);
-          const previewResults = await Promise.all(
-            previewTargets.map(async (entry) => {
-              try {
-                let content = workspaceSearchPreviewCacheRef.current.get(entry.path);
-                if (!content) {
-                  const fileResult = await fetchFileFromSelectedSource(entry.path);
-                  content = fileResult.content;
-                  workspaceSearchPreviewCacheRef.current.set(entry.path, content);
-                }
-                const preview = buildSearchPreview(content, normalizedQuery);
-                if (!preview) {
+          const mergedByFile = new Map<string, WorkspaceSearchResult[]>(
+            immediateResults.map((result) => [result.file, [result]])
+          );
+          const batchSize = 8;
+          for (let offset = 0; offset < indexedResults.length; offset += batchSize) {
+            if (workspaceSearchResultsRequestIdRef.current !== requestId) return;
+            const previewResults = await Promise.all(
+              indexedResults.slice(offset, offset + batchSize).map(async (entry) => {
+                try {
+                  let content = workspaceSearchPreviewCacheRef.current.get(entry.path);
+                  if (content === undefined) {
+                    const fileResult = await fetchFileFromSelectedSource(entry.path);
+                    content = fileResult.content;
+                    workspaceSearchPreviewCacheRef.current.set(entry.path, content);
+                  }
+                  const occurrences = buildSearchOccurrences(content, normalizedQuery);
+                  return occurrences.map(
+                    (preview) =>
+                      ({
+                        file: entry.path,
+                        line: preview.line,
+                        column: preview.column,
+                        preview: preview.preview,
+                        key: `${entry.path}:${preview.line}:${preview.column}`,
+                        matchType: entry.matchType,
+                        relevanceScore: entry.relevanceScore,
+                      }) satisfies WorkspaceSearchResult
+                  );
+                } catch (error) {
+                  debugLog('[explorar:workspace-search] preview-enrich-failed', {
+                    filePath: entry.path,
+                    query: normalizedQuery,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
                   return null;
                 }
-                return {
-                  file: entry.path,
-                  line: preview.line,
-                  column: preview.column,
-                  preview: preview.preview,
-                  key: `${entry.path}:${preview.line}:${preview.column}`,
-                  matchType: entry.matchType,
-                  relevanceScore: entry.relevanceScore,
-                } satisfies WorkspaceSearchResult;
-              } catch (error) {
-                debugLog('[explorar:workspace-search] preview-enrich-failed', {
-                  filePath: entry.path,
-                  query: normalizedQuery,
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                return null;
-              }
-            })
-          );
+              })
+            );
 
-          if (workspaceSearchResultsRequestIdRef.current !== requestId) {
-            return;
-          }
+            if (workspaceSearchResultsRequestIdRef.current !== requestId) {
+              return;
+            }
 
-          const mergedByFile = new Map<string, WorkspaceSearchResult>();
-          for (const result of immediateResults) {
-            mergedByFile.set(result.file, result);
-          }
-          for (const result of previewResults) {
-            if (!result) continue;
-            mergedByFile.set(result.file, result);
-          }
+            for (const results of previewResults) {
+              if (!results?.length) continue;
+              mergedByFile.set(results[0].file, results);
+            }
 
-          setWorkspaceSearchResults(Array.from(mergedByFile.values()));
+            setWorkspaceSearchResults(Array.from(mergedByFile.values()).flat());
+          }
         } catch (error) {
           if (workspaceSearchResultsRequestIdRef.current !== requestId) {
             return;
@@ -1584,9 +1588,9 @@ export default function RepositoryWorkspaceExplorer({
             className={`vscode-sidebar ${isSidebarOpen && (isMobile ? mobileView === 'explorer' : true) ? 'mobile-open' : ''} ${isMobile && mobileView !== 'explorer' ? 'mobile-hidden' : ''}`}
             suppressHydrationWarning
             style={{
-              width: layoutMode === 'search' ? '360px' : `${sidebarWidth}px`,
-              minWidth: layoutMode === 'search' ? '300px' : '180px',
-              maxWidth: layoutMode === 'search' ? '42vw' : '40vw',
+              width: leftPaneWidth ?? sidebarWidth,
+              minWidth: leftPaneWidth ?? 200,
+              maxWidth: leftPaneWidth ?? '40vw',
               flex: '0 0 auto',
             }}
           >
@@ -1622,7 +1626,9 @@ export default function RepositoryWorkspaceExplorer({
               style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
             >
               {resolvedSetupKey !== setupKey ? (
-                <p role="status">Resolving repository revision…</p>
+                <div className="vscode-loading" role="status" aria-label="Loading repository">
+                  <div className="vscode-spinner" aria-hidden="true" />
+                </div>
               ) : (
                 <FileTree
                   key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}`}
@@ -1671,11 +1677,13 @@ export default function RepositoryWorkspaceExplorer({
           </div>
         )}
 
-        {layoutMode !== 'viewer' && (
+        {layoutMode !== 'viewer' && layoutMode !== 'semantic' && (
           <>
             <div
               className="resize-handle"
-              onMouseDown={() => handleMouseDown('sidebar')}
+              onMouseDown={
+                leftPaneWidth === undefined ? () => handleMouseDown('sidebar') : undefined
+              }
               suppressHydrationWarning
               style={{
                 width: '4px',
@@ -1684,7 +1692,6 @@ export default function RepositoryWorkspaceExplorer({
                     ? 'var(--repo-accent, var(--vscode-text-accent))'
                     : 'transparent',
                 cursor: 'col-resize',
-                borderRight: '1px solid var(--vscode-border)',
               }}
             />
           </>
@@ -1818,7 +1825,7 @@ export default function RepositoryWorkspaceExplorer({
                 overflow: 'hidden',
               }}
             >
-              <RepositoryRightPanel owner={owner || ''} repo={repo || ''} theme={workspaceTheme}>
+              <RepositoryRightPanel>
                 <GuidePanel
                   key={`guide-${guideStorageScope}`}
                   sections={guideSections}
@@ -1872,7 +1879,7 @@ export default function RepositoryWorkspaceExplorer({
             }}
             aria-label="Explorer"
           >
-            <span style={{ fontSize: '20px' }}>📁</span>
+            <ExplorerIcon kind="folder" size={20} />
             <span>Explorer</span>
           </button>
           <button
@@ -1920,10 +1927,10 @@ export default function RepositoryWorkspaceExplorer({
               fontSize: '12px',
               transition: 'color 0.2s',
             }}
-            aria-label="Guide and chat"
+            aria-label="Guide"
           >
             <span style={{ fontSize: '20px' }}>📚</span>
-            <span>Guide / Chat</span>
+            <span>Guide</span>
           </button>
         </div>
       )}

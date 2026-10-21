@@ -16,10 +16,17 @@ function forwardOutput(output: NodeJS.WriteStream, chunk: Buffer): void {
 
 function main(): void {
   const nextCli = fileURLToPath(new URL('../node_modules/next/dist/bin/next', import.meta.url));
-  const child = spawn(process.execPath, [nextCli, 'dev', '--turbopack', ...process.argv.slice(2)], {
-    env: process.env,
-    stdio: ['inherit', 'pipe', 'pipe'],
-  });
+  const nodeOptions = process.allowedNodeEnvironmentFlags.has('--no-experimental-webstorage')
+    ? ['--no-experimental-webstorage']
+    : [];
+  const child = spawn(
+    process.execPath,
+    [...nodeOptions, nextCli, 'dev', '--turbopack', ...process.argv.slice(2)],
+    {
+      env: { ...process.env, GITSHAMAN_TEST_SERVER: '1' },
+      stdio: ['inherit', 'pipe', 'pipe'],
+    }
+  );
 
   child.stdout.on('data', (chunk: Buffer) => forwardOutput(process.stdout, chunk));
   child.stderr.on('data', (chunk: Buffer) => forwardOutput(process.stderr, chunk));

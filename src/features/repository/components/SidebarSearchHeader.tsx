@@ -76,7 +76,8 @@ export default function SidebarSearchHeader({
     <div
       style={{
         padding: '8px 10px',
-        borderBottom: '1px solid var(--vscode-border)',
+        background: 'var(--vscode-bg-secondary)',
+        fontFamily: 'var(--font-mono, monospace)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',

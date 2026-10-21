@@ -161,8 +161,7 @@ export default function GuidePanel({
       {onSidebarToggle && (
         <div
           style={{
-            background: 'var(--vscode-bg-tertiary)',
-            borderBottom: '1px solid var(--vscode-border)',
+            background: 'transparent',
             padding: '4px 8px',
             flexShrink: 0,
             display: 'flex',
@@ -181,7 +180,6 @@ export default function GuidePanel({
         <div
           style={{
             flexShrink: 0,
-            borderBottom: '1px solid var(--vscode-border)',
             background: 'var(--vscode-bg-secondary)',
             padding: '6px 8px',
           }}
