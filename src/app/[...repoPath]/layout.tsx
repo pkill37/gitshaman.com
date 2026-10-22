@@ -45,7 +45,7 @@ export async function generateMetadata({
   }
 
   const title = config.displayName;
-  const imageUrl = absoluteSiteUrl('/opengraph-image');
+  const imageUrl = absoluteSiteUrl('/og.png');
 
   return {
     title,
