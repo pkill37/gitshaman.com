@@ -184,8 +184,8 @@ function attachBrowserFailureCollectors(page: Page): {
   return { consoleFailures, pageFailures };
 }
 
-test.describe('Monaco xref and jumps', () => {
-  test('supports xref navigation and cross-file definition jumps without runtime cancellations', async ({
+test.describe('References in file search and definition jumps', () => {
+  test('uses file search for references and preserves cross-file definition jumps', async ({
     page,
   }) => {
     const failures = attachBrowserFailureCollectors(page);
@@ -222,28 +222,41 @@ test.describe('Monaco xref and jumps', () => {
     await expectDebugLog(
       page,
       (entry) =>
-        entry.label === '[explorar:xref] panel-opened' &&
+        entry.label === '[explorar:xref] search-opened' &&
         entry.payload?.currentFilePath === 'top/main.c' &&
         entry.payload?.symbolName === 'add',
-      'Expected xref panel to open for add()'
+      'Expected file search to show references for add()'
     );
 
-    await expect(page.locator('.explorar-xref-panel')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('.explorar-xref-panel')).toContainText('main.c');
-    await expect(page.locator('.explorar-xref-panel')).toContainText('test.c');
+    const results = page.getByRole('region', { name: 'Repository file search results' });
+    await expect(page.getByRole('button', { name: 'File search', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(page.getByRole('searchbox', { name: 'Search all files' })).toHaveValue('add');
+    await expect(page.getByRole('complementary', { name: 'Cross references' })).toHaveCount(0);
+    await expect(results).toContainText('main.c');
+    await expect(results).toContainText('test.c');
 
-    const testReference = page.locator('.explorar-xref-row:has-text("return add(2, 3);")');
+    const testReference = results
+      .locator('.vscode-tree-search-row')
+      .filter({ hasText: 'return add(2, 3);' });
     await expect(testReference).toBeVisible();
     await testReference.click();
-
     await expect(page.getByRole('code').getByText('return add(2, 3);')).toBeVisible({
       timeout: 30000,
     });
-    await expect(page.locator('.explorar-xref-panel')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('.explorar-xref-panel-subtitle')).toContainText('test.c:4');
+    await expect(results).toBeVisible();
+    await expect(testReference).toHaveAttribute('aria-current', 'location');
 
-    await page.getByRole('button', { name: 'Close cross references' }).click();
-    await expect(page.locator('.explorar-xref-panel')).toBeHidden({ timeout: 15000 });
+    await page.getByRole('searchbox', { name: 'Search all files' }).fill('another query');
+    await expect(page.locator('.vscode-reference-search-context')).toHaveCount(0);
+    await focusEditorSymbol(page, 'add');
+    await showReferencesAtCursor(page);
+    await expect(results).toContainText('test.c');
+    await page.getByRole('button', { name: 'Search files', exact: true }).click();
+    await expect(page.locator('.vscode-reference-search-context')).toHaveCount(0);
+    await expect(page.getByRole('searchbox', { name: 'Search all files' })).toHaveValue('add');
 
     await expect(page.locator('.vscode-editor').first()).toBeVisible({ timeout: 30000 });
     await focusEditorSymbol(page, 'add');
@@ -259,5 +272,52 @@ test.describe('Monaco xref and jumps', () => {
 
     await expect.poll(() => failures.consoleFailures, { timeout: 5000 }).toEqual([]);
     await expect.poll(() => failures.pageFailures, { timeout: 5000 }).toEqual([]);
+  });
+
+  test('editing search ignores an unfinished reference lookup', async ({ page }) => {
+    await routeCorpusRepository({
+      page,
+      owner: 'littlekernel',
+      repo: 'lk',
+      manifest: XREF_MANIFEST,
+      files: XREF_FILES,
+    });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/repos/littlekernel/lk/**/lib/math.c', async (route) => {
+      await gate;
+      await route.fallback();
+    });
+    try {
+      await page.goto('/littlekernel/lk', { waitUntil: 'domcontentloaded' });
+      await openFileFromTree(page, 'top/main.c');
+      await expect(page.getByRole('code').getByText('return add(1, 2);')).toBeVisible({
+        timeout: 30000,
+      });
+      await focusEditorSymbol(page, 'add');
+      await page.evaluate(() => {
+        const api = (
+          window as Window & {
+            __explorarTestApi?: { showReferencesAtCursor: () => Promise<boolean> };
+          }
+        ).__explorarTestApi;
+        void api?.showReferencesAtCursor();
+      });
+      await expect(page.locator('.vscode-reference-search-context')).toBeVisible();
+      const search = page.getByRole('searchbox', { name: 'Search all files' });
+      await search.fill('main.c');
+      release();
+      await expectDebugLog(
+        page,
+        (entry) => entry.label === '[explorar:xref] search-opened',
+        'Expected the delayed reference lookup to finish'
+      );
+      await expect(page.locator('.vscode-reference-search-context')).toHaveCount(0);
+      await expect(search).toHaveValue('main.c');
+    } finally {
+      release();
+    }
   });
 });

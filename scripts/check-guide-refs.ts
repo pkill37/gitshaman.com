@@ -544,6 +544,11 @@ export function main(): number {
       checked++;
       continue;
     }
+    if (curatedRepo.contribution && curatedRepo.guideId !== guideId) {
+      console.log(`skip: ${file} (historical guide superseded by community analysis)`);
+      skipped++;
+      continue;
+    }
     if (curatedRepo.revision !== revision) {
       console.error(`\n❌ ${file}:`);
       console.error(`   revision mismatch: ${revision} != ${curatedRepo.revision}`);

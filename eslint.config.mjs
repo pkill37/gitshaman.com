@@ -26,6 +26,7 @@ const eslintConfig = defineConfig([
     '.next/**',
     'out/**',
     'build/**',
+    'packages/cli/dist/**',
     'next-env.d.ts',
     // Ignore downloaded curated corpus and other generated static payloads
     'repos/**',

@@ -331,10 +331,15 @@ async function syncPhase(args: string[], env: DeployEnv, label: string): Promise
   );
 }
 
-export async function runAwsSync(env: DeployEnv): Promise<void> {
+export async function runAwsSync(
+  env: DeployEnv,
+  options: { repositories?: Repo[]; manifestKey?: string } = {}
+): Promise<void> {
   const started = Date.now();
+  const selected = options.repositories ?? CURATED_REPOS;
+  const manifestKey = options.manifestKey ?? DEPLOYMENT_MANIFEST_KEY;
   ensureDir(CORPUS_REPOS_DIR, 'corpus repos');
-  const repositories = CURATED_REPOS.map((repo) => {
+  const repositories = selected.map((repo) => {
     const dir = path.join(CORPUS_REPOS_DIR, repo.owner, repo.repo, repo.revision);
     for (const file of ['repo-manifest.json', 'code-index.sqlite']) {
       if (!fs.existsSync(path.join(dir, file)))
@@ -359,7 +364,7 @@ export async function runAwsSync(env: DeployEnv): Promise<void> {
   let uploaded = 0;
   let uploadedBytes = 0;
   await withConcurrency(
-    CURATED_REPOS.map((repo) => async () => {
+    selected.map((repo) => async () => {
       const label = `${repo.owner}/${repo.repo}@${repo.revision}`;
       const prefix = `repos/${repo.owner}/${repo.repo}/${repo.revision}/`;
       const inventoryKey = `deployments/inventory/${repo.owner}/${repo.repo}/${repo.revision}.json`;
@@ -466,10 +471,7 @@ export async function runAwsSync(env: DeployEnv): Promise<void> {
     readPositiveIntEnv('R2_SYNC_CONCURRENCY', DEFAULT_R2_SYNC_CONCURRENCY)
   );
   const manifest = buildDeploymentManifest(buildCanonicalDeploymentPayload(repositories), counts);
-  const previousManifest = (await readRemoteJson(
-    env,
-    DEPLOYMENT_MANIFEST_KEY
-  )) as DeploymentManifest | null;
+  const previousManifest = (await readRemoteJson(env, manifestKey)) as DeploymentManifest | null;
   // generatedAt records a manifest change, not each invocation of deploy.
   if (previousManifest && typeof previousManifest.generatedAt === 'string') {
     manifest.generatedAt = previousManifest.generatedAt;
@@ -481,7 +483,7 @@ export async function runAwsSync(env: DeployEnv): Promise<void> {
         's3',
         'cp',
         '-',
-        `s3://${env.bucketName}/${DEPLOYMENT_MANIFEST_KEY}`,
+        `s3://${env.bucketName}/${manifestKey}`,
         '--content-type',
         'application/json',
       ],

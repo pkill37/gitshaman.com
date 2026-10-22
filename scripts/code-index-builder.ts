@@ -12,7 +12,7 @@ import {
   CODE_INDEX_VERSION,
 } from '../src/lib/code-index';
 
-type FileTreeNode = {
+export type FileTreeNode = {
   name: string;
   path: string;
   type: 'file' | 'directory';
@@ -955,6 +955,42 @@ function flattenSymbols(content: string, filePath: string): IndexedSymbol[] {
   for (const entity of extractedEntities) {
     indexed.push(entityToIndexedSymbol(entity));
   }
+  // Entity extraction focuses on types. Include ordinary functions in the
+  // structural index as well, while keeping their heuristic provenance.
+  if (['ts', 'tsx', 'js', 'jsx', 'py'].includes(ext)) {
+    const lines = content.split('\n');
+    lines.forEach((line, index) => {
+      const match =
+        ext === 'py'
+          ? line.match(/^\s*(?:async\s+)?def\s+(\w+)\s*\(/)
+          : (line.match(/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)\s*\(/) ??
+            line.match(
+              /^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>/
+            ));
+      if (
+        !match ||
+        indexed.some((symbol) => symbol.name === match[1] && symbol.startLine === index + 1)
+      )
+        return;
+      indexed.push({
+        name: match[1],
+        kind: 'function',
+        language: detectLanguage(filePath),
+        signature: line.trim(),
+        doc: null,
+        startLine: index + 1,
+        startColumn: line.indexOf(match[1]) + 1,
+        endLine: index + 1,
+        endColumn: line.length + 1,
+        isDefinition: 1,
+        isDeclaration: 0,
+        content: lines.slice(index, index + 30).join('\n'),
+        members: [],
+        parameters: [],
+        references: [],
+      });
+    });
+  }
   return indexed;
 }
 
@@ -962,15 +998,20 @@ export function buildCodeIndex(
   repoDir: string,
   tree: FileTreeNode[],
   buildSignature: string,
-  logger: CodeIndexBuildLogger = console
+  logger: CodeIndexBuildLogger = console,
+  options: {
+    outputPath?: string;
+    identity?: { owner: string; repo: string; revision: string };
+    includeGuides?: boolean;
+  } = {}
 ): CodeIndexBuildStats {
   const startedAt = Date.now();
-  const dbPath = path.join(repoDir, CODE_INDEX_FILE_NAME);
+  const dbPath = options.outputPath ?? path.join(repoDir, CODE_INDEX_FILE_NAME);
   const legacySearchIndexPath = path.join(repoDir, 'search-index.json');
   if (fs.existsSync(dbPath)) {
     fs.rmSync(dbPath, { force: true });
   }
-  if (fs.existsSync(legacySearchIndexPath)) {
+  if (!options.outputPath && fs.existsSync(legacySearchIndexPath)) {
     fs.rmSync(legacySearchIndexPath, { force: true });
   }
 
@@ -1026,9 +1067,9 @@ export function buildCodeIndex(
   let totalSymbols = 0;
   let totalEdges = 0;
 
-  const owner = path.basename(path.dirname(path.dirname(repoDir)));
-  const repo = path.basename(path.dirname(repoDir));
-  const branch = path.basename(repoDir);
+  const owner = options.identity?.owner ?? path.basename(path.dirname(path.dirname(repoDir)));
+  const repo = options.identity?.repo ?? path.basename(path.dirname(repoDir));
+  const branch = options.identity?.revision ?? path.basename(repoDir);
   const fileIdByPath = new Map<string, number>();
   const symbolIdByPathAndName = new Map<string, number>();
   const relationshipSymbolsMap = new Map<string, ReturnType<typeof parseSymbols>>();
@@ -1354,7 +1395,7 @@ export function buildCodeIndex(
     }
   );
 
-  const guideLinks = extractGuideLinks(owner, repo);
+  const guideLinks = options.includeGuides === false ? [] : extractGuideLinks(owner, repo);
   logger.log(
     `   Code index derived data: ${guideLinks.length.toLocaleString('en-US')} guide links, ${conceptLinks.length.toLocaleString(
       'en-US'

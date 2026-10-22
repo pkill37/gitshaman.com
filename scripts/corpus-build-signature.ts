@@ -14,7 +14,7 @@ export type CorpusBuildTreeNode = {
 type CorpusBuildIdentity = Pick<
   CuratedRepoConfig,
   'id' | 'owner' | 'repo' | 'ref' | 'revision' | 'guideId'
->;
+> & { contribution?: CuratedRepoConfig['contribution'] };
 
 type NormalizedCorpusBuildTreeNode = {
   name: string;
@@ -54,6 +54,12 @@ export function getCorpusBuildSignature(
     ref: config.ref,
     revision: config.revision,
     guideId: config.guideId,
+    ...(config.contribution
+      ? {
+          analysis: config.contribution.analysis,
+          analyzerVersion: config.contribution.analyzerVersion,
+        }
+      : {}),
     treeFingerprint: computeCorpusTreeFingerprint(tree),
   });
 }

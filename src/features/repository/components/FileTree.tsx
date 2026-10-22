@@ -29,6 +29,9 @@ interface FileTreeProps {
   searchScopeFileCount?: number;
   onSearchResultSelect?: (result: WorkspaceSearchResult) => void;
   showSearch?: boolean;
+  referenceSymbol?: string;
+  selectedSearchResultKey?: string | null;
+  onExitReferenceSearch?: () => void;
 }
 
 interface FileTreeItemProps {
@@ -227,6 +230,9 @@ const FileTree: React.FC<FileTreeProps> = ({
   searchScopeFileCount,
   onSearchResultSelect,
   showSearch = true,
+  referenceSymbol,
+  selectedSearchResultKey,
+  onExitReferenceSearch,
 }) => {
   const [rootNodes, setRootNodes] = useState<FileNode[]>([]);
   const [completeTree, setCompleteTree] = useState<FileNode[] | null>(null);
@@ -264,15 +270,22 @@ const FileTree: React.FC<FileTreeProps> = ({
       <div className="vscode-tree-search-meta">
         {isSearchLoading ? (
           <span>
-            Searching {searchScopeFileCount ?? 'all'} file
-            {(searchScopeFileCount ?? 0) === 1 ? '' : 's'}
-            {searchScopeLabel ? ` in ${searchScopeLabel}` : ''}…
+            {referenceSymbol
+              ? 'Loading references…'
+              : `Searching ${searchScopeFileCount ?? 'all'} files${searchScopeLabel ? ` in ${searchScopeLabel}` : ''}…`}
           </span>
         ) : searchError ? (
           <span>{searchError}</span>
         ) : (
           <span>
-            {searchResults.length} match{searchResults.length === 1 ? '' : 'es'}
+            {searchResults.length}{' '}
+            {referenceSymbol
+              ? searchResults.length === 1
+                ? 'reference'
+                : 'references'
+              : searchResults.length === 1
+                ? 'match'
+                : 'matches'}
             {searchHasMore ? ' (showing first 200)' : ''}
           </span>
         )}
@@ -557,6 +570,16 @@ const FileTree: React.FC<FileTreeProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
+      {showSearch && referenceSymbol && (
+        <div className="vscode-reference-search-context">
+          <span>
+            References to <strong>{referenceSymbol}</strong>
+          </span>
+          <button type="button" onClick={onExitReferenceSearch}>
+            Search files
+          </button>
+        </div>
+      )}
       {shouldShowHeader && (
         <SidebarSearchHeader
           query={searchQuery}
@@ -580,7 +603,17 @@ const FileTree: React.FC<FileTreeProps> = ({
                 ? 100
                 : clampedSearchIndexProgress
           }
-          statusLabel={isScanningFiles ? 'Scanning files' : searchIndexStatusLabel}
+          statusLabel={
+            referenceSymbol
+              ? isSearchLoading
+                ? 'Loading references…'
+                : searchError
+                  ? 'References unavailable'
+                  : 'References ready'
+              : isScanningFiles
+                ? 'Scanning files'
+                : searchIndexStatusLabel
+          }
           statusBadgeLabel={isScanningFiles ? 'loading' : searchIndexBadgeLabel}
           meta={searchMeta}
         />
@@ -619,7 +652,9 @@ const FileTree: React.FC<FileTreeProps> = ({
                 animation: 'spin 0.9s linear infinite',
               }}
             />
-            <span style={{ fontSize: 11 }}>scanning files…</span>
+            <span style={{ fontSize: 11 }}>
+              {referenceSymbol ? 'Loading references…' : 'scanning files…'}
+            </span>
           </div>
         ) : error ? (
           <div className="vscode-loading">
@@ -633,12 +668,16 @@ const FileTree: React.FC<FileTreeProps> = ({
             {!normalizedSearchQuery ? null : searchError ? (
               <div className="vscode-tree-search-empty">{searchError}</div>
             ) : searchResults.length === 0 ? (
-              <div className="vscode-tree-search-empty">No matches found.</div>
+              <div className="vscode-tree-search-empty">
+                {referenceSymbol ? 'No references found.' : 'No matches found.'}
+              </div>
             ) : (
               groupedSearchResults.map((group) => {
-                const placeholderMatch = group.matches.find(isSearchPlaceholderMatch);
+                const placeholderMatch = referenceSymbol
+                  ? undefined
+                  : group.matches.find(isSearchPlaceholderMatch);
                 const visibleMatches = group.matches.filter(
-                  (match) => !isSearchPlaceholderMatch(match)
+                  (match) => referenceSymbol || !isSearchPlaceholderMatch(match)
                 );
                 const primaryMatch = visibleMatches[0] ?? placeholderMatch ?? group.matches[0];
                 const matchTypeLabel = placeholderMatch
@@ -659,9 +698,11 @@ const FileTree: React.FC<FileTreeProps> = ({
                         <ExplorerIcon />
                       </span>
                       <span className="name">{group.fileName}</span>
-                      <span className="vscode-tree-search-relevance" title="Relevance score">
-                        {relevanceLabel}
-                      </span>
+                      {!referenceSymbol && (
+                        <span className="vscode-tree-search-relevance" title="Relevance score">
+                          {relevanceLabel}
+                        </span>
+                      )}
                       <span className="size">
                         {group.directory || 'root'}
                         {matchTypeLabel ? ` · ${matchTypeLabel}` : ''}
@@ -680,7 +721,10 @@ const FileTree: React.FC<FileTreeProps> = ({
                           <button
                             key={match.key}
                             type="button"
-                            className="vscode-file-item vscode-tree-search-row"
+                            className={`vscode-file-item vscode-tree-search-row${match.key === selectedSearchResultKey ? ' selected' : ''}`}
+                            aria-current={
+                              match.key === selectedSearchResultKey ? 'location' : undefined
+                            }
                             onClick={() => onSearchResultSelect?.(match)}
                             title={`${match.file}:${match.line}`}
                           >

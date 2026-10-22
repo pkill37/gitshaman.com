@@ -1,5 +1,6 @@
 // Curated repository file loading utilities.
 
+import { getRepositoryDataSource, directoryFromTree } from './repository-data-source';
 import { FileNode, GITHUB_CONFIG } from '@/types';
 import { getGitHubRepoIdentifier } from './repo-storage';
 import {
@@ -39,10 +40,12 @@ const currentConfig: GitHubConfig = {
  * Main/master branches are never included
  */
 export function getTrustedVersion(owner: string, repo: string): string {
-  return getCuratedRepoRevision(owner, repo);
+  return getRepositoryDataSource(owner, repo)?.revision ?? getCuratedRepoRevision(owner, repo);
 }
 
 export async function getGitHubDefaultBranch(owner: string, repo: string): Promise<string> {
+  const source = getRepositoryDataSource(owner, repo);
+  if (source) return source.revision;
   const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'gitshaman.com' },
     signal: AbortSignal.timeout(15_000),
@@ -146,6 +149,8 @@ export async function fetchRepositoryFile(
     signal?: AbortSignal;
   }
 ): Promise<FileFetchResult> {
+  const source = getRepositoryDataSource(owner, repo);
+  if (source) return source.file(path, options?.signal);
   const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
   if (path.endsWith('/') || !isSafeRepositoryPath(path)) {
     throw new GitHubApiError(
@@ -270,6 +275,8 @@ export async function buildFileTree(
   try {
     const { owner, repo, branch } = options?.repository ?? currentConfig;
     const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
+    const source = getRepositoryDataSource(owner, repo);
+    if (source) return directoryFromTree(await source.tree(), path);
     const mode = getRepositoryMode(owner, repo);
 
     if (mode === 'curated') {

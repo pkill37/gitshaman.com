@@ -33,9 +33,12 @@ export type CompilationDatabasePreparation = {
 };
 
 /** Source-only commands enable partial navigation without pretending to reproduce a native build. */
-export function prepareCompilationDatabase(repoDir: string): CompilationDatabasePreparation {
+export function prepareCompilationDatabase(
+  repoDir: string,
+  options: { outputDirectory?: string; files?: string[]; generatedOnly?: boolean } = {}
+): CompilationDatabasePreparation {
   const root = path.resolve(repoDir);
-  const existing = findCompilationDatabase(root);
+  const existing = options.generatedOnly ? null : findCompilationDatabase(root);
   if (existing) return { status: 'existing', databasePath: existing };
 
   const files: string[] = [];
@@ -51,7 +54,15 @@ export function prepareCompilationDatabase(repoDir: string): CompilationDatabase
       }
     }
   }
-  walk(root);
+  if (options.files) {
+    files.push(
+      ...options.files
+        .filter((file) => SOURCE_LANGUAGES[path.extname(file)])
+        .map((file) => path.join(root, file))
+    );
+  } else {
+    walk(root);
+  }
   if (files.length === 0) return { status: 'not-applicable', databasePath: null, commandCount: 0 };
 
   // Only use ancestor include directories: unrelated architectures/vendors often
@@ -76,7 +87,8 @@ export function prepareCompilationDatabase(repoDir: string): CompilationDatabase
       gitshaman: GENERATED_COMMAND_MARKER,
     };
   });
-  const databasePath = path.join(root, 'compile_commands.json');
+  const databasePath = path.join(options.outputDirectory ?? root, 'compile_commands.json');
+  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   fs.writeFileSync(databasePath, `${JSON.stringify(commands, null, 2)}\n`, { flag: 'wx' });
   return { status: 'generated', databasePath, commandCount: commands.length };
 }

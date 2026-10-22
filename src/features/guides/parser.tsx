@@ -1,6 +1,6 @@
 // Markdown parser utility for guide files
 import React from 'react';
-import matter from 'gray-matter';
+import { parseFrontmatter as matter } from '@/lib/frontmatter';
 import { marked } from 'marked';
 import { GuideSection, FileRecommendation } from '@/lib/project-guides';
 import { createFileRecommendationsComponent } from '@/lib/project-guides';
@@ -402,10 +402,10 @@ function splitIntoSections(content: string): Array<{ frontmatter: string; conten
   return sections;
 }
 
-// Parse section frontmatter using gray-matter (js-yaml) for correct nested YAML support
+// Parse section frontmatter using js-yaml for correct nested YAML support
 function parseSectionFrontmatter(yaml: string): SectionFrontmatter {
   try {
-    return matter('---\n' + yaml + '\n---\n').data as SectionFrontmatter;
+    return matter('---\n' + yaml + '\n---\n').data as unknown as SectionFrontmatter;
   } catch {
     return { id: '', title: '' };
   }

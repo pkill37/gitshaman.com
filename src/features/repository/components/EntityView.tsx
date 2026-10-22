@@ -558,7 +558,7 @@ export function EntityView({
 
       try {
         const repoMode = getRepositoryMode(owner, repo);
-        if (repoMode !== 'curated') {
+        if (repoMode !== 'curated' && repoMode !== 'workspace') {
           throw new Error(`Repository ${owner}/${repo} is not curated`);
         }
         const tree = await getTreeStructureFromStatic(owner, repo, branch, { sourceMode });

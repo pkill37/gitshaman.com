@@ -1,5 +1,6 @@
 // GitHub archive helpers for curated repository metadata.
 
+import { getRepositoryDataSource, directoryFromTree } from './repository-data-source';
 import { getGitHubRepoIdentifier, storeDirectoryMetadata, type FileEntry } from './repo-storage';
 import type { GitHubApiResponse } from '@/types';
 
@@ -33,6 +34,11 @@ export async function downloadDirectoryContents(
   onProgress?: (progress: DownloadProgress) => void,
   signal?: AbortSignal
 ): Promise<FileEntry[]> {
+  const source = getRepositoryDataSource(owner, repo);
+  if (source) {
+    signal?.throwIfAborted();
+    return directoryFromTree(await source.tree(), path);
+  }
   const identifier = getGitHubRepoIdentifier(owner, repo);
 
   try {

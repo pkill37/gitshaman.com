@@ -1,0 +1,98 @@
+name: Community repositories
+
+on:
+  pull_request:
+    paths: ['src/curated/**', 'src/lib/curated-contribution.ts', 'docs/**']
+  push:
+    branches: [main]
+    paths:
+      [
+        'src/curated/**',
+        'docs/**',
+        '.github/workflows/community.yml',
+        'scripts/community-publish.ts',
+      ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: '0'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run curated:check
+      - run: npm run lint:guide-prose
+      - run: npx tsx scripts/validate-guides.ts
+
+  build:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install optional compiler analysis
+        run: sudo apt-get update && sudo apt-get install --yes clangd
+      - name: Rebuild pinned public sources without deployment credentials
+        run: npx tsx scripts/community-publish.ts build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-corpus
+          path: repos/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 3
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: community-publication
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check for contributions
+        id: contributions
+        run: |
+          count=$(find src/curated -maxdepth 1 -name '*.json' ! -name registry.json | wc -l)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        if: steps.contributions.outputs.count != '0'
+        with:
+          name: community-corpus
+          path: repos/
+      - name: Upload rebuilt corpus, then trigger website deployment
+        if: steps.contributions.outputs.count != '0'
+        run: npx tsx scripts/community-publish.ts deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_PAGES_DEPLOY_HOOK: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_HOOK }}

@@ -5,6 +5,7 @@ import MonacoCodeEditor from './MonacoCodeEditor';
 import MarkdownPreview from './MarkdownPreview';
 import { fetchFileContent as fetchFromGitHub } from '@/lib/github-api';
 import type { FileFetchResult } from '@/lib/file-fetch-debug';
+import type { ReferenceSearchState } from '@/types';
 import type { LoadedCodeIndex } from '@/lib/code-index';
 import { debugLog } from '@/lib/browser-debug';
 
@@ -29,6 +30,7 @@ interface CodeEditorContainerProps {
   workspaceId?: string;
   codeIndex?: LoadedCodeIndex | null;
   editorTheme?: 'vs-dark' | 'vs';
+  onReferenceSearch?: (state: ReferenceSearchState) => void;
 }
 
 const isPreviewableMarkupFile = (path: string) => /\.(md|rst)$/i.test(path);
@@ -48,6 +50,7 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
   workspaceId,
   codeIndex,
   editorTheme = 'vs-dark',
+  onReferenceSearch,
 }) => {
   const [content, setContent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -227,6 +230,7 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
       workspaceId={workspaceId}
       codeIndex={codeIndex}
       editorTheme={editorTheme}
+      onReferenceSearch={onReferenceSearch}
     />
   );
 };

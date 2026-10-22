@@ -1,3 +1,6 @@
+import contributions from '../curated/registry.json' with { type: 'json' };
+import { validateContribution, type CuratedContribution } from './curated-contribution';
+
 export interface CuratedRepoConfig {
   id: string;
   owner: string;
@@ -9,7 +12,8 @@ export interface CuratedRepoConfig {
   /** Canonical locked revision used for local/static storage and trusted fetches. */
   revision: string;
   /** Guide document that is authored against this exact curated revision. */
-  guideId: string;
+  guideId?: string;
+  contribution?: CuratedContribution;
   displayName: string;
   description: string;
   seoDescription: string;
@@ -34,7 +38,7 @@ export function getCuratedRepoAvatarUrl(
   return `/avatars/${repo.avatarFile ?? `${repo.owner}.png`}?v=20261014`;
 }
 
-export const CURATED_REPOS: CuratedRepoConfig[] = [
+export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
   {
     id: 'freertos-kernel-v11.1.0',
     owner: 'FreeRTOS',
@@ -571,6 +575,48 @@ export const CURATED_REPOS: CuratedRepoConfig[] = [
   },
 ];
 
+export function mergeContributions(
+  builtins: CuratedRepoConfig[],
+  records: unknown[]
+): CuratedRepoConfig[] {
+  const merged = [...builtins];
+  for (const value of records) {
+    const record = validateContribution(value);
+    const index = merged.findIndex(
+      (repo) =>
+        toRepoKey(repo.owner, repo.repo).toLowerCase() ===
+        toRepoKey(record.owner, record.repo).toLowerCase()
+    );
+    const existing = index < 0 ? undefined : merged[index];
+    if (existing && existing.slug !== record.slug)
+      throw new Error('Contributions must preserve existing repository slugs.');
+    const config: CuratedRepoConfig = {
+      ...existing,
+      id:
+        existing?.id ?? `${record.owner}-${record.repo}`.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      owner: record.owner,
+      repo: record.repo,
+      revision: record.revision,
+      ref: record.revision,
+      slug: record.slug,
+      guideId: record.guideId,
+      displayName: record.displayName,
+      description: record.description,
+      seoDescription: record.description,
+      seoKeywords: existing?.seoKeywords ?? [record.repo, 'source code', 'code analysis'],
+      sitemapPriority: existing?.sitemapPriority ?? 0.7,
+      category: existing?.category ?? 'Community',
+      contribution: record,
+    };
+    if (index < 0) merged.push(config);
+    else merged[index] = config;
+  }
+  validateCuratedRepos(merged);
+  return merged;
+}
+
+export const CURATED_REPOS = mergeContributions(BUILTIN_CURATED_REPOS, contributions);
+
 function validateCuratedRepos(repos: CuratedRepoConfig[]): void {
   const ids = new Set<string>();
   const repoKeys = new Set<string>();
@@ -578,9 +624,9 @@ function validateCuratedRepos(repos: CuratedRepoConfig[]): void {
   const slugs = new Set<string>();
 
   for (const repo of repos) {
-    if (!repo.id || !repo.slug || !repo.ref || !repo.revision || !repo.guideId) {
+    if (!repo.id || !repo.slug || !repo.ref || !repo.revision) {
       throw new Error(
-        `Curated repo ${repo.owner}/${repo.repo} is missing required lock fields (id/slug/ref/revision/guideId).`
+        `Curated repo ${repo.owner}/${repo.repo} is missing required lock fields (id/slug/ref/revision).`
       );
     }
 
@@ -595,10 +641,10 @@ function validateCuratedRepos(repos: CuratedRepoConfig[]): void {
     }
     repoKeys.add(repoKey);
 
-    if (guideIds.has(repo.guideId)) {
+    if (repo.guideId && guideIds.has(repo.guideId)) {
       throw new Error(`Duplicate curated guide id: ${repo.guideId}`);
     }
-    guideIds.add(repo.guideId);
+    if (repo.guideId) guideIds.add(repo.guideId);
 
     if (slugs.has(repo.slug)) {
       throw new Error(`Duplicate curated repo slug: ${repo.slug}`);

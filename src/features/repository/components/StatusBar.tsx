@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import { getRepositoryDataSource } from '@/lib/repository-data-source';
 import BugReportWidget from '@/components/BugReportWidget';
 import {
   getCuratedRepoAccent,
@@ -69,9 +70,12 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const [repoSwitchFlash, setRepoSwitchFlash] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const branchLabel = branch ? formatDisplayBranch(branch) : null;
-  const githubRepoUrl = repoLabel ? `https://github.com/${repoLabel}` : null;
-  const githubTreeUrl = repoLabel && branch ? buildGitHubTreeUrl(repoLabel, branch) : null;
   const [repoOwner, repoName] = repoLabel?.split('/') ?? [];
+  const localSource =
+    repoOwner && repoName ? getRepositoryDataSource(repoOwner, repoName) : undefined;
+  const githubRepoUrl = repoLabel && !localSource ? `https://github.com/${repoLabel}` : null;
+  const githubTreeUrl =
+    repoLabel && branch && !localSource ? buildGitHubTreeUrl(repoLabel, branch) : null;
   const repoAccent = repoOwner && repoName ? getCuratedRepoAccent(repoOwner, repoName) : undefined;
   const isAospRepo = AOSP_REPO_LINKS.some(
     (entry) => entry.owner === repoOwner && entry.repo === repoName
@@ -236,49 +240,51 @@ const StatusBar: React.FC<StatusBarProps> = ({
             })}
           </nav>
         )}
-        <div className="shaman-share-menu-wrap shaman-share-menu-wrap--statusbar">
-          <button
-            type="button"
-            className="cursor-statusbar-item cursor-statusbar-button"
-            aria-haspopup="menu"
-            aria-expanded={showShareMenu}
-            onClick={() => setShowShareMenu((open) => !open)}
-          >
-            <svg
-              className="cursor-statusbar-icon cursor-statusbar-share-icon"
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-              focusable="false"
+        {!localSource && (
+          <div className="shaman-share-menu-wrap shaman-share-menu-wrap--statusbar">
+            <button
+              type="button"
+              className="cursor-statusbar-item cursor-statusbar-button"
+              aria-haspopup="menu"
+              aria-expanded={showShareMenu}
+              onClick={() => setShowShareMenu((open) => !open)}
             >
-              <path d="M11.75 10.15a2.3 2.3 0 0 0-1.69.74L6.21 8.81a2.36 2.36 0 0 0 0-1.62l3.85-2.08a2.33 2.33 0 1 0-.67-1.24L5.53 5.95a2.35 2.35 0 1 0 0 4.1l3.86 2.08a2.35 2.35 0 1 0 2.36-1.98Zm0-8.65a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7ZM4.25 8.85a.85.85 0 1 1 0-1.7.85.85 0 0 1 0 1.7Zm7.5 5.65a.85.85 0 1 1 0-1.7.85.85 0 0 1 0 1.7Z" />
-            </svg>
-            <span className="cursor-statusbar-text">Share</span>
-          </button>
-          {showShareMenu && (
-            <div
-              className="shaman-share-menu shaman-share-menu--statusbar"
-              role="menu"
-              onMouseLeave={() => setShowShareMenu(false)}
-            >
-              {(['hackernews', 'twitter', 'reddit', 'linkedin', 'whatsapp'] as const).map(
-                (platform) => (
-                  <button
-                    key={platform}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleShare(platform)}
-                  >
-                    {platform === 'hackernews' && 'Hacker News'}
-                    {platform === 'twitter' && 'Twitter'}
-                    {platform === 'reddit' && 'Reddit'}
-                    {platform === 'linkedin' && 'LinkedIn'}
-                    {platform === 'whatsapp' && 'WhatsApp'}
-                  </button>
-                )
-              )}
-            </div>
-          )}
-        </div>
+              <svg
+                className="cursor-statusbar-icon cursor-statusbar-share-icon"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M11.75 10.15a2.3 2.3 0 0 0-1.69.74L6.21 8.81a2.36 2.36 0 0 0 0-1.62l3.85-2.08a2.33 2.33 0 1 0-.67-1.24L5.53 5.95a2.35 2.35 0 1 0 0 4.1l3.86 2.08a2.35 2.35 0 1 0 2.36-1.98Zm0-8.65a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7ZM4.25 8.85a.85.85 0 1 1 0-1.7.85.85 0 0 1 0 1.7Zm7.5 5.65a.85.85 0 1 1 0-1.7.85.85 0 0 1 0 1.7Z" />
+              </svg>
+              <span className="cursor-statusbar-text">Share</span>
+            </button>
+            {showShareMenu && (
+              <div
+                className="shaman-share-menu shaman-share-menu--statusbar"
+                role="menu"
+                onMouseLeave={() => setShowShareMenu(false)}
+              >
+                {(['hackernews', 'twitter', 'reddit', 'linkedin', 'whatsapp'] as const).map(
+                  (platform) => (
+                    <button
+                      key={platform}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleShare(platform)}
+                    >
+                      {platform === 'hackernews' && 'Hacker News'}
+                      {platform === 'twitter' && 'Twitter'}
+                      {platform === 'reddit' && 'Reddit'}
+                      {platform === 'linkedin' && 'LinkedIn'}
+                      {platform === 'whatsapp' && 'WhatsApp'}
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {sourceMode && sourceLabel && onSourceModeChange && (
           <label
             className="cursor-statusbar-item cursor-statusbar-source"

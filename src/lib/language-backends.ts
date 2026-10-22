@@ -333,7 +333,7 @@ export class IndexedLanguageBackend implements LanguageBackend {
   }
 }
 
-function classifyIndexedRelationship(type: string): SemanticRelationshipKind {
+export function classifyIndexedRelationship(type: string): SemanticRelationshipKind {
   const normalizedType = type.toLowerCase();
   if (normalizedType === 'calls' || normalizedType.includes('call')) return 'call';
   if (/read|write|flow|assign|mutat|produce|consume/.test(normalizedType)) return 'dataflow';

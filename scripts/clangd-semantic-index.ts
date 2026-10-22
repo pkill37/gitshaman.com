@@ -67,7 +67,11 @@ class ClangdClient {
   start(): void {
     this.process = spawn(
       this.executable,
-      [`--compile-commands-dir=${this.compileCommandsDir}`, '--background-index=false'],
+      [
+        `--compile-commands-dir=${this.compileCommandsDir}`,
+        '--background-index=false',
+        '--enable-config=false',
+      ],
       { stdio: ['pipe', 'pipe', 'pipe'] }
     );
     this.process.stdout.on('data', (chunk: Buffer) => this.consume(chunk));
@@ -233,10 +237,11 @@ function recordBackendCapability(
 export async function enrichCodeIndexWithClangd(
   repoDir: string,
   dbPath: string,
-  logger: Pick<Console, 'log' | 'warn'> = console
+  logger: Pick<Console, 'log' | 'warn'> = console,
+  options: { outputDirectory?: string; files?: string[]; generatedOnly?: boolean } = {}
 ): Promise<ClangdSemanticIndexStats> {
   repoDir = path.resolve(repoDir);
-  const { databasePath: compilationDatabase } = prepareCompilationDatabase(repoDir);
+  const { databasePath: compilationDatabase } = prepareCompilationDatabase(repoDir, options);
   const db = new Database(dbPath);
   db.exec(`
     CREATE TABLE IF NOT EXISTS AnalysisCapabilities (

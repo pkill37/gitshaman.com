@@ -1,0 +1,17 @@
+/* The same Geist Mono typeface used by the website's root layout, bundled locally. */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../../../node_modules/next/dist/next-devtools/server/font/geist-mono-latin.woff2')
+    format('woff2');
+}
+
+:root {
+  --font-geist-mono: 'Geist Mono';
+}
+
+.cli-repository > main {
+  height: 100% !important;
+}

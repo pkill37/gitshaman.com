@@ -39,6 +39,11 @@ import {
 } from '@/lib/repository-preferences';
 import '@/app/vscode.css';
 
+const RepositoryQuizPanel = dynamic(() => import('./components/ChapterQuizPanel'), {
+  ssr: false,
+  loading: () => <p role="status">Loading quiz…</p>,
+});
+
 const GUIDE_DEFAULT_WIDTH = 300;
 const GUIDE_MIN_WIDTH = 200;
 const GUIDE_MAX_WIDTH = 520;
@@ -141,10 +146,11 @@ export default function RepositoryExplorerClient({
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch, identifier } = useRepository();
   const [guideLocation, setGuideLocation] = useState('');
-  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic' | 'chat' | null>(
-    'editor'
-  );
+  const [mode, setMode] = useState<
+    'editor' | 'search' | 'entities' | 'semantic' | 'chat' | 'quiz' | null
+  >(searchParams.get('view') === 'quiz' ? 'quiz' : 'editor');
   const [chatMounted, setChatMounted] = useState(false);
+  const [quizMounted, setQuizMounted] = useState(searchParams.get('view') === 'quiz');
   // This value is calculated by the Server Component and serialized into the
   // RSC payload, so the server render and hydration render use the same source.
   const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(initialSourceMode);
@@ -181,6 +187,7 @@ export default function RepositoryExplorerClient({
     };
   });
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
+  const activateFileSearch = useCallback(() => setMode('search'), []);
 
   useEffect(() => {
     const suppressExpectedCancellation = (event: PromiseRejectionEvent) => {
@@ -305,7 +312,7 @@ export default function RepositoryExplorerClient({
 
       // Paired nodes encode both paths as "primary|||header".
       setInitialFile(createOpenFileTarget(fileId, searchPattern, scrollToLine, searchScope));
-      setMode('editor');
+      setMode((current) => (current === 'quiz' ? 'quiz' : 'editor'));
     },
     [navigateToRepoTarget]
   );
@@ -364,7 +371,7 @@ export default function RepositoryExplorerClient({
         scrollToLine: Number.isFinite(parsedLine) ? parsedLine : effectiveDirectTarget?.line,
         navigationNonce: createNavigationNonce(),
       });
-      setMode('editor');
+      setMode((current) => (current === 'quiz' ? 'quiz' : 'editor'));
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -387,7 +394,7 @@ export default function RepositoryExplorerClient({
           }
         : { path, exactPath: true, navigationNonce: createNavigationNonce() }
     );
-    setMode('editor');
+    setMode((current) => (current === 'quiz' ? 'quiz' : 'editor'));
   }, []);
   const discoveredGuide = useRepositoryGuide({
     owner,
@@ -630,6 +637,17 @@ export default function RepositoryExplorerClient({
               ),
             },
             {
+              id: 'quiz',
+              title: 'Quiz',
+              icon: (
+                <>
+                  <path d="M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3" />
+                  <circle cx="12" cy="17" r="0.75" />
+                  <rect x="3" y="2" width="18" height="20" rx="3" />
+                </>
+              ),
+            },
+            {
               id: 'chat',
               title: 'Chat',
               icon: (
@@ -647,6 +665,7 @@ export default function RepositoryExplorerClient({
                     setEntitiesMounted(true);
                   }
                   if (tab.id === 'chat') setChatMounted(true);
+                  if (tab.id === 'quiz') setQuizMounted(true);
                   setMode((current) => (current === tab.id ? null : (tab.id as typeof mode)));
                 }}
                 title={tab.title}
@@ -735,7 +754,8 @@ export default function RepositoryExplorerClient({
               top: 0,
               right: 0,
               bottom: 0,
-              left: mode === 'entities' || mode === 'chat' ? leftPaneWidth + 4 : 0,
+              left:
+                mode === 'entities' || mode === 'chat' || mode === 'quiz' ? leftPaneWidth + 4 : 0,
               opacity: 1,
               pointerEvents: 'auto',
               transition: 'opacity 0.35s ease',
@@ -754,7 +774,7 @@ export default function RepositoryExplorerClient({
               layoutMode={
                 mode === 'search'
                   ? 'search'
-                  : mode === 'entities' || mode === 'chat' || mode === null
+                  : mode === 'entities' || mode === 'chat' || mode === 'quiz' || mode === null
                     ? 'viewer'
                     : mode === 'semantic'
                       ? 'semantic'
@@ -764,6 +784,7 @@ export default function RepositoryExplorerClient({
               workspaceTheme={workspaceTheme}
               workspaceSearchQuery={sidebarSearchQuery}
               onWorkspaceSearchQueryChange={setSidebarSearchQuery}
+              onActivateFileSearch={activateFileSearch}
             />
           </div>
 
@@ -785,6 +806,26 @@ export default function RepositoryExplorerClient({
                 owner={owner}
                 repo={repo}
                 theme={workspaceTheme}
+              />
+            )}
+          </div>
+
+          <div
+            hidden={mode !== 'quiz'}
+            className="repository-panel-quiz"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: leftPaneWidth,
+              background: 'var(--vscode-bg-secondary)',
+            }}
+          >
+            {quizMounted && (
+              <RepositoryQuizPanel
+                key={`${owner}/${repo}`}
+                chapter={guideSections.find((section) => section.id === activeChapterId) ?? null}
               />
             )}
           </div>

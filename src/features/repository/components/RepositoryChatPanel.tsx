@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { getRepositoryDataSource } from '@/lib/repository-data-source';
 import { getGiscusConfig, getRepositoryDiscussionTerm } from '@/lib/giscus-config';
 
 const GiscusDiscussion = dynamic(() => import('./GiscusDiscussion'), {
@@ -18,9 +19,15 @@ export default function RepositoryChatPanel({
   repo: string;
   theme: 'light' | 'dark';
 }) {
+  const local = getRepositoryDataSource(owner, repo);
   return (
     <section className="repository-chat" aria-label="Repository discussion">
-      {config ? (
+      {local ? (
+        <div className="repository-chat-setup">
+          <h3>Local repository</h3>
+          <p>Repository discussions are available on gitshaman.com for public repositories.</p>
+        </div>
+      ) : config ? (
         <GiscusDiscussion
           key={getRepositoryDiscussionTerm(owner, repo)}
           config={config}

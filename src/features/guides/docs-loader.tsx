@@ -1,5 +1,5 @@
 // Auto-discovery system for docs/ markdown guides
-import matter from 'gray-matter';
+import { parseFrontmatter as matter } from '@/lib/frontmatter';
 import { getCuratedRepo, isCuratedRepo } from '@/lib/curated-repos';
 import { DOCS_MARKDOWN } from './generated-docs';
 
@@ -85,7 +85,7 @@ function parseGuideDocument(markdown: string, filePath: string): GuideDocument {
         guideId,
         name: String(data.name),
         description: String(data.description),
-        defaultOpenIds: data.defaultOpenIds || [],
+        defaultOpenIds: Array.isArray(data.defaultOpenIds) ? data.defaultOpenIds.map(String) : [],
       },
       content,
     };
@@ -123,6 +123,9 @@ function getAllGuideDocuments(): Map<string, GuideDocument> {
 
   for (const [filePath, markdown] of Object.entries(DOCS_MARKDOWN)) {
     try {
+      const frontmatter = matter(markdown).data;
+      const active = getCuratedRepo(String(frontmatter.owner), String(frontmatter.repo));
+      if (active?.contribution && active.guideId !== frontmatter.guideId) continue;
       const doc = parseGuideDocument(markdown, filePath);
       guidesCache.set(doc.metadata.guideId, doc);
     } catch (error) {

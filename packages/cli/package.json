@@ -1,0 +1,23 @@
+{
+  "name": "@gitshaman/cli",
+  "version": "0.1.0",
+  "description": "Local repository analysis and the GitShaman source workspace",
+  "type": "module",
+  "bin": {
+    "gitshaman": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "node --import tsx build.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1"
+  }
+}

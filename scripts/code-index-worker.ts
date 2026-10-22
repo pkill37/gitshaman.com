@@ -20,6 +20,8 @@ type ManifestNode = {
 type Manifest = {
   tree?: ManifestNode[];
   buildSignature?: string;
+  analysis?: { enrichment: 'auto' | 'off' };
+  community?: boolean;
 };
 
 type FileNode = {
@@ -68,9 +70,20 @@ async function main(): Promise<void> {
     logger
   );
 
-  if (process.env.EXPLORAR_SKIP_SEMANTIC_ENRICHMENT !== '1') {
-    await enrichCodeIndexWithClangd(repoDir, stats.dbPath, logger);
+  if (
+    process.env.EXPLORAR_SKIP_SEMANTIC_ENRICHMENT !== '1' &&
+    manifest.analysis?.enrichment !== 'off'
+  ) {
+    await enrichCodeIndexWithClangd(
+      repoDir,
+      stats.dbPath,
+      logger,
+      manifest.community
+        ? { outputDirectory: path.join(repoDir, '.cache/compiler'), generatedOnly: true }
+        : {}
+    );
   }
+  if (manifest.community) fs.rmSync(path.join(repoDir, '.cache'), { recursive: true, force: true });
 
   fs.writeFileSync(statsPath, `${JSON.stringify(stats)}\n`);
   // Keep the output path meaningful in process listings and validate that the

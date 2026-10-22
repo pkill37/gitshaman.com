@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import type { ReferenceSearchState, WorkspaceSearchResult } from '@/types';
 import {
   findSymbolsInFile,
   findDefinition,
@@ -520,6 +521,7 @@ interface MonacoCodeEditorProps {
   workspaceId?: string;
   codeIndex?: LoadedCodeIndex | null;
   editorTheme?: 'vs-dark' | 'vs';
+  onReferenceSearch?: (state: ReferenceSearchState) => void;
 }
 
 type MonacoEditorLike = {
@@ -568,24 +570,10 @@ type MonacoTestApi = {
   getActiveFilePath: () => string;
   focusSymbol: (symbol: string) => Promise<boolean>;
   showReferencesAtCursor: () => Promise<boolean>;
-  closeReferencesWidget: () => Promise<boolean>;
   goToDefinitionAtCursor: () => Promise<boolean>;
 };
 
-type XrefReferenceItem = Location & {
-  key: string;
-  preview: string;
-  fileName: string;
-  directory: string;
-};
-
-type XrefPanelState = {
-  symbolName: string;
-  references: XrefReferenceItem[];
-  selectedReferenceKey: string | null;
-  isLoading: boolean;
-  error: string | null;
-};
+let referenceSearchSequence = 0;
 
 type DefinitionCandidate = SymbolReference & {
   provider: string;
@@ -691,6 +679,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   workspaceId = 'default',
   codeIndex = null,
   editorTheme = 'vs-dark',
+  onReferenceSearch,
 }) => {
   const codeLensReferenceCountCacheRef = useRef<Map<string, number>>(new Map());
   const editorRef = useRef<unknown>(null);
@@ -706,7 +695,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     lineNumber: number;
   } | null>(null);
   const [hasMountedEditor, setHasMountedEditor] = useState(false);
-  const [xrefPanelState, setXrefPanelState] = useState<XrefPanelState | null>(null);
   const [definitionPanelState, setDefinitionPanelState] = useState<DefinitionPanelState | null>(
     null
   );
@@ -1438,7 +1426,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     async (symbolName: string): Promise<boolean> => {
       const candidates = await resolveDefinitionCandidatesAcrossWorkspace(symbolName);
       if (candidates.length > 1) {
-        setXrefPanelState(null);
         setDefinitionPanelState({
           symbolName: normalizeSymbolQuery(symbolName),
           candidates,
@@ -1474,45 +1461,25 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     [content, filePath, onOpenFile, revealTargetLine]
   );
 
-  const jumpToReference = useCallback(
-    (reference: XrefReferenceItem) => {
-      setXrefPanelState((currentState) =>
-        currentState
-          ? {
-              ...currentState,
-              selectedReferenceKey: reference.key,
-            }
-          : currentState
-      );
-
-      if (reference.file === filePath) {
-        revealTargetLine(reference.line, content.split('\n'));
-        return;
-      }
-
-      onOpenFile?.(reference.file, undefined, reference.line);
-    },
-    [content, filePath, onOpenFile, revealTargetLine]
-  );
-
-  const openReferencesPanelForSymbol = useCallback(
+  const showReferencesForSymbol = useCallback(
     async (symbolName: string, currentLine?: number): Promise<boolean> => {
       const normalizedSymbol = normalizeSymbolQuery(symbolName);
       if (!normalizedSymbol) {
         return false;
       }
 
-      setXrefPanelState((currentState) => ({
+      const requestId = ++referenceSearchSequence;
+      const searchState: ReferenceSearchState = {
+        requestId,
+        workspaceId,
         symbolName: normalizedSymbol,
-        references:
-          currentState?.symbolName === normalizedSymbol
-            ? currentState.references
-            : ([] as XrefReferenceItem[]),
-        selectedReferenceKey:
-          currentState?.symbolName === normalizedSymbol ? currentState.selectedReferenceKey : null,
+        results: [],
+        selectedResultKey: null,
         isLoading: true,
         error: null,
-      }));
+      };
+      setDefinitionPanelState(null);
+      onReferenceSearch?.(searchState);
 
       try {
         const references = await findReferencesAcrossWorkspace(normalizedSymbol, true);
@@ -1531,7 +1498,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           })
         );
 
-        const referenceItems = Array.from(
+        const referenceItems: WorkspaceSearchResult[] = Array.from(
           new Map(
             references.map((reference) => {
               const referenceContent = fileContents.get(reference.file) ?? '';
@@ -1544,8 +1511,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
                   ...reference,
                   key,
                   preview: referenceLine.trim() || '(empty line)',
-                  fileName: getPathBasename(reference.file),
-                  directory: getPathDirectory(reference.file),
+                  matchType: 'content' as const,
+                  relevanceScore: 100,
                 },
               ] as const;
             })
@@ -1560,15 +1527,15 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           referenceItems[0] ??
           null;
 
-        setXrefPanelState({
-          symbolName: normalizedSymbol,
-          references: referenceItems,
-          selectedReferenceKey: preferredReference?.key ?? null,
+        onReferenceSearch?.({
+          ...searchState,
+          results: referenceItems,
+          selectedResultKey: preferredReference?.key ?? null,
           isLoading: false,
           error: null,
         });
 
-        debugLog('[explorar:xref] panel-opened', {
+        debugLog('[explorar:xref] search-opened', {
           currentFilePath: filePath,
           symbolName: normalizedSymbol,
           referenceCount: referenceItems.length,
@@ -1578,20 +1545,25 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load references';
-        setXrefPanelState({
-          symbolName: normalizedSymbol,
-          references: [],
-          selectedReferenceKey: null,
+        onReferenceSearch?.({
+          ...searchState,
           isLoading: false,
           error: errorMessage,
         });
         return false;
       }
     },
-    [content, filePath, findReferencesAcrossWorkspace, getWorkspaceFileContent]
+    [
+      content,
+      filePath,
+      findReferencesAcrossWorkspace,
+      getWorkspaceFileContent,
+      onReferenceSearch,
+      workspaceId,
+    ]
   );
 
-  const openReferencesPanelAtCursor = useCallback(async (): Promise<boolean> => {
+  const showReferencesAtCursor = useCallback(async (): Promise<boolean> => {
     const { model, position } = getEditorCursor(editorRef.current);
     if (!model || !position) {
       return false;
@@ -1602,65 +1574,22 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       return false;
     }
 
-    return openReferencesPanelForSymbol(word.word, position.lineNumber);
-  }, [openReferencesPanelForSymbol]);
+    return showReferencesForSymbol(word.word, position.lineNumber);
+  }, [showReferencesForSymbol]);
 
   const latestEditorActionsRef = useRef({
     navigateToDefinition,
-    openReferencesPanelAtCursor,
-    openReferencesPanelForSymbol,
+    showReferencesAtCursor,
+    showReferencesForSymbol,
   });
 
   useEffect(() => {
     latestEditorActionsRef.current = {
       navigateToDefinition,
-      openReferencesPanelAtCursor,
-      openReferencesPanelForSymbol,
+      showReferencesAtCursor,
+      showReferencesForSymbol,
     };
-  }, [navigateToDefinition, openReferencesPanelAtCursor, openReferencesPanelForSymbol]);
-
-  const selectedXrefReference = useMemo(
-    () =>
-      xrefPanelState?.references.find(
-        (reference) => reference.key === xrefPanelState.selectedReferenceKey
-      ) ??
-      xrefPanelState?.references[0] ??
-      null,
-    [xrefPanelState]
-  );
-
-  const groupedXrefReferences = useMemo(() => {
-    if (!xrefPanelState) {
-      return [];
-    }
-
-    const groupedReferences = new Map<
-      string,
-      {
-        file: string;
-        fileName: string;
-        directory: string;
-        references: XrefReferenceItem[];
-      }
-    >();
-
-    for (const reference of xrefPanelState.references) {
-      const existingGroup = groupedReferences.get(reference.file);
-      if (existingGroup) {
-        existingGroup.references.push(reference);
-        continue;
-      }
-
-      groupedReferences.set(reference.file, {
-        file: reference.file,
-        fileName: reference.fileName,
-        directory: reference.directory,
-        references: [reference],
-      });
-    }
-
-    return Array.from(groupedReferences.values());
-  }, [xrefPanelState]);
+  }, [navigateToDefinition, showReferencesAtCursor, showReferencesForSymbol]);
 
   const syncMonacoTestApi = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -1719,17 +1648,10 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       showReferencesAtCursor: async () => {
         const focusedSymbol = testFocusedSymbolRef.current;
         if (focusedSymbol?.filePath === filePath) {
-          return openReferencesPanelForSymbol(focusedSymbol.symbol, focusedSymbol.lineNumber);
+          return showReferencesForSymbol(focusedSymbol.symbol, focusedSymbol.lineNumber);
         }
 
-        return openReferencesPanelAtCursor();
-      },
-      closeReferencesWidget: async () => {
-        if (!xrefPanelState) {
-          return false;
-        }
-        setXrefPanelState(null);
-        return true;
+        return showReferencesAtCursor();
       },
       goToDefinitionAtCursor: async () => {
         const { model, position } = getEditorCursor(editorRef.current);
@@ -1743,13 +1665,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return navigateToDefinition(symbolName);
       },
     };
-  }, [
-    filePath,
-    navigateToDefinition,
-    openReferencesPanelAtCursor,
-    openReferencesPanelForSymbol,
-    xrefPanelState,
-  ]);
+  }, [filePath, navigateToDefinition, showReferencesAtCursor, showReferencesForSymbol]);
 
   // Keep the live Monaco model synchronized with async-loaded content.
   // The React wrapper does not reliably repaint in this app when content
@@ -2199,14 +2115,11 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         label: 'Show References',
         run: async (_activeEditor, symbolName?: string, symbolLine?: number) => {
           if (symbolName) {
-            await latestEditorActionsRef.current.openReferencesPanelForSymbol(
-              symbolName,
-              symbolLine
-            );
+            await latestEditorActionsRef.current.showReferencesForSymbol(symbolName, symbolLine);
             return;
           }
 
-          await latestEditorActionsRef.current.openReferencesPanelAtCursor();
+          await latestEditorActionsRef.current.showReferencesAtCursor();
         },
       });
 
@@ -2234,7 +2147,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       // Add Shift+F12 for Find All References
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (editor as any).addCommand((monaco as any).KeyMod.Shift | (monaco as any).KeyCode.F12, () => {
-        void latestEditorActionsRef.current.openReferencesPanelAtCursor();
+        void latestEditorActionsRef.current.showReferencesAtCursor();
       });
 
       // Override F12 with app-aware cross-file navigation.
@@ -2723,11 +2636,11 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       monaco.editor.registerCommand('explorar.showReferences', async (_accessor, ...args) => {
         const [symbolName, symbolLine] = args as [string | undefined, number | undefined];
         if (symbolName) {
-          await latestEditorActionsRef.current.openReferencesPanelForSymbol(symbolName, symbolLine);
+          await latestEditorActionsRef.current.showReferencesForSymbol(symbolName, symbolLine);
           return;
         }
 
-        await latestEditorActionsRef.current.openReferencesPanelAtCursor();
+        await latestEditorActionsRef.current.showReferencesAtCursor();
       })
     );
 
@@ -2891,70 +2804,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             },
           }}
         />
-        {xrefPanelState && (
-          <aside className="explorar-xref-panel" aria-label="Cross references">
-            <div className="explorar-xref-panel-header">
-              <div className="explorar-xref-panel-title-wrap">
-                <div className="explorar-xref-panel-label">Cross References</div>
-                <div className="explorar-xref-panel-title">
-                  {xrefPanelState.symbolName}
-                  {!xrefPanelState.isLoading && (
-                    <span className="explorar-xref-panel-count">
-                      {xrefPanelState.references.length}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="explorar-xref-panel-close"
-                aria-label="Close cross references"
-                onClick={() => setXrefPanelState(null)}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="explorar-xref-panel-subtitle">
-              {selectedXrefReference
-                ? `${selectedXrefReference.fileName}:${selectedXrefReference.line}`
-                : 'Select a reference to jump.'}
-            </div>
-            <div className="explorar-xref-panel-body">
-              {xrefPanelState.isLoading ? (
-                <div className="explorar-xref-panel-empty">Loading references…</div>
-              ) : xrefPanelState.error ? (
-                <div className="explorar-xref-panel-empty">{xrefPanelState.error}</div>
-              ) : xrefPanelState.references.length === 0 ? (
-                <div className="explorar-xref-panel-empty">No references found.</div>
-              ) : (
-                groupedXrefReferences.map((group) => (
-                  <section key={group.file} className="explorar-xref-group">
-                    <header className="explorar-xref-group-header">
-                      <div className="explorar-xref-group-file">{group.fileName}</div>
-                      <div className="explorar-xref-group-dir">{group.directory || 'root'}</div>
-                    </header>
-                    <div className="explorar-xref-group-list">
-                      {group.references.map((reference) => (
-                        <button
-                          key={reference.key}
-                          type="button"
-                          className={`explorar-xref-row${
-                            reference.key === selectedXrefReference?.key ? ' is-selected' : ''
-                          }`}
-                          // eslint-disable-next-line react-hooks/refs -- click handler runs after render.
-                          onClick={() => jumpToReference(reference)}
-                        >
-                          <span className="explorar-xref-row-line">L{reference.line}</span>
-                          <span className="explorar-xref-row-preview">{reference.preview}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                ))
-              )}
-            </div>
-          </aside>
-        )}
         {definitionPanelState && (
           <aside className="explorar-xref-panel" aria-label="Definition candidates">
             <div className="explorar-xref-panel-header">

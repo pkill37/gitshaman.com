@@ -14,6 +14,7 @@ import { type CodeIndexBuildLogger, type CodeIndexBuildStats } from './code-inde
 import { getCorpusBuildSignature, type CorpusBuildTreeNode } from './corpus-build-signature';
 import { CORPUS_REPOS_DIR } from './static-asset-paths';
 import { fmtDuration, runPhase } from './tqdm';
+import { selectFiles } from '../packages/cli/src/repository';
 
 type ScriptOptions = {
   only: string[]; // entries like "owner/repo" or "owner/repo@revision"
@@ -704,13 +705,15 @@ function createManifest(
   repoDir: string,
   tree: FileNode[],
   buildSignature: string,
-  logger: Pick<BuildLogger, 'log'>
+  logger: Pick<BuildLogger, 'log'>,
+  config?: CuratedRepoConfig
 ): void {
   const manifestPath = path.join(repoDir, 'repo-manifest.json');
   const manifest: Record<string, unknown> = {
     tree: tree.map(toManifestNode),
     createdAt: new Date().toISOString(),
     buildSignature,
+    ...(config?.contribution ? { analysis: config.contribution.analysis, community: true } : {}),
   };
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest));
@@ -776,7 +779,26 @@ async function prepareRepo(
     logger.log(`   Pruned ${fmtCount(removed)} binary file(s)`);
 
     logger.log(`   Building file tree...`);
-    const tree = buildFileTree(repoDir);
+    let tree = buildFileTree(repoDir);
+    if (config.contribution) {
+      const flatten = (nodes: FileNode[], prefix = ''): string[] =>
+        nodes.flatMap((node) => {
+          const file = prefix ? `${prefix}/${node.name}` : node.name;
+          return node.type === 'directory' ? flatten(node.children ?? [], file) : [file];
+        });
+      const candidates = flatten(tree);
+      const extraIgnore = path.join(repoDir, '.gitshamanignore');
+      const selected = new Set(
+        selectFiles(
+          candidates,
+          config.contribution.analysis,
+          fs.existsSync(extraIgnore) ? fs.readFileSync(extraIgnore, 'utf8') : ''
+        )
+      );
+      for (const file of candidates)
+        if (!selected.has(file)) fs.rmSync(path.join(repoDir, file), { force: true });
+      tree = buildFileTree(repoDir);
+    }
     const treeCounts = countFileTree(tree);
     logger.log(
       `   File tree built: ${fmtCount(treeCounts.files)} files, ${fmtCount(treeCounts.directories)} directories, ${fmtCount(
@@ -785,7 +807,7 @@ async function prepareRepo(
     );
     const buildSignature = getCorpusBuildSignature(config, tree);
     logger.log(`   Build signature: ${buildSignature.slice(0, 12)}…`);
-    createManifest(repoDir, tree, buildSignature, logger);
+    createManifest(repoDir, tree, buildSignature, logger, config);
 
     logger.log(`ready: ${owner}/${repo}@${revision} (${fmtDuration(Date.now() - startedAt)})`);
     return { config, repoDir };

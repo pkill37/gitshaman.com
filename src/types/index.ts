@@ -37,6 +37,17 @@ export interface WorkspaceSearchResult {
   relevanceScore: number;
 }
 
+/** Reference lookup displayed by the workspace's existing file-search view. */
+export interface ReferenceSearchState {
+  requestId: number;
+  workspaceId: string;
+  symbolName: string;
+  results: WorkspaceSearchResult[];
+  selectedResultKey: string | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
 export interface GitHubApiResponse {
   name: string;
   path: string;

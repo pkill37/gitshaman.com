@@ -2,7 +2,11 @@
 import React, { type CSSProperties } from 'react';
 import { getCuratedGuideByRepo } from '@/features/guides/docs-loader';
 import { parseRepoNavigationTarget } from '@/lib/markdown-navigation';
-import { getCuratedRepoAccent, getCuratedRepoDisplayName } from '@/lib/curated-repos';
+import {
+  getCuratedRepo,
+  getCuratedRepoAccent,
+  getCuratedRepoDisplayName,
+} from '@/lib/curated-repos';
 import { SOURCE_REPOSITORY_URL } from '@/lib/site';
 
 export interface FileRecommendation {
@@ -221,6 +225,17 @@ export function getProjectConfig(owner: string, repo: string): ProjectConfig | n
   const guideDoc = getCuratedGuideByRepo(owner, repo);
 
   if (!guideDoc) {
+    const curated = getCuratedRepo(owner, repo);
+    if (curated && !curated.guideId)
+      return {
+        id: curated.id,
+        name: curated.displayName,
+        owner: curated.owner,
+        repo: curated.repo,
+        defaultRevision: curated.revision,
+        guides: [],
+        suggestions: { fundamental: [] },
+      };
     return null;
   }
 
@@ -250,6 +265,38 @@ export function getProjectConfig(owner: string, repo: string): ProjectConfig | n
 // Create a generic guide for unsupported repositories
 export function createGenericGuide(owner: string, repo: string): GuideSection[] {
   const requestTitle = encodeURIComponent(`Add a guide for ${owner}/${repo}`);
+  const curated = getCuratedRepo(owner, repo);
+  if (curated?.contribution && !curated.guideId) {
+    const { summary } = curated.contribution;
+    return [
+      {
+        id: 'overview',
+        title: `${curated.displayName} source overview`,
+        body: (
+          <div>
+            <p>{curated.description}</p>
+            <p>
+              Analyzed at <code>{curated.revision}</code>: {summary.fileCount} files,{' '}
+              {summary.symbolCount} symbols, and {summary.edgeCount} relationships.
+            </p>
+            <p>
+              Browse the explorer, search for a symbol, or open the semantic graph. Structural
+              relationships may be approximate.
+            </p>
+            <p>
+              <a
+                href={`https://github.com/${owner}/${repo}/tree/${curated.revision}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View pinned upstream source
+              </a>
+            </p>
+          </div>
+        ),
+      },
+    ];
+  }
 
   return [
     {

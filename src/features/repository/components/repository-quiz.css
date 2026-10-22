@@ -1,0 +1,68 @@
+.repository-quiz {
+  padding: 16px;
+  color: var(--vscode-text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.repository-quiz h2 {
+  font-size: 18px;
+  margin-top: 0;
+}
+.repository-quiz h3 {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.repository-quiz p {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.repository-quiz label {
+  display: block;
+  margin: 12px 0;
+}
+.repository-quiz textarea,
+.repository-quiz input:not([type='checkbox']) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--vscode-bg-primary);
+  color: var(--vscode-text-primary);
+  border: 1px solid var(--vscode-border);
+  border-radius: 4px;
+  font: inherit;
+}
+.repository-quiz textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+.repository-quiz button {
+  cursor: pointer;
+  border: 1px solid var(--vscode-border);
+  background: var(--vscode-bg-primary);
+  color: var(--vscode-text-primary);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 4px 6px 4px 0;
+  font: inherit;
+}
+.repository-quiz button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.repository-quiz a {
+  color: var(--vscode-text-accent);
+}
+.repository-quiz :focus-visible {
+  outline: 2px solid var(--vscode-text-accent);
+  outline-offset: 2px;
+}
+.quiz-feedback,
+.quiz-share {
+  border-top: 1px solid var(--vscode-border);
+  padding-top: 12px;
+}
+.repository-quiz pre {
+  overflow-x: auto;
+}

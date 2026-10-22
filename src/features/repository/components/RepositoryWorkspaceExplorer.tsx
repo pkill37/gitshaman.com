@@ -2,13 +2,14 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import FileTree from './FileTree';
+import { getRepositoryDataSource } from '@/lib/repository-data-source';
 import ExplorerIcon from './ExplorerIcon';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
 import GuidePanel from './GuidePanel';
 import RepositoryRightPanel from './RepositoryRightPanel';
 import SemanticGraphTab from './SemanticGraphTab';
-import { EditorTab, FileNode, WorkspaceSearchResult } from '@/types';
+import { EditorTab, FileNode, WorkspaceSearchResult, type ReferenceSearchState } from '@/types';
 import {
   buildFileTree,
   fetchRepositoryFile,
@@ -220,6 +221,7 @@ interface RepositoryWorkspaceExplorerProps {
   workspaceTheme: WorkspaceTheme;
   workspaceSearchQuery?: string;
   onWorkspaceSearchQueryChange?: (query: string) => void;
+  onActivateFileSearch?: () => void;
 }
 
 export default function RepositoryWorkspaceExplorer({
@@ -235,6 +237,7 @@ export default function RepositoryWorkspaceExplorer({
   workspaceTheme,
   workspaceSearchQuery: controlledWorkspaceSearchQuery,
   onWorkspaceSearchQueryChange,
+  onActivateFileSearch,
 }: RepositoryWorkspaceExplorerProps) {
   const router = useRouter();
   const {
@@ -291,6 +294,8 @@ export default function RepositoryWorkspaceExplorer({
   const [localFileSourceMode] = useState<CuratedRepoSourceMode>(getStoredCuratedRepoSourceMode);
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
+  const workspaceId = `${fileSourceMode}:${repoLabel}@${selectedVersion}`;
+  const [referenceSearch, setReferenceSearch] = useState<ReferenceSearchState | null>(null);
 
   // Mobile panel state
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -314,6 +319,34 @@ export default function RepositoryWorkspaceExplorer({
     },
     [onWorkspaceSearchQueryChange]
   );
+  const activeReferenceSearch =
+    referenceSearch?.workspaceId === workspaceId &&
+    referenceSearch.symbolName === workspaceSearchQuery
+      ? referenceSearch
+      : null;
+  const handleReferenceSearch = useCallback(
+    (next: ReferenceSearchState) => {
+      setReferenceSearch((current) =>
+        next.isLoading || current?.requestId === next.requestId ? next : current
+      );
+      if (next.isLoading) {
+        setWorkspaceSearchQuery(next.symbolName);
+        onActivateFileSearch?.();
+        setIsSidebarOpen(true);
+        setMobileView('explorer');
+      }
+    },
+    [setWorkspaceSearchQuery, onActivateFileSearch]
+  );
+  const clearReferenceSearch = useCallback(() => setReferenceSearch(null), []);
+  const changeSearchQuery = useCallback(
+    (query: string) => {
+      setReferenceSearch(null);
+      setWorkspaceSearchQuery(query);
+    },
+    [setWorkspaceSearchQuery]
+  );
+
   const [workspaceSearchResults, setWorkspaceSearchResults] = useState<WorkspaceSearchResult[]>([]);
   const [workspaceSearchLoading, setWorkspaceSearchLoading] = useState<boolean>(false);
   const [workspaceSearchError, setWorkspaceSearchError] = useState<string | null>(null);
@@ -435,7 +468,7 @@ export default function RepositoryWorkspaceExplorer({
         // was supplied), so do not route it through local branch validation.
         setSelectedVersion(targetBranch);
 
-        if (isCurated && !usesRuntimeBranch) {
+        if ((isCurated && !usesRuntimeBranch) || getRepositoryDataSource(owner, repo)) {
           const staticTree = await getTreeStructureFromStatic(owner, repo, targetBranch, {
             sourceMode: fileSourceMode,
           });
@@ -1251,7 +1284,7 @@ export default function RepositoryWorkspaceExplorer({
   }, []);
 
   useEffect(() => {
-    const searchIsActive = layoutMode === 'search';
+    const searchIsActive = layoutMode === 'search' && !activeReferenceSearch;
     if (!searchIsActive) {
       workspaceSearchResultsRequestIdRef.current += 1;
       queueMicrotask(() => {
@@ -1404,6 +1437,7 @@ export default function RepositoryWorkspaceExplorer({
     return () => window.clearTimeout(timeoutId);
   }, [
     layoutMode,
+    activeReferenceSearch,
     workspaceSearchIndex,
     workspaceSearchIndexError,
     workspaceSearchIndexLoading,
@@ -1644,10 +1678,13 @@ export default function RepositoryWorkspaceExplorer({
                   titleLabel={repoLabel}
                   expandDirectoryRequest={directoryExpandRequest}
                   searchQuery={workspaceSearchQuery}
-                  onSearchQueryChange={setWorkspaceSearchQuery}
-                  searchResults={workspaceSearchResults}
-                  isSearchLoading={workspaceSearchLoading}
-                  isSearchIndexLoading={workspaceSearchIndexLoading}
+                  onSearchQueryChange={changeSearchQuery}
+                  searchResults={activeReferenceSearch?.results ?? workspaceSearchResults}
+                  referenceSymbol={activeReferenceSearch?.symbolName}
+                  selectedSearchResultKey={activeReferenceSearch?.selectedResultKey}
+                  onExitReferenceSearch={clearReferenceSearch}
+                  isSearchLoading={activeReferenceSearch?.isLoading ?? workspaceSearchLoading}
+                  isSearchIndexLoading={!activeReferenceSearch && workspaceSearchIndexLoading}
                   isSearchIndexReady={
                     !!workspaceSearchIndex &&
                     !workspaceSearchIndexLoading &&
@@ -1655,14 +1692,25 @@ export default function RepositoryWorkspaceExplorer({
                   }
                   searchIndexProgress={workspaceSearchIndexProgress}
                   searchIndexCached={workspaceSearchIndexCached}
-                  searchError={workspaceSearchError}
-                  searchHasMore={workspaceSearchHasMore}
+                  searchError={
+                    activeReferenceSearch ? activeReferenceSearch.error : workspaceSearchError
+                  }
+                  searchHasMore={!activeReferenceSearch && workspaceSearchHasMore}
                   searchScopeLabel={repoLabel ? `${repoLabel}@${selectedVersion}` : selectedVersion}
                   searchScopeFileCount={
                     workspaceSearchIndex?.fileCount ?? workspaceFilePaths.length
                   }
                   onSearchResultSelect={(result) => {
-                    handleOpenFileFromExplorer(result.file, workspaceSearchQuery, result.line);
+                    if (activeReferenceSearch) {
+                      setReferenceSearch((current) =>
+                        current ? { ...current, selectedResultKey: result.key } : null
+                      );
+                    }
+                    handleOpenFileFromExplorer(
+                      result.file,
+                      activeReferenceSearch ? undefined : workspaceSearchQuery,
+                      result.line
+                    );
                     if (isMobile) {
                       setMobileView('editor');
                     }
@@ -1738,7 +1786,7 @@ export default function RepositoryWorkspaceExplorer({
                   onOpenFile={openFileInTab}
                   fetchFile={fetchFileFromSelectedSource}
                   workspaceFilePaths={workspaceFilePaths}
-                  workspaceId={`${fileSourceMode}:${repoLabel}@${selectedVersion}`}
+                  workspaceId={workspaceId}
                   codeIndex={workspaceSearchIndex}
                   markdownViewMode={renderedActiveTab.viewMode}
                   onToggleMarkdownPreview={toggleMarkdownPreview}
@@ -1746,6 +1794,7 @@ export default function RepositoryWorkspaceExplorer({
                   searchPattern={renderedActiveTab.searchPattern}
                   navigationNonce={renderedActiveTab.navigationNonce}
                   editorTheme={editorTheme}
+                  onReferenceSearch={handleReferenceSearch}
                 />
               </div>
             ) : (

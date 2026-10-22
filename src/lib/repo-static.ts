@@ -3,6 +3,7 @@
 // backed by a generated public/repos symlink or mirror. In production curated
 // files are typically fetched from a direct public bucket/custom-domain origin.
 
+import { getRepositoryDataSource } from './repository-data-source';
 import type { FileNode } from '@/types';
 import {
   buildCuratedRepoStaticPath,
@@ -446,7 +447,8 @@ export async function resolveCorpusPathFromTree(
 /**
  * Get repository mode: curated (static files)
  */
-export function getRepositoryMode(owner: string, repo: string): 'curated' {
+export function getRepositoryMode(owner: string, repo: string): 'curated' | 'workspace' {
+  if (getRepositoryDataSource(owner, repo)) return 'workspace';
   if (!isCuratedRepo(owner, repo)) {
     throw new Error(`Repository ${owner}/${repo} is not curated`);
   }
@@ -621,6 +623,8 @@ export async function getTreeStructureFromStatic(
   branch: string,
   options?: StaticStorageOptions
 ): Promise<FileNode[] | null> {
+  const source = getRepositoryDataSource(owner, repo);
+  if (source) return source.tree();
   // Only try to fetch manifest for curated repos
   if (!isCuratedRepo(owner, repo)) {
     return null;
@@ -718,6 +722,8 @@ export async function getCodeIndexFromStatic(
     onProgress?: (progress: CodeIndexLoadProgress) => void;
   }
 ): Promise<LoadedCodeIndex | null> {
+  const source = getRepositoryDataSource(owner, repo);
+  if (source) return source.index();
   if (!isCuratedRepo(owner, repo)) {
     return null;
   }
