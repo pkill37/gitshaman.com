@@ -48,12 +48,14 @@ export const metadata: Metadata = {
     siteName: brandName,
     title: defaultTitle,
     description: defaultDescription,
+    images: [{ url: '/og.png', width: 1280, height: 640, alt: defaultTitle }],
   },
   twitter: {
     card: 'summary_large_image',
     title: defaultTitle,
     description: defaultDescription,
     creator: '@gitshaman',
+    images: ['/og.png'],
   },
   robots: {
     index: true,

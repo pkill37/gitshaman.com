@@ -261,9 +261,12 @@ test.describe('References in file search and definition jumps', () => {
     await expect(page.locator('.vscode-editor').first()).toBeVisible({ timeout: 30000 });
     await focusEditorSymbol(page, 'add');
     await goToDefinitionAtCursor(page);
-    const headerDefinition = page.getByRole('button', {
-      name: /L1 function int add\(int left, int right\); lib\/math\.h · indexed · high/,
-    });
+    const headerDefinition = results
+      .locator('.vscode-tree-search-group')
+      .filter({ has: page.getByRole('button', { name: 'math.h lib', exact: true }) })
+      .getByRole('button', {
+        name: /function int add\(int left, int right\); · indexed · high/,
+      });
     await expect(headerDefinition).toBeVisible({ timeout: 15000 });
     await headerDefinition.click();
     await expect(page.getByRole('code').getByText('int add(int left, int right);')).toBeVisible({

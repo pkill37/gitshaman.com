@@ -332,7 +332,12 @@ export default function EcosystemMap({
             <div className="ecosystem-projects-label">
               Explore a project <span aria-hidden="true">↗</span>
             </div>
-            <div className="ecosystem-nodes" aria-label="Select ecosystem node">
+            <div
+              className="ecosystem-nodes"
+              role="region"
+              tabIndex={0}
+              aria-label="Select ecosystem node"
+            >
               {graph.nodes.map((node) => (
                 <button
                   key={node.id}
