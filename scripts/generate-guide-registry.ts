@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import { generateEcosystemIndex } from './ecosystem-index';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { listGuideMarkdownFiles } from './guide-docs';
@@ -43,6 +44,7 @@ ${entries}
 }
 
 export function writeGuideRegistry(): void {
+  generateEcosystemIndex();
   const source = generateGuideRegistrySource();
   fs.writeFileSync(OUTPUT_PATH, source);
   console.log(`Generated ${path.relative(process.cwd(), OUTPUT_PATH)}`);

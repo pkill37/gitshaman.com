@@ -1,4 +1,5 @@
 'use client';
+import type { AndroidWorkspaceSource } from '@/lib/android/source';
 
 import React, { useState, useEffect, useRef } from 'react';
 import MonacoCodeEditor from './MonacoCodeEditor';
@@ -29,6 +30,7 @@ interface CodeEditorContainerProps {
   workspaceFilePaths?: string[];
   workspaceId?: string;
   codeIndex?: LoadedCodeIndex | null;
+  androidSource?: AndroidWorkspaceSource | null;
   editorTheme?: 'vs-dark' | 'vs';
   onReferenceSearch?: (state: ReferenceSearchState) => void;
 }
@@ -49,6 +51,7 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
   workspaceFilePaths,
   workspaceId,
   codeIndex,
+  androidSource,
   editorTheme = 'vs-dark',
   onReferenceSearch,
 }) => {
@@ -229,6 +232,7 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
       workspaceFilePaths={workspaceFilePaths}
       workspaceId={workspaceId}
       codeIndex={codeIndex}
+      androidSource={androidSource}
       editorTheme={editorTheme}
       onReferenceSearch={onReferenceSearch}
     />

@@ -1,0 +1,408 @@
+{
+  "references": [
+    {
+      "from": "grapheneos/platform_manifest",
+      "to": "lineageos/android",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "GrapheneOS_platform_manifest.md",
+          "chapter": "ch9",
+          "line": 272,
+          "kind": "prose",
+          "target": {
+            "path": "frameworks/base/services/java/com/android/server/SystemServer.java",
+            "owner": "LineageOS",
+            "repo": "android"
+          }
+        },
+        {
+          "document": "GrapheneOS_platform_manifest.md",
+          "chapter": "ch9",
+          "line": 272,
+          "kind": "prose",
+          "target": {
+            "path": "frameworks/base/core/java/android/os/Binder.java",
+            "owner": "LineageOS",
+            "repo": "android"
+          }
+        },
+        {
+          "document": "GrapheneOS_platform_manifest.md",
+          "chapter": "ch9",
+          "line": 272,
+          "kind": "prose",
+          "target": {
+            "path": "packages/apps/Settings/AndroidManifest.xml",
+            "owner": "LineageOS",
+            "repo": "android"
+          }
+        },
+        {
+          "document": "GrapheneOS_platform_manifest.md",
+          "chapter": "ch9",
+          "line": 272,
+          "kind": "prose",
+          "target": {
+            "path": "default.xml",
+            "owner": "LineageOS",
+            "repo": "android"
+          }
+        }
+      ]
+    },
+    {
+      "from": "grapheneos/platform_manifest",
+      "to": "ofdryads/miniageos",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "GrapheneOS_platform_manifest.md",
+          "chapter": "ch9",
+          "line": 272,
+          "kind": "prose",
+          "target": {
+            "path": "SOURCES.md",
+            "owner": "ofdryads",
+            "repo": "miniageos"
+          }
+        }
+      ]
+    },
+    {
+      "from": "lineageos/android",
+      "to": "grapheneos/platform_manifest",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "LineageOS_android.md",
+          "chapter": "ch9",
+          "line": 275,
+          "kind": "prose",
+          "target": {
+            "path": "frameworks/base/services/java/com/android/server/SystemServer.java",
+            "owner": "GrapheneOS",
+            "repo": "platform_manifest"
+          }
+        },
+        {
+          "document": "LineageOS_android.md",
+          "chapter": "ch9",
+          "line": 275,
+          "kind": "prose",
+          "target": {
+            "path": "frameworks/base/core/java/android/os/Binder.java",
+            "owner": "GrapheneOS",
+            "repo": "platform_manifest"
+          }
+        },
+        {
+          "document": "LineageOS_android.md",
+          "chapter": "ch9",
+          "line": 275,
+          "kind": "prose",
+          "target": {
+            "path": "packages/apps/Settings/AndroidManifest.xml",
+            "owner": "GrapheneOS",
+            "repo": "platform_manifest"
+          }
+        },
+        {
+          "document": "LineageOS_android.md",
+          "chapter": "ch9",
+          "line": 275,
+          "kind": "prose",
+          "target": {
+            "path": "default.xml",
+            "owner": "GrapheneOS",
+            "repo": "platform_manifest"
+          }
+        }
+      ]
+    },
+    {
+      "from": "lineageos/android",
+      "to": "ofdryads/miniageos",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "LineageOS_android.md",
+          "chapter": "ch9",
+          "line": 275,
+          "kind": "prose",
+          "target": {
+            "path": "README.md",
+            "searchPattern": "miniageOS",
+            "owner": "ofdryads",
+            "repo": "miniageos"
+          }
+        }
+      ]
+    },
+    {
+      "from": "bminor/glibc",
+      "to": "bminor/glibc",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "bminor_glibc.md",
+          "chapter": "ch1",
+          "line": 87,
+          "kind": "prose",
+          "target": {
+            "path": "sysdeps/unix/sysv/linux/read.c",
+            "searchPattern": "__libc_read",
+            "owner": "bminor",
+            "repo": "glibc"
+          }
+        }
+      ]
+    },
+    {
+      "from": "bminor/glibc",
+      "to": "torvalds/linux",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "bminor_glibc.md",
+          "chapter": "ch1",
+          "line": 87,
+          "kind": "prose",
+          "target": {
+            "path": "fs/read_write.c",
+            "searchPattern": "ksys_write",
+            "owner": "torvalds",
+            "repo": "linux"
+          }
+        },
+        {
+          "document": "bminor_glibc.md",
+          "chapter": "ch3",
+          "line": 226,
+          "kind": "prose",
+          "target": {
+            "path": "mm/mmap.c",
+            "searchPattern": "vm_mmap_pgoff",
+            "owner": "torvalds",
+            "repo": "linux"
+          }
+        }
+      ]
+    },
+    {
+      "from": "python/cpython",
+      "to": "bminor/glibc",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "python_cpython.md",
+          "chapter": "ch1",
+          "line": 82,
+          "kind": "prose",
+          "target": {
+            "path": "nptl/pthread_create.c",
+            "searchPattern": "pthread_create",
+            "owner": "bminor",
+            "repo": "glibc"
+          }
+        },
+        {
+          "document": "python_cpython.md",
+          "chapter": "ch3",
+          "line": 211,
+          "kind": "prose",
+          "target": {
+            "path": "malloc/malloc.c",
+            "searchPattern": "__libc_malloc",
+            "owner": "bminor",
+            "repo": "glibc"
+          }
+        }
+      ]
+    },
+    {
+      "from": "python/cpython",
+      "to": "torvalds/linux",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "python_cpython.md",
+          "chapter": "ch1",
+          "line": 82,
+          "kind": "prose",
+          "target": {
+            "path": "kernel/fork.c",
+            "searchPattern": "kernel_clone",
+            "owner": "torvalds",
+            "repo": "linux"
+          }
+        },
+        {
+          "document": "python_cpython.md",
+          "chapter": "ch3",
+          "line": 211,
+          "kind": "prose",
+          "target": {
+            "path": "mm/mmap.c",
+            "searchPattern": "do_mmap",
+            "owner": "torvalds",
+            "repo": "linux"
+          }
+        }
+      ]
+    },
+    {
+      "from": "torvalds/linux",
+      "to": "freebsd/freebsd-src",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 53,
+          "kind": "recommendation",
+          "target": {
+            "path": "sys/sys/proc.h",
+            "searchPattern": "proc",
+            "owner": "freebsd",
+            "repo": "freebsd-src"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 56,
+          "kind": "recommendation",
+          "target": {
+            "path": "sys/kern/kern_fork.c",
+            "searchPattern": "fork1",
+            "owner": "freebsd",
+            "repo": "freebsd-src"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 81,
+          "kind": "prose",
+          "target": {
+            "path": "sys/sys/proc.h",
+            "searchPattern": "proc",
+            "owner": "freebsd",
+            "repo": "freebsd-src"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 81,
+          "kind": "prose",
+          "target": {
+            "path": "sys/kern/kern_fork.c",
+            "searchPattern": "fork1",
+            "owner": "freebsd",
+            "repo": "freebsd-src"
+          }
+        }
+      ]
+    },
+    {
+      "from": "torvalds/linux",
+      "to": "apple-oss-distributions/xnu",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 59,
+          "kind": "recommendation",
+          "target": {
+            "path": "osfmk/kern/task.c",
+            "searchPattern": "kernel_task",
+            "owner": "apple-oss-distributions",
+            "repo": "xnu"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 62,
+          "kind": "recommendation",
+          "target": {
+            "path": "bsd/kern/kern_fork.c",
+            "searchPattern": "fork1",
+            "owner": "apple-oss-distributions",
+            "repo": "xnu"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 81,
+          "kind": "prose",
+          "target": {
+            "path": "osfmk/kern/task.c",
+            "searchPattern": "kernel_task",
+            "owner": "apple-oss-distributions",
+            "repo": "xnu"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 81,
+          "kind": "prose",
+          "target": {
+            "path": "bsd/kern/kern_fork.c",
+            "searchPattern": "fork1",
+            "owner": "apple-oss-distributions",
+            "repo": "xnu"
+          }
+        }
+      ]
+    },
+    {
+      "from": "torvalds/linux",
+      "to": "bminor/glibc",
+      "kind": "reference",
+      "label": "Guide reference",
+      "sources": [
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch1",
+          "line": 83,
+          "kind": "prose",
+          "target": {
+            "path": "sysdeps/unix/sysv/linux/read.c",
+            "searchPattern": "__libc_read",
+            "owner": "bminor",
+            "repo": "glibc"
+          }
+        },
+        {
+          "document": "torvalds_linux.md",
+          "chapter": "ch4",
+          "line": 214,
+          "kind": "prose",
+          "target": {
+            "path": "csu/libc-start.c",
+            "searchPattern": "__libc_start_main",
+            "owner": "bminor",
+            "repo": "glibc"
+          }
+        }
+      ]
+    }
+  ],
+  "lesson": "## How software fits together\n\nCompilation translates source into executable instructions. Clang parses C-family languages; LLVM supplies optimization and code generation. See [Clang code generation](repo:llvm/llvm-project/clang/lib/CodeGen/CodeGenModule.cpp). A compiler used to build a program need not run alongside it.\n\nA language runtime supplies services while a program runs: object management, scheduling, and I/O. CPython uses C library services; on Linux builds linked against glibc, these reach glibc. Other platforms and C libraries have different paths. Go's Linux runtime has direct syscall paths; optional cgo can also call C libraries.\n\nFor I/O, follow [CPython _Py_read()](repo:python/cpython/Python/fileutils.c:_Py_read), [glibc __libc_read()](repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read), then [Linux ksys_read()](repo:torvalds/linux/fs/read_write.c:ksys_read). The syscall instruction crosses into kernel execution, where descriptors, permissions, and devices are managed.\n\nFor memory, follow [CPython allocation](repo:python/cpython/Objects/obmalloc.c), [glibc malloc](repo:bminor/glibc/malloc/malloc.c), and [Linux mappings](repo:torvalds/linux/mm/mmap.c). Allocators reuse user-space blocks; they request more virtual memory when needed. Every allocation does not require a syscall.\n\nFor threads, follow [CPython POSIX threads](repo:python/cpython/Python/thread_pthread.h), [glibc pthread_create()](repo:bminor/glibc/nptl/pthread_create.c), and [Linux process creation](repo:torvalds/linux/kernel/fork.c). Compare [Go Linux runtime assembly](repo:golang/go/src/runtime/sys_linux_amd64.s) with [Go cgo pthread integration](repo:golang/go/src/runtime/cgo/pthread_unix.c). A goroutine is scheduled by Go and is not one OS thread per goroutine.\n\nArrows describe their labeled relationship only. Compiler infrastructure, source ancestry, platform comparisons, and guide references are distinct from execution dependencies. Android distribution manifests describe source composition; BSD trees include userland as well as kernels, while XNU combines Mach and BSD components."
+}

@@ -198,6 +198,26 @@ in `.env.local`. Guides live in `docs/`; start a new guide with
 [docs/_template.md](docs/_template.md). Run `npm run guides` to validate the guide registry, prose,
 and repository references. See [CONTRIBUTING.md](CONTRIBUTING.md) for the guide format.
 
+### Android platform snapshots
+
+LineageOS and GrapheneOS have manifest-backed workspaces. `npm run corpus:sync` builds
+both their manifest repositories and the configured core platform projects. To rebuild only
+Android workspaces after their manifests are present, run `npm run corpus:android`.
+Use `-- --only=LineageOS/android` or `-- --only=GrapheneOS/platform_manifest` to select one.
+
+Project commits are recorded in `src/curated/android-locks/` and reused on later builds.
+Update those commits deliberately with `npm run corpus:android -- --refresh`, review the
+lockfile changes, and run `npm run corpus:check` before release. Each completed workspace
+has immutable source and project-index artifacts under its manifest revision's
+`android/snapshots/` directory. The corpus deployment uploads and verifies those artifacts
+before publishing `android/workspace.json`; running the build does not deploy anything.
+
+The browser opens the Android source tree by default and exposes the manifest as a separate
+view. Search covers the listed core projects, with optional project scoping. Files larger than
+2 MiB, binary files, and filesystem symlinks are excluded; manifest copy/link mappings are
+resolved within the hosted source. Indexed content is limited to 64 KiB per file and references
+are text occurrences. Java, Kotlin, and AIDL type definitions use text heuristics rather than compiler bindings. The initial selection excludes device trees, kernels, and prebuilts.
+
 ## Testing
 
 Install the Playwright browsers once before running browser tests:

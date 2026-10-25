@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import { checkAndroidWorkspace } from './check-android-workspace';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { CODE_INDEX_FILE_NAME } from '../src/lib/code-index';
@@ -16,6 +17,15 @@ function main(): void {
     const indexPath = path.join(repoDir, CODE_INDEX_FILE_NAME);
     if (!fs.existsSync(manifestPath)) {
       continue;
+    }
+    if (repo.androidWorkspace) {
+      try {
+        checkAndroidWorkspace(repo, CORPUS_REPOS_DIR);
+      } catch (error) {
+        missing.push(
+          `${repo.owner}/${repo.repo}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     }
     if (!fs.existsSync(indexPath)) {
       missing.push(`${repo.owner}/${repo.repo}@${repo.revision}`);

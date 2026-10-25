@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "owner": "LineageOS",
+  "repo": "android",
+  "manifestCommit": "2a50ca061bffe4e73918ae2e0b99b7a05f647154",
+  "projects": [
+    {
+      "path": "frameworks/base",
+      "name": "LineageOS/android_frameworks_base",
+      "url": "https://github.com/LineageOS/android_frameworks_base",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "653be4a9d2b0c727136694c789975e27fa7cdcef"
+    },
+    {
+      "path": "frameworks/native",
+      "name": "LineageOS/android_frameworks_native",
+      "url": "https://github.com/LineageOS/android_frameworks_native",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "46018f54b42489de960c62c3db9de131abce43ea"
+    },
+    {
+      "path": "frameworks/av",
+      "name": "LineageOS/android_frameworks_av",
+      "url": "https://github.com/LineageOS/android_frameworks_av",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "937eb9047ec2f88620f1f6a4d9e407f6c869d91a"
+    },
+    {
+      "path": "art",
+      "name": "LineageOS/android_art",
+      "url": "https://github.com/LineageOS/android_art",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "747707d6ce1c145f2249f120c692e0aeb2b8a257"
+    },
+    {
+      "path": "bionic",
+      "name": "LineageOS/android_bionic",
+      "url": "https://github.com/LineageOS/android_bionic",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "ff3bb041547924ac1a7504e4b3bd3ea18169ca2f"
+    },
+    {
+      "path": "libcore",
+      "name": "platform/libcore",
+      "url": "https://android.googlesource.com/platform/libcore",
+      "revision": "refs/tags/android-17.0.0_r1",
+      "mappings": [],
+      "commit": "4ebfb391ee0109d16abe6e2bc965724b940928c5"
+    },
+    {
+      "path": "system/core",
+      "name": "LineageOS/android_system_core",
+      "url": "https://github.com/LineageOS/android_system_core",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "65d661b1a536701e8b118be4e9728d7b5ca727c9"
+    },
+    {
+      "path": "system/sepolicy",
+      "name": "LineageOS/android_system_sepolicy",
+      "url": "https://github.com/LineageOS/android_system_sepolicy",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "d61fd80832f558d52de026097d30d695634e8b0f"
+    },
+    {
+      "path": "build/make",
+      "name": "LineageOS/android_build",
+      "url": "https://github.com/LineageOS/android_build",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [
+        {
+          "kind": "linkfile",
+          "src": "CleanSpec.mk",
+          "dest": "build/CleanSpec.mk"
+        },
+        {
+          "kind": "linkfile",
+          "src": "buildspec.mk.default",
+          "dest": "build/buildspec.mk.default"
+        },
+        {
+          "kind": "linkfile",
+          "src": "core",
+          "dest": "build/core"
+        },
+        {
+          "kind": "linkfile",
+          "src": "envsetup.sh",
+          "dest": "build/envsetup.sh"
+        },
+        {
+          "kind": "linkfile",
+          "src": "target",
+          "dest": "build/target"
+        },
+        {
+          "kind": "linkfile",
+          "src": "tools",
+          "dest": "build/tools"
+        }
+      ],
+      "commit": "90d006387398ae6899145e6531a304500cfa0f70"
+    },
+    {
+      "path": "build/soong",
+      "name": "LineageOS/android_build_soong",
+      "url": "https://github.com/LineageOS/android_build_soong",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "a528a88bd553d2a449ad9338a3e944b89a164971"
+    },
+    {
+      "path": "packages/apps/Settings",
+      "name": "LineageOS/android_packages_apps_Settings",
+      "url": "https://github.com/LineageOS/android_packages_apps_Settings",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "0b97deb37dcba757a3130899273fb4c298702f00"
+    },
+    {
+      "path": "vendor/lineage",
+      "name": "LineageOS/android_vendor_lineage",
+      "url": "https://github.com/LineageOS/android_vendor_lineage",
+      "revision": "refs/heads/lineage-24.0",
+      "mappings": [],
+      "commit": "08c3f6db7201e66f3006a1f2742dff929060c995"
+    }
+  ]
+}

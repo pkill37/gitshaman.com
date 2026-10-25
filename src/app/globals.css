@@ -1915,208 +1915,6 @@ body {
   margin: 4px 0;
 }
 
-/* App-owned xref panel */
-.explorar-editor-shell {
-  position: relative;
-  isolation: isolate;
-}
-
-.explorar-xref-panel {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  bottom: 16px;
-  width: min(380px, calc(100% - 32px));
-  display: flex;
-  flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--vscode-border, #3f3f46) 80%, transparent);
-  border-radius: 14px;
-  overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 94%, white 6%) 0%,
-    color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 98%, black 2%) 100%
-  );
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  z-index: 2147483647;
-  pointer-events: auto;
-}
-
-.explorar-xref-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--vscode-border, #3f3f46) 80%, transparent);
-  background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 88%, white 12%);
-}
-
-.explorar-xref-panel-title-wrap {
-  min-width: 0;
-}
-
-.explorar-xref-panel-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 70%, transparent);
-}
-
-.explorar-xref-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--vscode-editor-foreground, #d4d4d4);
-}
-
-.explorar-xref-panel-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: color-mix(
-    in srgb,
-    var(--repo-accent, var(--vscode-textLink-foreground, #4a9eff)) 24%,
-    transparent
-  );
-  font-size: 11px;
-}
-
-.explorar-xref-panel-close {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--vscode-editor-foreground, #d4d4d4);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  position: relative;
-  z-index: 2;
-}
-
-.explorar-xref-panel-subtitle {
-  padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--vscode-border, #3f3f46) 60%, transparent);
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 82%, transparent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.explorar-xref-panel-body {
-  flex: 1 1 auto;
-  overflow: auto;
-  padding: 12px;
-}
-
-.explorar-xref-panel-empty {
-  padding: 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--vscode-editorWidget-background, #252526) 90%, transparent);
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 80%, transparent);
-}
-
-.explorar-xref-group + .explorar-xref-group {
-  margin-top: 14px;
-}
-
-.explorar-xref-group-header {
-  margin-bottom: 8px;
-}
-
-.explorar-xref-group-file {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--vscode-editor-foreground, #d4d4d4);
-}
-
-.explorar-xref-group-dir {
-  font-size: 11px;
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 60%, transparent);
-}
-
-.explorar-xref-group-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.explorar-xref-row {
-  appearance: none;
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--vscode-editorWidget-background, #252526) 82%, transparent);
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.explorar-xref-row:hover,
-.explorar-xref-row.is-selected {
-  border-color: color-mix(
-    in srgb,
-    var(--repo-accent, var(--vscode-textLink-foreground, #4a9eff)) 55%,
-    transparent
-  );
-  background: color-mix(
-    in srgb,
-    var(--repo-accent, var(--vscode-textLink-foreground, #4a9eff)) 14%,
-    transparent
-  );
-}
-
-.explorar-xref-row-line {
-  font-size: 11px;
-  font-weight: 700;
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 60%, transparent);
-}
-
-.explorar-xref-row-preview {
-  min-width: 0;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--vscode-editor-foreground, #d4d4d4);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.explorar-xref-row-meta {
-  display: block;
-  margin-top: 2px;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
-  font-size: 11px;
-  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 58%, transparent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .explorar-relationship-row {
   align-items: flex-start;
   gap: 10px;
@@ -2148,6 +1946,73 @@ body {
 .explorar-relationship-kind.is-dataflow {
   background: #238636;
   color: #fff;
+}
+
+.explorar-semantic-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-border, #3f3f46) 80%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 88%, white 12%);
+}
+
+.explorar-semantic-panel-title-wrap {
+  min-width: 0;
+}
+
+.explorar-semantic-panel-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 70%, transparent);
+}
+
+.explorar-semantic-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vscode-editor-foreground, #d4d4d4);
+}
+
+.explorar-semantic-panel-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--repo-accent, var(--vscode-textLink-foreground, #4a9eff)) 24%,
+    transparent
+  );
+  font-size: 11px;
+}
+
+.explorar-semantic-panel-close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-editor-foreground, #d4d4d4);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.explorar-semantic-panel-empty {
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background, #252526) 90%, transparent);
+  color: color-mix(in srgb, var(--vscode-editor-foreground, #d4d4d4) 80%, transparent);
 }
 
 .explorar-semantic-panel {
@@ -2583,6 +2448,7 @@ body {
 :where([data-markdown-preview], [data-guide-markdown]) a[data-repo-path],
 :where([data-markdown-preview], [data-guide-markdown]) a.inline-code-link {
   --xref-accent: var(--repo-accent, var(--vscode-textLink-foreground, #4a9eff));
+  padding: 0.08em 0.34em;
   display: inline;
   border: 1px solid color-mix(in srgb, var(--xref-accent) 34%, transparent);
   border-radius: 5px;
@@ -2696,6 +2562,7 @@ body {
   color: var(--inline-code-link-accent);
   border: 0;
   background: transparent;
+  box-shadow: none;
   padding: 0;
 }
 
@@ -2851,4 +2718,39 @@ body {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
+}
+
+.android-workspace-controls,
+.android-file-provenance {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-border);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.android-workspace-controls {
+  flex-shrink: 0;
+  margin-top: auto;
+  border-top: 1px solid var(--vscode-border);
+  border-bottom: 0;
+}
+.android-workspace-controls select {
+  width: 100%;
+  color: inherit;
+  background: var(--vscode-bg-secondary);
+}
+.android-workspace-controls button {
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--vscode-border);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.android-workspace-controls button[aria-pressed='true'] {
+  border-color: var(--repo-accent);
+}
+.android-workspace-controls details {
+  margin-top: 8px;
+}
+.android-workspace-controls ul {
+  padding-left: 16px;
 }

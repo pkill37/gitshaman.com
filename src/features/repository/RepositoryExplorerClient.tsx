@@ -1,4 +1,5 @@
 'use client';
+import { getCuratedRepo } from '@/lib/curated-repos';
 
 import {
   useState,
@@ -130,6 +131,7 @@ export default function RepositoryExplorerClient({
   loadingDescription: _loadingDescription,
 }: RepositoryExplorerClientProps) {
   const projectConfig = getProjectConfig(owner, repo);
+  const sourceFirst = !!getCuratedRepo(owner, repo)?.androidWorkspace;
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -154,7 +156,7 @@ export default function RepositoryExplorerClient({
   // This value is calculated by the Server Component and serialized into the
   // RSC payload, so the server render and hydration render use the same source.
   const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(initialSourceMode);
-  const [workspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
+  const [savedWorkspaceTheme, setWorkspaceTheme] = useState<WorkspaceTheme>(() => {
     try {
       if (typeof window === 'undefined') return 'dark';
       const savedTheme = localStorage.getItem(WORKSPACE_THEME_STORAGE_KEY);
@@ -205,7 +207,9 @@ export default function RepositoryExplorerClient({
     () => true,
     () => false
   );
+  const workspaceTheme = hasHydrated ? savedWorkspaceTheme : 'dark';
   const [savedGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
+    if (sourceFirst) return false;
     try {
       if (typeof window === 'undefined') return true;
       const savedGuideSidebarOpen = localStorage.getItem(GUIDE_SIDEBAR_OPEN_STORAGE_KEY);
@@ -218,7 +222,7 @@ export default function RepositoryExplorerClient({
     return true;
   });
   // The server and hydration pass must render the same sidebar structure.
-  const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : true;
+  const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : !sourceFirst;
   const [savedLeftPaneWidth, setLeftPaneWidth] = useState(() => {
     try {
       const saved = Number(localStorage.getItem(LEFT_PANE_WIDTH_STORAGE_KEY));
@@ -472,12 +476,13 @@ export default function RepositoryExplorerClient({
   }, []);
 
   useEffect(() => {
+    if (!hasHydrated) return;
     try {
       localStorage.setItem(WORKSPACE_THEME_STORAGE_KEY, workspaceTheme);
     } catch {
       // Ignore storage failures.
     }
-  }, [workspaceTheme]);
+  }, [hasHydrated, workspaceTheme]);
 
   // ── Guide panel resize ──────────────────────────────────────────────────────
   const [guideWidth, setGuideWidth] = useState(GUIDE_DEFAULT_WIDTH);

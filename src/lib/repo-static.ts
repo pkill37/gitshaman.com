@@ -1,3 +1,4 @@
+import { getAndroidWorkspaceSource } from './android/source';
 // Static file reader for curated repositories.
 // In local dev this resolves to the staged /repos/ public path, which is
 // backed by a generated public/repos symlink or mirror. In production curated
@@ -625,6 +626,13 @@ export async function getTreeStructureFromStatic(
 ): Promise<FileNode[] | null> {
   const source = getRepositoryDataSource(owner, repo);
   if (source) return source.tree();
+  const android = await getAndroidWorkspaceSource(
+    owner,
+    repo,
+    branch,
+    resolveSourceMode(options?.sourceMode)
+  );
+  if (android) return android.tree(true);
   // Only try to fetch manifest for curated repos
   if (!isCuratedRepo(owner, repo)) {
     return null;

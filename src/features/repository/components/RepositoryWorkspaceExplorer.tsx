@@ -1,7 +1,15 @@
 'use client';
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import FileTree from './FileTree';
+import { getAndroidWorkspaceSource, type AndroidWorkspaceSource } from '@/lib/android/source';
+import {
+  androidProjectForPath,
+  androidUpstreamUrl,
+  resolveAndroidAlias,
+} from '@/lib/android/workspace';
+import { directoryFromTree } from '@/lib/repository-data-source';
+import { getCuratedRepo } from '@/lib/curated-repos';
 import { getRepositoryDataSource } from '@/lib/repository-data-source';
 import ExplorerIcon from './ExplorerIcon';
 import TabBar from './TabBar';
@@ -23,6 +31,7 @@ import { getCuratedRepoPath } from '@/lib/curated-repos';
 import { loadGuideFromMarkdown } from '@/features/guides/guide-loader';
 import { useRepository } from '@/contexts/RepositoryContext';
 import { findSymbolsInFile } from '@/lib/cross-reference';
+import { findPedagogicalLandingLine } from '@/lib/file-landing';
 import {
   isCuratedRepo,
   getCodeIndexFromStatic,
@@ -137,57 +146,6 @@ function normalizeStoredTabs(tabs: EditorTab[]): EditorTab[] {
   }));
 }
 
-function findPedagogicalLandingLine(filePath: string, content: string): number | undefined {
-  const lines = content.split('\n');
-
-  if (/\.(md|rst|txt)$/i.test(filePath)) {
-    for (let i = 0; i < lines.length; i++) {
-      const markdownHeading = lines[i].match(/^#{1,6}\s+\S/);
-      if (markdownHeading) {
-        return i + 1;
-      }
-
-      const currentLine = lines[i].trim();
-      const nextLine = lines[i + 1]?.trim() || '';
-      if (currentLine && /^[=\-~^"']+$/.test(nextLine)) {
-        return i + 1;
-      }
-    }
-  }
-
-  const symbols = findSymbolsInFile(content, filePath);
-  const preferredDefinition =
-    symbols.find(
-      (symbol) =>
-        symbol.isDefinition &&
-        symbol.line > 0 &&
-        (symbol.type === 'function' || symbol.type === 'class' || symbol.type === 'struct')
-    ) ??
-    symbols.find(
-      (symbol) =>
-        symbol.isDefinition &&
-        symbol.line > 0 &&
-        (symbol.type === 'typedef' || symbol.type === 'macro')
-    );
-
-  if (preferredDefinition) {
-    return preferredDefinition.line;
-  }
-
-  const firstCodeLine = lines.findIndex((line) => {
-    const trimmed = line.trim();
-    return (
-      trimmed &&
-      !trimmed.startsWith('//') &&
-      !trimmed.startsWith('/*') &&
-      !trimmed.startsWith('*') &&
-      !trimmed.startsWith('#')
-    );
-  });
-
-  return firstCodeLine >= 0 ? firstCodeLine + 1 : undefined;
-}
-
 export type InitialFileTarget =
   | string
   | string[]
@@ -294,7 +252,11 @@ export default function RepositoryWorkspaceExplorer({
   const [localFileSourceMode] = useState<CuratedRepoSourceMode>(getStoredCuratedRepoSourceMode);
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
-  const workspaceId = `${fileSourceMode}:${repoLabel}@${selectedVersion}`;
+  const [androidSource, setAndroidSource] = useState<AndroidWorkspaceSource | null>(null);
+  const [androidView, setAndroidView] = useState<'source' | 'manifest'>('source');
+  const [androidProject, setAndroidProject] = useState('');
+  const androidConfigured = !!getCuratedRepo(owner ?? '', repo ?? '')?.androidWorkspace;
+  const workspaceId = `${fileSourceMode}:${repoLabel}@${selectedVersion}:${androidSource?.metadata.snapshot ?? ''}`;
   const [referenceSearch, setReferenceSearch] = useState<ReferenceSearchState | null>(null);
 
   // Mobile panel state
@@ -326,6 +288,7 @@ export default function RepositoryWorkspaceExplorer({
       : null;
   const handleReferenceSearch = useCallback(
     (next: ReferenceSearchState) => {
+      if (next.workspaceId !== workspaceId) return;
       setReferenceSearch((current) =>
         next.isLoading || current?.requestId === next.requestId ? next : current
       );
@@ -336,7 +299,7 @@ export default function RepositoryWorkspaceExplorer({
         setMobileView('explorer');
       }
     },
-    [setWorkspaceSearchQuery, onActivateFileSearch]
+    [setWorkspaceSearchQuery, onActivateFileSearch, workspaceId]
   );
   const clearReferenceSearch = useCallback(() => setReferenceSearch(null), []);
   const changeSearchQuery = useCallback(
@@ -361,6 +324,7 @@ export default function RepositoryWorkspaceExplorer({
     owner &&
     repo &&
     selectedVersion &&
+    !androidSource &&
     (layoutMode === 'search' || layoutMode === 'semantic' || activeTabId)
   );
   const previousSearchIndexLoadKeyRef = useRef(workspaceSearchIndexLoadKey);
@@ -460,6 +424,16 @@ export default function RepositoryWorkspaceExplorer({
         await setRepository('github', identifier, `${owner}/${repo}`, targetBranch);
         if (cancelled) return;
 
+        const hosted = getRepositoryDataSource(owner, repo);
+        const android = hosted
+          ? (hosted.workspace ?? null)
+          : await getAndroidWorkspaceSource(owner, repo, targetBranch, fileSourceMode);
+        if (cancelled) return;
+        setAndroidSource(android);
+        if (android) setWorkspaceSearchIndexError(null);
+        setAndroidView('source');
+        setAndroidProject('');
+        setReferenceSearch(null);
         setRepoLabel(`${owner}/${repo}`);
 
         // Curated repositories always use their trusted local revision. For
@@ -863,6 +837,11 @@ export default function RepositoryWorkspaceExplorer({
 
   const listDirectoryFromSelectedSource = useCallback(
     async (path: string) => {
+      if (androidSource)
+        return directoryFromTree(
+          androidView === 'manifest' ? androidSource.metadata.manifestTree : androidSource.tree(),
+          path
+        );
       if (owner && repo && (Boolean(branch) || !isCuratedRepo(owner, repo))) {
         const entries = await downloadDirectoryContents(owner, repo, selectedVersion, path);
         return entries.map((entry) => ({
@@ -880,7 +859,7 @@ export default function RepositoryWorkspaceExplorer({
         repository: { owner: owner || '', repo: repo || '', branch: selectedVersion },
       });
     },
-    [branch, fileSourceMode, owner, repo, selectedVersion]
+    [branch, fileSourceMode, owner, repo, selectedVersion, androidSource, androidView]
   );
 
   const fetchFileFromSelectedSource = useCallback(
@@ -1306,7 +1285,7 @@ export default function RepositoryWorkspaceExplorer({
       return;
     }
 
-    if (workspaceSearchIndexError) {
+    if (workspaceSearchIndexError && !androidSource) {
       queueMicrotask(() => {
         setWorkspaceSearchResults([]);
         setWorkspaceSearchLoading(false);
@@ -1316,7 +1295,7 @@ export default function RepositoryWorkspaceExplorer({
       return;
     }
 
-    if (workspaceSearchIndexLoading) {
+    if (workspaceSearchIndexLoading && !androidSource) {
       queueMicrotask(() => {
         setWorkspaceSearchResults([]);
         setWorkspaceSearchLoading(true);
@@ -1326,7 +1305,7 @@ export default function RepositoryWorkspaceExplorer({
       return;
     }
 
-    if (!workspaceSearchIndex) {
+    if (!workspaceSearchIndex && !androidSource) {
       queueMicrotask(() => {
         setWorkspaceSearchLoading(true);
         setWorkspaceSearchResults([]);
@@ -1336,17 +1315,24 @@ export default function RepositoryWorkspaceExplorer({
       return () => undefined;
     }
 
+    const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       const runSearch = async () => {
         setWorkspaceSearchLoading(true);
         setWorkspaceSearchError(null);
 
         try {
-          const indexedResults = searchCodeIndexFiles(
-            workspaceSearchIndex,
-            normalizedQuery,
-            CODE_INDEX_SEARCH_RESULT_LIMIT
-          );
+          const indexedResults = androidSource
+            ? await androidSource.search(
+                normalizedQuery,
+                androidProject || undefined,
+                controller.signal
+              )
+            : searchCodeIndexFiles(
+                workspaceSearchIndex!,
+                normalizedQuery,
+                CODE_INDEX_SEARCH_RESULT_LIMIT
+              );
 
           if (workspaceSearchResultsRequestIdRef.current !== requestId) {
             return;
@@ -1434,8 +1420,14 @@ export default function RepositoryWorkspaceExplorer({
       void runSearch();
     }, 150);
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      controller.abort();
+      workspaceSearchResultsRequestIdRef.current += 1;
+      window.clearTimeout(timeoutId);
+    };
   }, [
+    androidSource,
+    androidProject,
     layoutMode,
     activeReferenceSearch,
     workspaceSearchIndex,
@@ -1665,7 +1657,7 @@ export default function RepositoryWorkspaceExplorer({
                 </div>
               ) : (
                 <FileTree
-                  key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}`}
+                  key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}-${androidView}-${androidSource?.metadata.snapshot ?? ''}`}
                   onFileSelect={(filePath: string) => {
                     handleOpenFileFromExplorer(filePath);
                     // On mobile, switch to editor view when file is selected
@@ -1681,12 +1673,13 @@ export default function RepositoryWorkspaceExplorer({
                   onSearchQueryChange={changeSearchQuery}
                   searchResults={activeReferenceSearch?.results ?? workspaceSearchResults}
                   referenceSymbol={activeReferenceSearch?.symbolName}
+                  symbolSearchKind={activeReferenceSearch?.kind}
                   selectedSearchResultKey={activeReferenceSearch?.selectedResultKey}
                   onExitReferenceSearch={clearReferenceSearch}
                   isSearchLoading={activeReferenceSearch?.isLoading ?? workspaceSearchLoading}
                   isSearchIndexLoading={!activeReferenceSearch && workspaceSearchIndexLoading}
                   isSearchIndexReady={
-                    !!workspaceSearchIndex &&
+                    (!!workspaceSearchIndex || !!androidSource) &&
                     !workspaceSearchIndexLoading &&
                     !workspaceSearchIndexError
                   }
@@ -1720,6 +1713,73 @@ export default function RepositoryWorkspaceExplorer({
                     setSelectedFile(path);
                   }}
                 />
+              )}
+              {androidConfigured && (
+                <section className="android-workspace-controls" aria-label="Android workspace">
+                  {androidSource ? (
+                    <>
+                      <div role="group" aria-label="Android browser view">
+                        <button
+                          type="button"
+                          aria-pressed={androidView === 'source'}
+                          onClick={() => setAndroidView('source')}
+                        >
+                          Source
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={androidView === 'manifest'}
+                          onClick={() => setAndroidView('manifest')}
+                        >
+                          Manifest
+                        </button>
+                      </div>
+                      <details>
+                        <summary>
+                          Core projects indexed ({androidSource.metadata.projects.length})
+                        </summary>
+                        <ul>
+                          {androidSource.metadata.projects.map((project) => (
+                            <li key={project.path}>
+                              {project.path} · {project.commit.slice(0, 12)}
+                            </li>
+                          ))}
+                        </ul>
+                        <p>
+                          Other manifest projects are not included. References show up to 200 text
+                          occurrences; indexed content is limited to 64 KiB per file. Java, Kotlin,
+                          and AIDL type definitions use heuristics.
+                        </p>
+                      </details>
+                      {layoutMode === 'search' && (
+                        <label>
+                          Project
+                          <select
+                            aria-label="Search Android project"
+                            value={androidProject}
+                            onChange={(event) => {
+                              setAndroidProject(event.target.value);
+                              setReferenceSearch(null);
+                            }}
+                          >
+                            <option value="">All core projects</option>
+                            {androidSource.metadata.projects.map((project) => (
+                              <option key={project.path} value={project.path}>
+                                {project.path}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </>
+                  ) : (
+                    <p role="status">
+                      {resolvedSetupKey !== setupKey
+                        ? 'Loading core source snapshot…'
+                        : 'Core source snapshot is not available. Showing the manifest repository.'}
+                    </p>
+                  )}
+                </section>
               )}
             </div>
           </div>
@@ -1779,6 +1839,30 @@ export default function RepositoryWorkspaceExplorer({
             )}
             {renderedActiveTab ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {androidSource &&
+                  (() => {
+                    const file = resolveAndroidAlias(
+                      androidSource.metadata,
+                      renderedActiveTab.path
+                    );
+                    const project = androidProjectForPath(androidSource.metadata, file);
+                    return project ? (
+                      <div className="android-file-provenance">
+                        {project.path} · {project.commit.slice(0, 12)} ·{' '}
+                        <a
+                          href={androidUpstreamUrl(project, file, renderedActiveTab.scrollToLine)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Upstream source
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="android-file-provenance">
+                        Manifest · {androidSource.metadata.manifestCommit.slice(0, 12)}
+                      </div>
+                    );
+                  })()}
                 <CodeEditorContainer
                   key={fileSourceMode}
                   filePath={renderedActiveTab.path}
@@ -1788,6 +1872,7 @@ export default function RepositoryWorkspaceExplorer({
                   workspaceFilePaths={workspaceFilePaths}
                   workspaceId={workspaceId}
                   codeIndex={workspaceSearchIndex}
+                  androidSource={androidSource}
                   markdownViewMode={renderedActiveTab.viewMode}
                   onToggleMarkdownPreview={toggleMarkdownPreview}
                   scrollToLine={renderedActiveTab.scrollToLine}

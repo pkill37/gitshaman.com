@@ -24,6 +24,7 @@
  * a notice (non-curated or not yet downloaded).
  */
 
+import type { AndroidWorkspace } from '../src/lib/android/workspace';
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
@@ -95,6 +96,7 @@ interface ResolvedGuideRef {
 
 // ─── File-content cache (avoid re-reading the same file) ─────────────────────
 
+const androidWorkspaceCache = new Map<string, AndroidWorkspace>();
 const fileCache = new Map<string, string | null>();
 const pathIndexCache = new Map<string, Map<string, string[]>>();
 
@@ -152,6 +154,35 @@ export function resolveRepoPath(repoRoot: string, refPath: string): string | nul
   const exactPath = path.join(repoRoot, normalized);
   if (fs.existsSync(exactPath)) {
     return normalized;
+  }
+
+  // Android guides use checkout-relative paths served by the manifest-derived snapshot.
+  const workspacePath = path.join(repoRoot, 'android', 'workspace.json');
+  if (fs.existsSync(workspacePath)) {
+    let workspace = androidWorkspaceCache.get(workspacePath);
+    if (!workspace) {
+      workspace = JSON.parse(fs.readFileSync(workspacePath, 'utf8')) as AndroidWorkspace;
+      androidWorkspaceCache.set(workspacePath, workspace);
+    }
+    const alias = workspace.aliases.find(
+      (entry) => normalized === entry.path || normalized.startsWith(`${entry.path}/`)
+    );
+    const sourcePath = alias ? alias.target + normalized.slice(alias.path.length) : normalized;
+    const project = workspace.projects.find(
+      (entry) => sourcePath === entry.path || sourcePath.startsWith(`${entry.path}/`)
+    );
+    if (project) {
+      const snapshotPath = path.join(
+        'android',
+        'snapshots',
+        workspace.snapshot,
+        'projects',
+        project.id,
+        'tree',
+        sourcePath
+      );
+      return fs.existsSync(path.join(repoRoot, snapshotPath)) ? snapshotPath : null;
+    }
   }
 
   const basename = normalized.split('/').pop();

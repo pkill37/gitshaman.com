@@ -1,7 +1,9 @@
+import { ANDROID_CORE_PROJECTS } from './android/workspace';
 import contributions from '../curated/registry.json' with { type: 'json' };
 import { validateContribution, type CuratedContribution } from './curated-contribution';
 
 export interface CuratedRepoConfig {
+  androidWorkspace?: { projects: string[] };
   id: string;
   owner: string;
   repo: string;
@@ -336,6 +338,7 @@ export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
   },
   {
     id: 'lineageos-android',
+    androidWorkspace: { projects: [...ANDROID_CORE_PROJECTS, 'vendor/lineage'] },
     owner: 'LineageOS',
     repo: 'android',
     slug: 'lineageos-android',
@@ -349,7 +352,7 @@ export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
     gradient: 'from-emerald-500/10 to-cyan-500/10',
     category: 'AOSP',
     description:
-      'LineageOS Android platform manifest, the repo entry point for syncing and studying its Android distribution source tree.',
+      'Browse core LineageOS platform source as one Android tree, with indexed search and manifest provenance.',
     seoDescription:
       'Explore the LineageOS Android platform manifest. Study how LineageOS composes AOSP, project forks, device trees, vendor layers, and Android distribution source syncs.',
     seoKeywords: [
@@ -366,6 +369,7 @@ export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
   },
   {
     id: 'grapheneos-platform-manifest',
+    androidWorkspace: { projects: [...ANDROID_CORE_PROJECTS] },
     owner: 'GrapheneOS',
     repo: 'platform_manifest',
     slug: 'grapheneos-platform-manifest',
@@ -379,7 +383,7 @@ export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
     gradient: 'from-slate-500/10 to-emerald-500/10',
     category: 'AOSP',
     description:
-      'GrapheneOS platform manifest, the source composition layer for its privacy and security-hardened Android distribution.',
+      'Browse core GrapheneOS platform source as one Android tree, with indexed search and pinned project revisions.',
     seoDescription:
       'Explore the GrapheneOS platform manifest. Study how GrapheneOS composes AOSP, security hardening forks, device support, and Android source syncs.',
     seoKeywords: [

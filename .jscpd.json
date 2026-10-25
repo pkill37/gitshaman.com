@@ -8,6 +8,7 @@
     "public/features/**",
     "public/repos/**",
     "repos/**",
-    "src/app/**/*.css"
+    "src/app/**/*.css",
+    "src/curated/android-locks/**"
   ]
 }

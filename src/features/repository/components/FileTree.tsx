@@ -30,6 +30,7 @@ interface FileTreeProps {
   onSearchResultSelect?: (result: WorkspaceSearchResult) => void;
   showSearch?: boolean;
   referenceSymbol?: string;
+  symbolSearchKind?: 'references' | 'definitions';
   selectedSearchResultKey?: string | null;
   onExitReferenceSearch?: () => void;
 }
@@ -231,6 +232,7 @@ const FileTree: React.FC<FileTreeProps> = ({
   onSearchResultSelect,
   showSearch = true,
   referenceSymbol,
+  symbolSearchKind = 'references',
   selectedSearchResultKey,
   onExitReferenceSearch,
 }) => {
@@ -271,7 +273,7 @@ const FileTree: React.FC<FileTreeProps> = ({
         {isSearchLoading ? (
           <span>
             {referenceSymbol
-              ? 'Loading references…'
+              ? `Loading ${symbolSearchKind}…`
               : `Searching ${searchScopeFileCount ?? 'all'} files${searchScopeLabel ? ` in ${searchScopeLabel}` : ''}…`}
           </span>
         ) : searchError ? (
@@ -281,8 +283,10 @@ const FileTree: React.FC<FileTreeProps> = ({
             {searchResults.length}{' '}
             {referenceSymbol
               ? searchResults.length === 1
-                ? 'reference'
-                : 'references'
+                ? symbolSearchKind === 'definitions'
+                  ? 'definition'
+                  : 'reference'
+                : symbolSearchKind
               : searchResults.length === 1
                 ? 'match'
                 : 'matches'}
@@ -573,7 +577,8 @@ const FileTree: React.FC<FileTreeProps> = ({
       {showSearch && referenceSymbol && (
         <div className="vscode-reference-search-context">
           <span>
-            References to <strong>{referenceSymbol}</strong>
+            {symbolSearchKind === 'definitions' ? 'Definitions of' : 'References to'}{' '}
+            <strong>{referenceSymbol}</strong>
           </span>
           <button type="button" onClick={onExitReferenceSearch}>
             Search files
@@ -606,10 +611,10 @@ const FileTree: React.FC<FileTreeProps> = ({
           statusLabel={
             referenceSymbol
               ? isSearchLoading
-                ? 'Loading references…'
+                ? `Loading ${symbolSearchKind}…`
                 : searchError
-                  ? 'References unavailable'
-                  : 'References ready'
+                  ? `${symbolSearchKind === 'definitions' ? 'Definitions' : 'References'} unavailable`
+                  : `${symbolSearchKind === 'definitions' ? 'Definitions' : 'References'} ready`
               : isScanningFiles
                 ? 'Scanning files'
                 : searchIndexStatusLabel
@@ -653,7 +658,7 @@ const FileTree: React.FC<FileTreeProps> = ({
               }}
             />
             <span style={{ fontSize: 11 }}>
-              {referenceSymbol ? 'Loading references…' : 'scanning files…'}
+              {referenceSymbol ? `Loading ${symbolSearchKind}…` : 'scanning files…'}
             </span>
           </div>
         ) : error ? (
@@ -669,7 +674,7 @@ const FileTree: React.FC<FileTreeProps> = ({
               <div className="vscode-tree-search-empty">{searchError}</div>
             ) : searchResults.length === 0 ? (
               <div className="vscode-tree-search-empty">
-                {referenceSymbol ? 'No references found.' : 'No matches found.'}
+                {referenceSymbol ? `No ${symbolSearchKind} found.` : 'No matches found.'}
               </div>
             ) : (
               groupedSearchResults.map((group) => {

@@ -80,20 +80,20 @@ export default function SemanticGraphPanel({
 
   return (
     <aside className="explorar-semantic-panel" aria-label="Semantic graph">
-      <div className="explorar-xref-panel-header">
-        <div className="explorar-xref-panel-title-wrap">
-          <div className="explorar-xref-panel-label">Semantic graph</div>
-          <div className="explorar-xref-panel-title">
+      <div className="explorar-semantic-panel-header">
+        <div className="explorar-semantic-panel-title-wrap">
+          <div className="explorar-semantic-panel-label">Semantic graph</div>
+          <div className="explorar-semantic-panel-title">
             {symbolName || basename(filePath)}
             {!isLoading && (
-              <span className="explorar-xref-panel-count">{visibleRelationships.length}</span>
+              <span className="explorar-semantic-panel-count">{visibleRelationships.length}</span>
             )}
           </div>
         </div>
         {onClose && (
           <button
             type="button"
-            className="explorar-xref-panel-close"
+            className="explorar-semantic-panel-close"
             aria-label="Close semantic graph"
             onClick={onClose}
           >
@@ -130,15 +130,15 @@ export default function SemanticGraphPanel({
 
       <div className="explorar-semantic-graph-body">
         {isLoading ? (
-          <div className="explorar-xref-panel-empty">Loading semantic relationships…</div>
+          <div className="explorar-semantic-panel-empty">Loading semantic relationships…</div>
         ) : error ? (
-          <div className="explorar-xref-panel-empty">{error}</div>
+          <div className="explorar-semantic-panel-empty">{error}</div>
         ) : kind === 'dataflow' && visibleRelationships.length === 0 ? (
-          <div className="explorar-xref-panel-empty">
+          <div className="explorar-semantic-panel-empty">
             Compiler-backed def-use data is unavailable for this symbol.
           </div>
         ) : visibleRelationships.length === 0 ? (
-          <div className="explorar-xref-panel-empty">
+          <div className="explorar-semantic-panel-empty">
             No {kind === 'call' ? 'call' : 'dependency'} relationships match this selection.
           </div>
         ) : (

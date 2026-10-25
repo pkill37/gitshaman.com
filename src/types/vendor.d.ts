@@ -39,6 +39,7 @@ declare module 'sql.js' {
   }
 
   export interface SqlJsDatabase {
+    close(): void;
     prepare(sql: string): SqlJsStatement;
   }
 

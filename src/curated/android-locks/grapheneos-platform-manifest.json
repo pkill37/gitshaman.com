@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "owner": "GrapheneOS",
+  "repo": "platform_manifest",
+  "manifestCommit": "0493b9e3a3ae90faf39bd7979a03df5e5dc63a0a",
+  "projects": [
+    {
+      "path": "frameworks/base",
+      "name": "platform_frameworks_base",
+      "url": "https://github.com/GrapheneOS/platform_frameworks_base",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "00b2ff99f28b9b5862514b0a25c265b51c59a8fb"
+    },
+    {
+      "path": "frameworks/native",
+      "name": "platform_frameworks_native",
+      "url": "https://github.com/GrapheneOS/platform_frameworks_native",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "0aaefdd08d6b19d8c32799a6ae9b2e164f70de64"
+    },
+    {
+      "path": "frameworks/av",
+      "name": "platform_frameworks_av",
+      "url": "https://github.com/GrapheneOS/platform_frameworks_av",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "7a46fb37eae0e57496e4242007449ca56c957ce7"
+    },
+    {
+      "path": "art",
+      "name": "platform_art",
+      "url": "https://github.com/GrapheneOS/platform_art",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "6a459adafb78451393b2bfb45e805934df2a3d6b"
+    },
+    {
+      "path": "bionic",
+      "name": "platform_bionic",
+      "url": "https://github.com/GrapheneOS/platform_bionic",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "e93ce48518dc0fba69878cb4ace37a3525862cbe"
+    },
+    {
+      "path": "libcore",
+      "name": "platform_libcore",
+      "url": "https://github.com/GrapheneOS/platform_libcore",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "2804897a14425d5e045ff8bc13a14ba7bef5b9bb"
+    },
+    {
+      "path": "system/core",
+      "name": "platform_system_core",
+      "url": "https://github.com/GrapheneOS/platform_system_core",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "322ff5129d865a5e8d958667e6c63ac943449493"
+    },
+    {
+      "path": "system/sepolicy",
+      "name": "platform_system_sepolicy",
+      "url": "https://github.com/GrapheneOS/platform_system_sepolicy",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "e9cc3685467b6daffd331461c94a3b848164930a"
+    },
+    {
+      "path": "build/make",
+      "name": "platform_build",
+      "url": "https://github.com/GrapheneOS/platform_build",
+      "revision": "refs/heads/17",
+      "mappings": [
+        {
+          "kind": "linkfile",
+          "src": "CleanSpec.mk",
+          "dest": "build/CleanSpec.mk"
+        },
+        {
+          "kind": "linkfile",
+          "src": "buildspec.mk.default",
+          "dest": "build/buildspec.mk.default"
+        },
+        {
+          "kind": "linkfile",
+          "src": "core",
+          "dest": "build/core"
+        },
+        {
+          "kind": "linkfile",
+          "src": "envsetup.sh",
+          "dest": "build/envsetup.sh"
+        },
+        {
+          "kind": "linkfile",
+          "src": "target",
+          "dest": "build/target"
+        },
+        {
+          "kind": "linkfile",
+          "src": "tools",
+          "dest": "build/tools"
+        }
+      ],
+      "commit": "3ec7131c58881d0b5e751775cf76986fe3889517"
+    },
+    {
+      "path": "build/soong",
+      "name": "platform_build_soong",
+      "url": "https://github.com/GrapheneOS/platform_build_soong",
+      "revision": "refs/heads/17",
+      "mappings": [
+        {
+          "kind": "linkfile",
+          "src": "root.bp",
+          "dest": "Android.bp"
+        },
+        {
+          "kind": "linkfile",
+          "src": "bootstrap.bash",
+          "dest": "bootstrap.bash"
+        }
+      ],
+      "commit": "250710f7f87acfbb8e3c517d90abde8b4a08fe1e"
+    },
+    {
+      "path": "packages/apps/Settings",
+      "name": "platform_packages_apps_Settings",
+      "url": "https://github.com/GrapheneOS/platform_packages_apps_Settings",
+      "revision": "refs/heads/17",
+      "mappings": [],
+      "commit": "749748aaef77cdd2a62cce7de0ee0db30a4efafa"
+    }
+  ]
+}

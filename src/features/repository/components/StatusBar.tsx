@@ -4,11 +4,7 @@ import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'r
 import Link from 'next/link';
 import { getRepositoryDataSource } from '@/lib/repository-data-source';
 import BugReportWidget from '@/components/BugReportWidget';
-import {
-  getCuratedRepoAccent,
-  getCuratedRepoAvatarUrl,
-  getCuratedRepoPath,
-} from '@/lib/curated-repos';
+import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import type { CuratedRepoSourceMode } from '@/lib/repo-static';
 
 type WorkspaceTheme = 'dark' | 'light';
@@ -26,17 +22,6 @@ interface StatusBarProps {
   workspaceTheme?: WorkspaceTheme;
   onWorkspaceThemeChange?: (theme: WorkspaceTheme) => void;
 }
-
-const AOSP_REPO_LINKS = [
-  { owner: 'LineageOS', repo: 'android', label: 'LineageOS', avatarFile: 'lineageos.svg' },
-  {
-    owner: 'GrapheneOS',
-    repo: 'platform_manifest',
-    label: 'GrapheneOS',
-    avatarFile: 'grapheneos.svg',
-  },
-  { owner: 'ofdryads', repo: 'miniageos', label: 'miniageOS', avatarFile: 'miniageos.svg' },
-] as const;
 
 function formatDisplayBranch(branch: string): string {
   if (!/^[0-9a-f]{7,40}$/i.test(branch)) {
@@ -77,9 +62,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const githubTreeUrl =
     repoLabel && branch && !localSource ? buildGitHubTreeUrl(repoLabel, branch) : null;
   const repoAccent = repoOwner && repoName ? getCuratedRepoAccent(repoOwner, repoName) : undefined;
-  const isAospRepo = AOSP_REPO_LINKS.some(
-    (entry) => entry.owner === repoOwner && entry.repo === repoName
-  );
   const sourceLabel =
     sourceMode === 'local-filesystem'
       ? 'Local staged corpus'
@@ -211,35 +193,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
         )}
       </div>
       <div className="cursor-statusbar-right">
-        {isAospRepo && (
-          <nav className="cursor-statusbar-aosp-nav" aria-label="AOSP repository family">
-            <span className="cursor-statusbar-aosp-label">AOSP</span>
-            {AOSP_REPO_LINKS.map((entry) => {
-              const active = entry.owner === repoOwner && entry.repo === repoName;
-              return (
-                <Link
-                  key={`${entry.owner}/${entry.repo}`}
-                  href={getCuratedRepoPath(entry.owner, entry.repo)}
-                  className={`cursor-statusbar-aosp-link${active ? ' is-active' : ''}`}
-                  aria-current={active ? 'page' : undefined}
-                  title={`Open ${entry.label}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="cursor-statusbar-aosp-avatar"
-                    src={getCuratedRepoAvatarUrl(entry)}
-                    alt=""
-                    width={14}
-                    height={14}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  {entry.label}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
         {!localSource && (
           <div className="shaman-share-menu-wrap shaman-share-menu-wrap--statusbar">
             <button

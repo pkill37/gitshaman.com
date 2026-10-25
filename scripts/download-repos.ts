@@ -9,6 +9,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { CURATED_REPOS, type CuratedRepoConfig, toRepoKey } from '../src/lib/curated-repos';
+import { buildAndroidWorkspace } from './android-workspace';
+import { checkAndroidWorkspace } from './check-android-workspace';
 import { CODE_INDEX_FILE_NAME } from '../src/lib/code-index';
 import { type CodeIndexBuildLogger, type CodeIndexBuildStats } from './code-index-builder';
 import { getCorpusBuildSignature, type CorpusBuildTreeNode } from './corpus-build-signature';
@@ -422,7 +424,15 @@ export async function inspectCorpusState(opts: ScriptOptions): Promise<CorpusSta
   for (const repo of repos) {
     const repoDir = path.join(REPOS_DIR, repo.owner, repo.repo, repo.revision);
     const state = inspectRepoCorpusState(repoDir, repo);
-    if (!state.sourceCurrent || !state.indexCurrent) {
+    let androidCurrent = true;
+    if (repo.androidWorkspace && state.sourceCurrent) {
+      try {
+        checkAndroidWorkspace(repo, REPOS_DIR);
+      } catch {
+        androidCurrent = false;
+      }
+    }
+    if (!androidCurrent || !state.sourceCurrent || !state.indexCurrent) {
       staleRepos.push(`${repo.owner}/${repo.repo}@${repo.revision}`);
     }
   }
@@ -1000,6 +1010,10 @@ async function main() {
     );
   } else {
     console.log('\nCode indexing total: 0s (no repos indexed; corpus cache current)');
+  }
+
+  for (const config of finalRepos.filter((repo) => repo.androidWorkspace)) {
+    await buildAndroidWorkspace(config);
   }
 
   console.log('\nRepository download process complete.');

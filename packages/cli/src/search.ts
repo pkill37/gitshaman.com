@@ -13,6 +13,23 @@ export type SearchResult = {
   provider: 'lexical' | 'semantic';
   snapshot: string;
 };
+function chunkSearchResult(
+  row: Record<string, unknown>,
+  score: number,
+  provider: SearchResult['provider'],
+  snapshot: string
+): SearchResult {
+  return {
+    path: String(row.Path),
+    startLine: Number(row.StartLine),
+    endLine: Number(row.EndLine),
+    snippet: String(row.Content),
+    score,
+    provider,
+    snapshot,
+  };
+}
+
 export async function search(
   directory: string,
   snapshot: Snapshot,
@@ -35,15 +52,10 @@ export async function search(
       : [];
     const results = new Map<number, SearchResult>();
     rows.forEach((row, rank) =>
-      results.set(Number(row.Id), {
-        path: String(row.Path),
-        startLine: Number(row.StartLine),
-        endLine: Number(row.EndLine),
-        snippet: String(row.Content),
-        score: 1 / (rank + 1),
-        provider: 'lexical',
-        snapshot: snapshot.signature,
-      })
+      results.set(
+        Number(row.Id),
+        chunkSearchResult(row, 1 / (rank + 1), 'lexical', snapshot.signature)
+      )
     );
     if (semantic) {
       const metadata = db.prepare('SELECT * FROM EmbeddingMetadata').get();
@@ -67,15 +79,10 @@ export async function search(
       for (const { row, score } of matches) {
         if (score < 0.15) continue;
         const existing = results.get(Number(row.Id));
-        results.set(Number(row.Id), {
-          path: String(row.Path),
-          startLine: Number(row.StartLine),
-          endLine: Number(row.EndLine),
-          snippet: String(row.Content),
-          score: score + (existing?.score ?? 0),
-          provider: 'semantic',
-          snapshot: snapshot.signature,
-        });
+        results.set(
+          Number(row.Id),
+          chunkSearchResult(row, score + (existing?.score ?? 0), 'semantic', snapshot.signature)
+        );
       }
     }
     return [...results.values()].sort((a, b) => b.score - a.score).slice(0, 30);

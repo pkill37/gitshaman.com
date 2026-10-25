@@ -1,3 +1,4 @@
+import EcosystemMap from '@/features/ecosystem/EcosystemMap';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import CuratedRepositoryPortalLink from './CuratedRepositoryPortalLink';
@@ -246,6 +247,11 @@ function LandingPage() {
               </article>
             </div>
           </section>
+        </div>
+        <div className="mx-auto mb-14 w-full max-w-[1600px]">
+          <EcosystemMap />
+        </div>
+        <div className="mx-auto w-full max-w-5xl">
           <nav aria-label="Site map" className="shaman-site-map mx-auto max-w-5xl">
             <p className="mb-6 text-sm leading-6 text-gray-400">
               Explore open-source code with GitShaman, from operating system kernels and Android

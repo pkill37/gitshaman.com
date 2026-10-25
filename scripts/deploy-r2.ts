@@ -18,6 +18,7 @@ import {
   selectUploads,
   type PublishedInventory,
   type RemoteArtifact,
+  type LocalArtifact,
 } from './deploy-inventory';
 
 type DeployEnv = {
@@ -331,6 +332,24 @@ async function syncPhase(args: string[], env: DeployEnv, label: string): Promise
   );
 }
 
+function verifyArtifacts(
+  keys: string[],
+  local: Record<string, LocalArtifact>,
+  remote: Record<string, RemoteArtifact>,
+  prefix: string
+): void {
+  for (const key of keys) {
+    const object = remote[key];
+    if (
+      !object ||
+      object.size !== local[key].size ||
+      (/^[a-f0-9]{32}$/i.test(object.etag) && object.etag.toLowerCase() !== local[key].hash)
+    ) {
+      throw new Error(`Uploaded artifact verification failed: ${prefix}${key}`);
+    }
+  }
+}
+
 export async function runAwsSync(
   env: DeployEnv,
   options: { repositories?: Repo[]; manifestKey?: string } = {}
@@ -416,6 +435,8 @@ export async function runAwsSync(
               `${source}/`,
               buildRepoBucketPrefix(env.bucketName, repo),
               '--recursive',
+              '--exclude',
+              'android/workspace.json',
               '--follow-symlinks',
               '--no-progress',
             ],
@@ -428,16 +449,32 @@ export async function runAwsSync(
         console.log(`[${label}] upload ${((Date.now() - uploadStarted) / 1000).toFixed(1)}s`);
         const verifyStarted = Date.now();
         verified = await listRemoteArtifacts(env, prefix);
-        for (const key of keys) {
-          const object = verified[key];
-          if (
-            !object ||
-            object.size !== local.files[key].size ||
-            (/^[a-f0-9]{32}$/i.test(object.etag) &&
-              object.etag.toLowerCase() !== local.files[key].hash)
-          )
-            throw new Error(`Uploaded artifact verification failed: ${prefix}${key}`);
+        const pointer = 'android/workspace.json';
+        // Publish the mutable pointer only after every immutable source/index object is verified.
+        verifyArtifacts(
+          keys.filter((key) => key !== pointer),
+          local.files,
+          verified,
+          prefix
+        );
+        if (changed.includes(pointer)) {
+          await syncPhase(
+            [
+              's3',
+              'cp',
+              path.join(dir, pointer),
+              `${buildRepoBucketPrefix(env.bucketName, repo)}${pointer}`,
+              '--content-type',
+              'application/json',
+              '--cache-control',
+              'no-cache',
+            ],
+            env,
+            `Publish Android workspace ${label}`
+          );
+          verified = await listRemoteArtifacts(env, prefix);
         }
+        verifyArtifacts(keys, local.files, verified, prefix);
         console.log(`[${label}] verification ${((Date.now() - verifyStarted) / 1000).toFixed(1)}s`);
         uploaded += changed.length;
         uploadedBytes += changed.reduce((sum, key) => sum + local.files[key].size, 0);

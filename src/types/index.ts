@@ -37,8 +37,9 @@ export interface WorkspaceSearchResult {
   relevanceScore: number;
 }
 
-/** Reference lookup displayed by the workspace's existing file-search view. */
+/** Symbol lookup displayed by the workspace's existing file-search view. */
 export interface ReferenceSearchState {
+  kind?: 'references' | 'definitions';
   requestId: number;
   workspaceId: string;
   symbolName: string;

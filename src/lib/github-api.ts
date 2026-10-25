@@ -1,3 +1,4 @@
+import { getAndroidWorkspaceSource } from './android/source';
 // Curated repository file loading utilities.
 
 import { getRepositoryDataSource, directoryFromTree } from './repository-data-source';
@@ -159,6 +160,9 @@ export async function fetchRepositoryFile(
     );
   }
 
+  const android = await getAndroidWorkspaceSource(owner, repo, branch, sourceMode);
+  if (android) return android.file(path, options?.signal);
+
   if (isCuratedRepo(owner, repo)) {
     const staticResult = await tryFetchFileFromStorage(owner, repo, branch, path, sourceMode);
     if (staticResult) {
@@ -277,6 +281,8 @@ export async function buildFileTree(
     const sourceMode = options?.sourceMode ?? currentConfig.corpusSourceMode;
     const source = getRepositoryDataSource(owner, repo);
     if (source) return directoryFromTree(await source.tree(), path);
+    const android = await getAndroidWorkspaceSource(owner, repo, branch, sourceMode);
+    if (android) return directoryFromTree(android.tree(true), path);
     const mode = getRepositoryMode(owner, repo);
 
     if (mode === 'curated') {

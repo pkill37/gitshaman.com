@@ -1201,55 +1201,6 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
-.cursor-statusbar-aosp-nav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-  padding: 0 6px;
-  border-left: 1px solid rgba(255, 255, 255, 0.18);
-  border-right: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.cursor-statusbar-aosp-label {
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.cursor-statusbar-aosp-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 999px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 11px;
-  line-height: 1;
-  padding: 3px 6px;
-  text-decoration: none;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.cursor-statusbar-aosp-link:hover,
-.cursor-statusbar-aosp-link:focus-visible,
-.cursor-statusbar-aosp-link.is-active {
-  background: color-mix(in srgb, var(--repo-accent, #56d6c9) 32%, transparent);
-  color: #fff;
-  outline: none;
-}
-
-.cursor-statusbar-aosp-avatar {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  object-fit: contain;
-}
-
 .cursor-statusbar-icon {
   font-size: 12px;
   opacity: 0.9;

@@ -1,3 +1,4 @@
+import type { AndroidWorkspaceSource } from './android/source';
 import type { FileNode } from '@/types';
 import type { LoadedCodeIndex } from './code-index';
 import type { FileFetchResult } from './file-fetch-debug';
@@ -8,6 +9,7 @@ export interface RepositoryDataSource {
   owner: string;
   repo: string;
   revision: string;
+  workspace?: AndroidWorkspaceSource;
   tree(): Promise<FileNode[]>;
   file(path: string, signal?: AbortSignal): Promise<FileFetchResult>;
   index(): Promise<LoadedCodeIndex>;

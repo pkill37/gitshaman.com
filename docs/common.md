@@ -574,3 +574,19 @@ From this foundation, all future learning knowledge will fork, building system-s
 ---
 
 _This document is the foundation. All project-specific guides build upon it. All future learning knowledge will fork from it._
+
+<!-- ecosystem-lesson -->
+
+## How software fits together
+
+Compilation translates source into executable instructions. Clang parses C-family languages; LLVM supplies optimization and code generation. See [Clang code generation](repo:llvm/llvm-project/clang/lib/CodeGen/CodeGenModule.cpp). A compiler used to build a program need not run alongside it.
+
+A language runtime supplies services while a program runs: object management, scheduling, and I/O. CPython uses C library services; on Linux builds linked against glibc, these reach glibc. Other platforms and C libraries have different paths. Go's Linux runtime has direct syscall paths; optional cgo can also call C libraries.
+
+For I/O, follow [CPython _Py_read()](repo:python/cpython/Python/fileutils.c:_Py_read), [glibc __libc_read()](repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read), then [Linux ksys_read()](repo:torvalds/linux/fs/read_write.c:ksys_read). The syscall instruction crosses into kernel execution, where descriptors, permissions, and devices are managed.
+
+For memory, follow [CPython allocation](repo:python/cpython/Objects/obmalloc.c), [glibc malloc](repo:bminor/glibc/malloc/malloc.c), and [Linux mappings](repo:torvalds/linux/mm/mmap.c). Allocators reuse user-space blocks; they request more virtual memory when needed. Every allocation does not require a syscall.
+
+For threads, follow [CPython POSIX threads](repo:python/cpython/Python/thread_pthread.h), [glibc pthread_create()](repo:bminor/glibc/nptl/pthread_create.c), and [Linux process creation](repo:torvalds/linux/kernel/fork.c). Compare [Go Linux runtime assembly](repo:golang/go/src/runtime/sys_linux_amd64.s) with [Go cgo pthread integration](repo:golang/go/src/runtime/cgo/pthread_unix.c). A goroutine is scheduled by Go and is not one OS thread per goroutine.
+
+Arrows describe their labeled relationship only. Compiler infrastructure, source ancestry, platform comparisons, and guide references are distinct from execution dependencies. Android distribution manifests describe source composition; BSD trees include userland as well as kernels, while XNU combines Mach and BSD components.

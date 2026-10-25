@@ -31,6 +31,7 @@ export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions 
   const renderer = new marked.Renderer();
   const linkRepoReferences = options.linkRepoReferences ?? true;
   const symbolScopePaths = options.symbolScopePaths ?? [];
+  let linkLabelDepth = 0;
 
   if (options.escapeHtmlBlocks) {
     renderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
@@ -47,16 +48,24 @@ export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions 
 
   renderer.link = function ({ href, title, tokens }: Tokens.Link) {
     const safeHref = href?.trim() || '#';
-    const renderedText = this.parser.parseInline(tokens);
+    // Explicit link labels must not generate their own file/symbol links or icons.
+    let renderedText: string;
+    linkLabelDepth++;
+    try {
+      renderedText = this.parser.parseInline(tokens);
+    } finally {
+      linkLabelDepth--;
+    }
     const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
+    const codeClass = linkText.includes('<code>') ? ' class="inline-code-link"' : '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
 
     if (hasUnsafeScheme(safeHref)) {
-      return `<span>${renderedText}</span>`;
+      return `<span>${linkText}</span>`;
     }
 
     if (safeHref.startsWith('#')) {
-      return `<a href="${escapeHtml(safeHref)}"${titleAttr}>${linkText}</a>`;
+      return `<a href="${escapeHtml(safeHref)}"${codeClass}${titleAttr}>${linkText}</a>`;
     }
 
     const navigationTarget = parseMarkdownNavigationTarget(safeHref, options.baseFilePath, {
@@ -66,17 +75,19 @@ export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions 
 
     if (navigationTarget?.kind === 'repo-file') {
       if (!linkRepoReferences) return linkText;
-      return `<a href="#" ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
+      return `<a href="#"${codeClass} ${getRepoLinkAttributes(navigationTarget)}${titleAttr}>${getExternalRepoIconHtml(navigationTarget)}${linkText}</a>`;
     }
 
     const targetAttr = isExternalHref(safeHref) ? ' target="_blank" rel="noreferrer"' : '';
-    return `<a href="${escapeHtml(safeHref)}"${titleAttr}${targetAttr}>${linkText}</a>`;
+    return `<a href="${escapeHtml(safeHref)}"${codeClass}${titleAttr}${targetAttr}>${linkText}</a>`;
   };
 
   renderer.codespan = ({ text: code }: Tokens.Codespan) => {
     const decodedCode = decodeHtmlEntities(code);
     const repoTarget = parseRepoNavigationTarget(decodedCode, options.baseFilePath);
     const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
+
+    if (linkLabelDepth > 0) return codeHtml;
 
     if (!repoTarget) {
       if (symbolScopePaths.length > 0 && isLikelySymbolCode(decodedCode)) {

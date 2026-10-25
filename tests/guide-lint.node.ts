@@ -312,6 +312,31 @@ More prose.
     }
   });
 
+  test('resolves Android source links and aliases against the pinned snapshot', () => {
+    const repoRoot = makeTempDir('explorar-guide-android-');
+    try {
+      const relative = 'android/snapshots/pinned/projects/build__make/tree/build/make/envsetup.sh';
+      const source = path.join(repoRoot, relative);
+      fs.mkdirSync(path.dirname(source), { recursive: true });
+      fs.writeFileSync(source, 'function lunch() {}');
+      fs.writeFileSync(
+        path.join(repoRoot, 'android/workspace.json'),
+        JSON.stringify({
+          snapshot: 'pinned',
+          projects: [{ path: 'build/make', id: 'build__make' }],
+          aliases: [{ path: 'build/envsetup.sh', target: 'build/make/envsetup.sh' }],
+        })
+      );
+      expect(resolveRepoPath(repoRoot, 'build/make/envsetup.sh')).toBe(relative);
+      expect(resolveRepoPath(repoRoot, 'build/envsetup.sh:lunch')).toBe(relative);
+      expect(resolveRepoPath(repoRoot, 'build/make/missing.sh')).toBeNull();
+      fs.writeFileSync(path.join(repoRoot, 'default.xml'), '<manifest />');
+      expect(resolveRepoPath(repoRoot, 'default.xml')).toBe('default.xml');
+    } finally {
+      fs.rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
   test('prefers arm64 when a bare file name is ambiguous', () => {
     expect(
       resolveCorpusPathFromKnownFiles('entry.S', [

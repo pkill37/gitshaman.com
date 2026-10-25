@@ -1,4 +1,5 @@
 'use client';
+import type { AndroidWorkspaceSource } from '@/lib/android/source';
 
 import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -520,6 +521,7 @@ interface MonacoCodeEditorProps {
   workspaceFilePaths?: string[];
   workspaceId?: string;
   codeIndex?: LoadedCodeIndex | null;
+  androidSource?: AndroidWorkspaceSource | null;
   editorTheme?: 'vs-dark' | 'vs';
   onReferenceSearch?: (state: ReferenceSearchState) => void;
 }
@@ -579,11 +581,6 @@ type DefinitionCandidate = SymbolReference & {
   provider: string;
   confidence: 'high' | 'medium' | 'low';
   reason: string;
-};
-
-type DefinitionPanelState = {
-  symbolName: string;
-  candidates: DefinitionCandidate[];
 };
 
 function codeIndexSymbolToDefinitionCandidate(
@@ -678,9 +675,16 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   workspaceFilePaths = [],
   workspaceId = 'default',
   codeIndex = null,
+  androidSource = null,
   editorTheme = 'vs-dark',
   onReferenceSearch,
 }) => {
+  const androidNavigationAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    androidNavigationAbortRef.current = controller;
+    return () => controller.abort();
+  }, [filePath, workspaceId]);
   const codeLensReferenceCountCacheRef = useRef<Map<string, number>>(new Map());
   const editorRef = useRef<unknown>(null);
   const monacoRef = useRef<unknown>(null);
@@ -695,9 +699,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     lineNumber: number;
   } | null>(null);
   const [hasMountedEditor, setHasMountedEditor] = useState(false);
-  const [definitionPanelState, setDefinitionPanelState] = useState<DefinitionPanelState | null>(
-    null
-  );
 
   const disposeRegisteredProviders = useCallback(() => {
     for (const disposable of providerDisposablesRef.current) {
@@ -772,7 +773,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           const nextLine = lines[i + 1]?.trim() || '';
           if (
             currentLine &&
-            /^[=\-~^"']+$/.test(nextLine) &&
+            /^([=\-~^"'`:+*#<>_])\1+$/.test(nextLine) &&
             (currentLine === normalizedPattern || slugifyHeading(currentLine) === normalizedSlug)
           ) {
             return i + 1;
@@ -1231,10 +1232,17 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   ]);
 
   const resolveDefinitionCandidatesAcrossWorkspace = useCallback(
-    async (symbolName: string): Promise<DefinitionCandidate[]> => {
+    async (symbolName: string, signal?: AbortSignal): Promise<DefinitionCandidate[]> => {
       const normalizedSymbol = normalizeSymbolQuery(symbolName);
       if (!normalizedSymbol) {
         return [];
+      }
+
+      if (androidSource) {
+        const symbols = await androidSource.definitions(normalizedSymbol, signal);
+        return dedupeDefinitionCandidates(
+          symbols.map((symbol) => codeIndexSymbolToDefinitionCandidate(symbol, 'indexed', 'medium'))
+        );
       }
 
       const candidates: DefinitionCandidate[] = [];
@@ -1394,6 +1402,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     [
       backendContext,
       codeIndex,
+      androidSource,
       content,
       fetchFile,
       filePath,
@@ -1407,7 +1416,19 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   const findReferencesAcrossWorkspace = useCallback(
-    async (symbolName: string, includeDeclaration: boolean): Promise<Location[]> => {
+    async (
+      symbolName: string,
+      includeDeclaration: boolean,
+      signal?: AbortSignal
+    ): Promise<Location[]> => {
+      if (androidSource) {
+        const references = await androidSource.references(symbolName, signal);
+        return references.map((reference) => ({
+          file: reference.file,
+          line: reference.line,
+          column: reference.column,
+        }));
+      }
       const context = { ...backendContext, includeDeclaration };
       const dedupedReferences = await semanticQueryService.findReferences(
         language,
@@ -1419,16 +1440,68 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
       return dedupedReferences;
     },
-    [backendContext, ensureMonacoModelForFile, filePath, language, semanticQueryService]
+    [
+      androidSource,
+      backendContext,
+      ensureMonacoModelForFile,
+      filePath,
+      language,
+      semanticQueryService,
+    ]
   );
 
   const navigateToDefinition = useCallback(
     async (symbolName: string): Promise<boolean> => {
-      const candidates = await resolveDefinitionCandidatesAcrossWorkspace(symbolName);
-      if (candidates.length > 1) {
-        setDefinitionPanelState({
+      const signal = androidNavigationAbortRef.current?.signal;
+      let candidates: DefinitionCandidate[];
+      try {
+        candidates = await resolveDefinitionCandidatesAcrossWorkspace(symbolName, signal);
+        if (signal?.aborted) return false;
+      } catch (error) {
+        if (signal?.aborted) return false;
+        const state: ReferenceSearchState = {
+          requestId: ++referenceSearchSequence,
+          workspaceId,
+          kind: 'definitions',
           symbolName: normalizeSymbolQuery(symbolName),
-          candidates,
+          results: [],
+          selectedResultKey: null,
+          isLoading: true,
+          error: null,
+        };
+        onReferenceSearch?.(state);
+        onReferenceSearch?.({
+          ...state,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Unable to load definitions',
+        });
+        return false;
+      }
+      if (candidates.length > 1) {
+        const searchState: ReferenceSearchState = {
+          requestId: ++referenceSearchSequence,
+          workspaceId,
+          kind: 'definitions',
+          symbolName: normalizeSymbolQuery(symbolName),
+          results: [],
+          selectedResultKey: null,
+          isLoading: true,
+          error: null,
+        };
+        onReferenceSearch?.(searchState);
+        onReferenceSearch?.({
+          ...searchState,
+          results: candidates.map((candidate) => ({
+            file: candidate.file,
+            line: candidate.line,
+            column: candidate.column,
+            key: `${candidate.file}:${candidate.line}:${candidate.column}`,
+            preview: `${candidate.type} ${candidate.signature ?? candidate.name} · ${candidate.reason} · ${candidate.confidence}`,
+            matchType: 'content',
+            relevanceScore:
+              candidate.confidence === 'high' ? 100 : candidate.confidence === 'medium' ? 75 : 50,
+          })),
+          isLoading: false,
         });
         return true;
       }
@@ -1446,19 +1519,15 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       onOpenFile?.(definition.file, undefined, definition.line);
       return true;
     },
-    [content, filePath, onOpenFile, resolveDefinitionCandidatesAcrossWorkspace, revealTargetLine]
-  );
-
-  const jumpToDefinitionCandidate = useCallback(
-    (definition: DefinitionCandidate) => {
-      setDefinitionPanelState(null);
-      if (definition.file === filePath) {
-        revealTargetLine(definition.line, content.split('\n'));
-        return;
-      }
-      onOpenFile?.(definition.file, undefined, definition.line);
-    },
-    [content, filePath, onOpenFile, revealTargetLine]
+    [
+      content,
+      filePath,
+      onOpenFile,
+      onReferenceSearch,
+      workspaceId,
+      resolveDefinitionCandidatesAcrossWorkspace,
+      revealTargetLine,
+    ]
   );
 
   const showReferencesForSymbol = useCallback(
@@ -1468,6 +1537,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return false;
       }
 
+      const signal = androidNavigationAbortRef.current?.signal;
       const requestId = ++referenceSearchSequence;
       const searchState: ReferenceSearchState = {
         requestId,
@@ -1478,11 +1548,10 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         isLoading: true,
         error: null,
       };
-      setDefinitionPanelState(null);
       onReferenceSearch?.(searchState);
 
       try {
-        const references = await findReferencesAcrossWorkspace(normalizedSymbol, true);
+        const references = await findReferencesAcrossWorkspace(normalizedSymbol, true, signal);
         const uniqueFiles = Array.from(
           new Set(references.map((reference) => reference.file).filter(Boolean))
         );
@@ -1527,6 +1596,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
           referenceItems[0] ??
           null;
 
+        if (signal?.aborted) return false;
         onReferenceSearch?.({
           ...searchState,
           results: referenceItems,
@@ -1544,6 +1614,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
         return true;
       } catch (error) {
+        if (signal?.aborted) return false;
         const errorMessage = error instanceof Error ? error.message : 'Failed to load references';
         onReferenceSearch?.({
           ...searchState,
@@ -1955,30 +2026,31 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     }
   }, [content, filePath, workspaceId]);
 
-  // Search for pattern and scroll to it
+  // Cancel pending jumps when the file or navigation request changes.
   useEffect(() => {
-    if (hasMountedEditor && editorRef.current && searchPattern && content) {
-      setTimeout(() => {
-        const lines = content.split('\n');
-        const targetLine = findDefinitionLineForPattern(searchPattern, lines);
-        debugLog('[explorar:monaco-jump] resolve-search-pattern', {
-          filePath,
-          searchPattern,
-          targetLine,
-          symbolCount: symbolsRef.current.length,
-          fallbackScrollToLine: scrollToLine,
-        });
-
-        if (targetLine !== -1) {
-          revealTargetLine(targetLine, lines);
-        } else if (scrollToLine) {
-          revealTargetLine(scrollToLine, lines);
-        }
-      }, 200);
+    if (
+      !hasMountedEditor ||
+      !editorRef.current ||
+      isLoading ||
+      !content ||
+      (contentFilePath && contentFilePath !== filePath)
+    ) {
+      return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      const lines = content.split('\n');
+      const matchedLine = searchPattern ? findDefinitionLineForPattern(searchPattern, lines) : -1;
+      const targetLine = matchedLine > 0 ? matchedLine : (scrollToLine ?? 1);
+      revealTargetLine(targetLine, lines);
+    }, 200);
+
+    return () => window.clearTimeout(timeoutId);
   }, [
     searchPattern,
     content,
+    contentFilePath,
+    isLoading,
     scrollToLine,
     navigationNonce,
     filePath,
@@ -1986,39 +2058,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     findDefinitionLineForPattern,
     revealTargetLine,
   ]);
-
-  // Scroll to specific line when scrollToLine changes (fallback)
-  useEffect(() => {
-    if (hasMountedEditor && editorRef.current && scrollToLine && content && !searchPattern) {
-      setTimeout(() => {
-        debugLog('[explorar:monaco-jump] direct-line', {
-          filePath,
-          scrollToLine,
-        });
-        revealTargetLine(scrollToLine, content.split('\n'));
-      }, 200);
-    }
-  }, [
-    scrollToLine,
-    content,
-    searchPattern,
-    filePath,
-    navigationNonce,
-    hasMountedEditor,
-    revealTargetLine,
-  ]);
-
-  // Reset scroll position to top when file path changes (unless we have scrollToLine or searchPattern)
-  useEffect(() => {
-    if (editorRef.current && filePath && content && !scrollToLine && !searchPattern) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const editor = editorRef.current as any;
-      setTimeout(() => {
-        editor.revealLineInCenter(1);
-        editor.setPosition({ lineNumber: 1, column: 1 });
-      }, 100);
-    }
-  }, [filePath, content, scrollToLine, searchPattern]);
 
   // Note: onContentLoad is handled by CodeEditorContainer, not here
 
@@ -2483,7 +2522,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             };
           },
           resolveCodeLens: async (
-            model: MonacoModelLike,
+            _model: MonacoModelLike,
             codeLens: { id: string; command?: { id: string; title: string; arguments?: unknown[] } }
           ) => {
             const symbolName = codeLens.id.replace(/^lens-/, '').replace(/-\d+$/, '');
@@ -2492,6 +2531,14 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
               return codeLens;
             }
 
+            if (androidSource) {
+              codeLens.command = {
+                id: 'explorar.showReferences',
+                title: 'Find references (core projects)',
+                arguments: [symbol.name, symbol.line],
+              };
+              return codeLens;
+            }
             const references = await findReferencesAcrossWorkspace(symbol.name, false);
             codeLensReferenceCountCacheRef.current.set(
               `${workspaceId}:${normalizeSymbolQuery(symbol.name)}:refs-only`,
@@ -2716,6 +2763,7 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       disposeRegisteredProviders();
     };
   }, [
+    androidSource,
     backendContext,
     content,
     disposeRegisteredProviders,
@@ -2761,7 +2809,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       {/* Monaco Editor */}
       <div
         ref={containerRef}
-        className="explorar-editor-shell"
         style={{
           flex: 1,
           overflow: 'hidden',
@@ -2804,55 +2851,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
             },
           }}
         />
-        {definitionPanelState && (
-          <aside className="explorar-xref-panel" aria-label="Definition candidates">
-            <div className="explorar-xref-panel-header">
-              <div className="explorar-xref-panel-title-wrap">
-                <div className="explorar-xref-panel-label">Definitions</div>
-                <div className="explorar-xref-panel-title">
-                  {definitionPanelState.symbolName}
-                  <span className="explorar-xref-panel-count">
-                    {definitionPanelState.candidates.length}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="explorar-xref-panel-close"
-                aria-label="Close definition candidates"
-                onClick={() => setDefinitionPanelState(null)}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="explorar-xref-panel-subtitle">
-              Choose the macro, inline helper, or symbol definition to open.
-            </div>
-            <div className="explorar-xref-panel-body">
-              <div className="explorar-xref-group-list">
-                {definitionPanelState.candidates.map((candidate) => {
-                  const key = `${candidate.file}:${candidate.line}:${candidate.column}:${candidate.reason}`;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      className="explorar-xref-row"
-                      onClick={() => jumpToDefinitionCandidate(candidate)}
-                    >
-                      <span className="explorar-xref-row-line">L{candidate.line}</span>
-                      <span className="explorar-xref-row-preview">
-                        <strong>{candidate.type}</strong> {candidate.signature ?? candidate.name}
-                        <span className="explorar-xref-row-meta">
-                          {candidate.file} · {candidate.reason} · {candidate.confidence}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-        )}
       </div>
     </div>
   );
