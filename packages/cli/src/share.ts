@@ -64,7 +64,7 @@ function object(value: unknown): Record<string, unknown> {
     throw new Error('Unexpected GitHub response.');
   return value as Record<string, unknown>;
 }
-export function sourceIdentity(root: string, explicit?: string): string {
+function sourceIdentity(root: string, explicit?: string): string {
   if (explicit) {
     if (
       !/^[a-z\d-]+\/[\w.-]+$/i.test(explicit) ||

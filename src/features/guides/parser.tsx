@@ -44,10 +44,6 @@ interface SectionFrontmatter {
   title: string;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   learningGoals?: string[];
-  questions?: Array<{
-    prompt: string;
-    answer: string;
-  }>;
   trace?: FileRecommendation[];
   fileRecommendations?: {
     readingOrder?: FileRecommendation[];
@@ -64,17 +60,6 @@ function isDifficulty(value: unknown): value is SectionFrontmatter['difficulty']
 function normalizeStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item).trim()).filter(Boolean);
-}
-
-function normalizeQuestions(value: unknown): Array<{ prompt: string; answer: string }> {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
-    .map((item) => ({
-      prompt: String(item.prompt ?? '').trim(),
-      answer: String(item.answer ?? '').trim(),
-    }))
-    .filter((item) => item.prompt && item.answer);
 }
 
 function normalizeFileRecommendations(value: unknown): FileRecommendation[] {
@@ -100,7 +85,6 @@ function normalizeSectionMeta(meta: SectionFrontmatter): SectionFrontmatter {
     ...meta,
     difficulty: isDifficulty(meta.difficulty) ? meta.difficulty : undefined,
     learningGoals: normalizeStringList(meta.learningGoals),
-    questions: normalizeQuestions(meta.questions),
     trace: normalizeFileRecommendations(meta.trace),
   };
 }
@@ -199,36 +183,6 @@ function renderPedagogyPanel(
         </div>
       )}
     </aside>
-  );
-}
-
-function renderKnowledgeCheck(questions: SectionFrontmatter['questions']): React.ReactNode {
-  if (!questions?.length) return null;
-
-  return (
-    <div className="guide-recommendations">
-      <section
-        className="guide-recommendation-group guide-knowledge-check"
-        aria-label="Check Yourself"
-      >
-        <div className="guide-recommendation-header">
-          <div className="guide-recommendation-heading">
-            <div className="guide-recommendation-title">Check Yourself</div>
-          </div>
-          <div className="guide-recommendation-count">{questions.length}</div>
-        </div>
-        <div className="guide-recommendation-list">
-          {questions.map((question, index) => (
-            <details className="guide-knowledge-check-question" key={`${index}-${question.prompt}`}>
-              <summary className="guide-recommendation-item">
-                <span className="guide-recommendation-item-title">{question.prompt}</span>
-              </summary>
-              <p className="guide-knowledge-check-answer">{question.answer}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -605,7 +559,6 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
               sectionMeta.fileRecommendations?.directories || [],
               openFileInTab
             )}
-          {renderKnowledgeCheck(sectionMeta.questions)}
         </div>
       );
 
@@ -616,7 +569,6 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
         narrativePaths,
         difficulty: sectionMeta.difficulty,
         learningGoals: sectionMeta.learningGoals,
-        questions: sectionMeta.questions,
         trace: sectionMeta.trace,
         fileRecommendations: sectionMeta.fileRecommendations,
         graph,

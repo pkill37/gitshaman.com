@@ -39,9 +39,6 @@ test('guide and preview styles render local, remote, mixed and emphasized code l
     renderer: createRepoMarkdownRenderer({ symbolScopePaths: ['malloc/malloc.c'] }),
   }) as string;
   await page.goto('/');
-  await expect(
-    page.getByRole('region', { name: 'Software ecosystem map', exact: true })
-  ).toHaveAttribute('aria-busy', 'false');
   await page.evaluate((html) => {
     for (const attribute of ['data-guide-markdown', 'data-markdown-preview']) {
       const wrapper = document.createElement('section');

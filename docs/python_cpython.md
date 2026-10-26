@@ -16,6 +16,10 @@ defaultOpenIds:
   - ch7
   - ch8
   - ch9
+  - ch10
+  - ch11
+  - ch12
+  - ch13
 ---
 
 # CPython In The Mind
@@ -26,7 +30,9 @@ defaultOpenIds:
 
 CPython is the reference implementation of Python, written in C. It compiles Python source code to bytecode and executes it on a virtual machine. Understanding CPython's internals reveals how Python's elegant syntax translates into efficient execution, how objects are managed in memory, and how the interpreter orchestrates program execution.
 
-This guide targets CPython 3.14.0. Some details differ from older walkthroughs: bytecode cases are generated from `Python/bytecodes.c`, selected instructions specialize at runtime, and the source includes both default-GIL and free-threaded build paths.
+This guide targets CPython 3.14.0. Its cross-project traces use glibc 2.39 and Linux 6.1 as source-reading baselines, with AArch64 examples for architecture-specific boundaries. These independent pins are not a tested distribution or ABI configuration. Verify the actual interpreter build, linked C library, architecture, and running kernel before comparing a live trace. Linux CPython builds can use another libc, and embedding or static linking can change startup and loading paths.
+
+Version-specific details matter: bytecode cases are generated from `Python/bytecodes.c`, selected instructions specialize at runtime, and the source includes both default-GIL and free-threaded build paths.
 
 This guide is for anyone who wants to build a mental model of how CPython works—before diving deep into the source code. Whether you're exploring Python internals for the first time or returning with new questions, the focus here is on **behavior, not syntax**.
 
@@ -113,10 +119,10 @@ fileRecommendations:
       description: Bytecode compiler — AST to bytecode
       type: source
     - path: Objects/typeobject.c:type_new
-      description: Type system (about 10,600 lines)
+      description: Type construction, slots, and method resolution
       type: source
     - path: Include/object.h:PyObject_HEAD
-      description: PyObject and PyTypeObject definitions
+      description: Common object header and type-related public API
       type: source
     - path: Parser/lexer/lexer.c
       description: Lexical analysis — source to tokens
@@ -131,8 +137,10 @@ fileRecommendations:
 Parser/lexer/lexer.c -> Parser/parser.c : tokens → AST
 Grammar/python.gram -> Parser/parser.c : pegen generates parser
 Parser/parser.c -> Python/compile.c : parser constructs AST for compilation
-Python/compile.c -> Python/ast.c : validates AST
-Python/compile.c -> Include/opcode_ids.h : emits opcode IDs
+Python/compile.c -> Python/symtable.c : builds the symbol table
+Python/compile.c -> Python/codegen.c : delegates AST instruction generation
+Python/compile.c -> Python/flowgraph.c : orchestrates control-flow optimization
+Python/compile.c -> Python/assemble.c : assembles the code object
 Python/bytecodes.c -> Python/generated_cases.c.h : generate instruction cases
 Python/generated_cases.c.h -> Python/ceval.c : bytecode execution cases
 Python/frame.c -> Python/ceval.c : execution context
@@ -140,7 +148,7 @@ Python/frame.c -> Python/ceval.c : execution context
 
 ### The Compilation Pipeline: From Source to Bytecode
 
-CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from `Grammar/python.gram`, and the interpreter instruction cases are generated from `Python/bytecodes.c`.
+CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from `Grammar/python.gram`, and the interpreter instruction cases are generated from `Python/bytecodes.c`. [The compiler entry](Python/compile.c:_PyAST_Compile) orchestrates [symbol analysis](Python/symtable.c:_PySymtable_Build), [instruction generation](Python/codegen.c), [control-flow optimization](Python/flowgraph.c), and [code-object assembly](Python/assemble.c:_PyAssemble_MakeCodeObject). These are separate implementation stages rather than one monolithic bytecode generator.
 
 ### The Execution Model: Bytecode to Results
 
@@ -166,13 +174,13 @@ fileRecommendations:
       description: Garbage collector support
       type: docs
     - path: Include/object.h:PyObject_HEAD
-      description: PyObject and PyTypeObject definitions
+      description: Common object header and type-related public API
       type: source
     - path: Objects/object.c
       description: Base object implementation
       type: source
     - path: Objects/typeobject.c:type_new
-      description: Type system (about 10,600 lines)
+      description: Type construction, slots, and method resolution
       type: source
     - path: Python/gc.c
       description: Default-build incremental cyclic garbage collector
@@ -208,9 +216,9 @@ See [Doc/c-api/typeobj.rst](Doc/c-api/typeobj.rst) for the full type object slot
 
 ### Reference Counting: Automatic Memory Management
 
-CPython uses reference counting as its primary memory management mechanism. Ordinary reference-counted objects are deallocated when their count reaches zero. CPython 3.14 also uses immortal objects for selected constants. Free-threaded builds use biased reference counting, which separates local and shared counts, and deferred reference counting, which leaves some references uncounted until GC determines whether an object is reclaimable. The memory below CPython's object layer is a useful cross-reference: glibc's [`__libc_malloc`](repo:bminor/glibc/malloc/malloc.c:__libc_malloc) manages user-space heap storage, while Linux's [`do_mmap`](repo:torvalds/linux/mm/mmap.c:do_mmap) creates virtual-memory areas. CPython also uses specialized allocators; free-threaded builds require mimalloc for object allocation.
+CPython uses reference counting as its primary memory management mechanism. Ordinary reference-counted objects are deallocated when their count reaches zero. CPython 3.14 also uses immortal objects for selected constants. Free-threaded builds use biased reference counting, which separates local and shared counts, and deferred reference counting, which leaves some references uncounted until GC determines whether an object is reclaimable. The memory below CPython's object layer is a useful cross-reference: glibc's [`__libc_malloc`](repo:bminor/glibc/malloc/malloc.c:__libc_malloc) manages user-space heap storage, while Linux's [`do_mmap`](repo:torvalds/linux/mm/mmap.c:do_mmap) creates virtual-memory areas. This is a set of related ownership layers, not a universal object-to-malloc-to-mmap call chain. In the default build, pymalloc serves small allocations from pools and can get arenas with mmap; larger requests can use the raw allocator. Free-threaded object allocation requires mimalloc. Chapter 11 traces these branches and distinguishes object destruction from releasing virtual memory.
 
-The macros `Py_INCREF` and `Py_DECREF` in [Objects/object.c](Objects/object.c) and [Include/object.h](Include/object.h) provide reference counting.
+Read the reference-count operations in [Include/object.h](Include/object.h) beside [deallocation support](Objects/object.c). The full type-object layout is in [Include/cpython/object.h](Include/cpython/object.h), while the public object header provides type pointers and APIs.
 
 ### Garbage Collection: Handling Cycles
 
@@ -239,7 +247,7 @@ fileRecommendations:
       description: Integer implementation — arbitrary precision
       type: source
     - path: Objects/unicodeobject.c:PyUnicode_New
-      description: Unicode string implementation (about 15,000 lines)
+      description: Unicode allocation, representation, and operations
       type: source
     - path: Objects/listobject.c:list_resize
       description: List — dynamic array implementation
@@ -269,7 +277,7 @@ Python integers have arbitrary precision, meaning they can represent numbers of 
 
 ### Strings: Unicode and Immutability
 
-Python strings are immutable sequences of Unicode code points. CPython uses distinct internal representations to optimize for different string characteristics (ASCII, compact Unicode, or legacy strings). Understanding string implementation reveals how Python handles text encoding, string interning, and memory efficiency.
+Python strings are immutable sequences of Unicode code points. In 3.14, [the Unicode structures](Include/cpython/unicodeobject.h) distinguish compact ASCII, compact non-ASCII, and non-compact layouts, with one-, two-, or four-byte code-unit kinds as appropriate. Compactness and character width describe different properties. The old wchar-based legacy representation was removed in 3.12; this snapshot uses the newer layouts. UTF-8 caches, interning, and the canonical character data also have separate roles.
 
 ### Lists: Dynamic Arrays
 
@@ -323,12 +331,13 @@ fileRecommendations:
 ```chapter-graph
 Python/bytecodes.c -> Python/generated_cases.c.h : instruction definitions generate cases
 Python/generated_cases.c.h -> Python/ceval.c : included by the frame executor
-Python/compile.c -> Include/opcode_ids.h : compiler emits opcode IDs
-Python/ceval.c -> Python/frame.c : creates frame per call
+Python/codegen.c -> Include/opcode_ids.h : instruction generation uses opcode IDs
+Python/ceval.c -> Python/frame.c : uses execution-frame helpers and visible-frame materialization
 Include/internal/pycore_interpframe_structs.h -> Python/frame.c : internal execution frame definition
 Include/internal/pycore_frame.h -> Python/frame.c : Python-visible frame object definition
-Python/frame.c -> Python/compile.c : reads f_code (PyCodeObject)
-Include/opcode_ids.h -> Lib/dis.py : disassembler decodes generated opcode IDs
+Python/frame.c -> Include/internal/pycore_interpframe.h : gets the code through frame helpers
+Include/cpython/code.h -> Include/internal/pycore_interpframe_structs.h : code objects describe executable frame contents
+Lib/opcode.py -> Lib/dis.py : supplies opcode names and metadata
 ```
 
 ### The Main Loop: ceval.c
@@ -379,8 +388,9 @@ fileRecommendations:
 ```chapter-graph
 Python/import.c -> Objects/moduleobject.c : creates module objects
 Objects/moduleobject.c -> Include/moduleobject.h : module struct + API
-Python/import.c -> Python/ceval.c : IMPORT_NAME opcode handler
-Python/ceval.c -> Python/import.c : calls PyImport_ImportModuleLevelObject
+Python/bytecodes.c -> Python/ceval.c : IMPORT_NAME calls the evaluation import helper
+Python/ceval.c -> Python/import.c : default import fast path invokes PyImport_ImportModuleLevelObject
+Python/import.c -> Lib/importlib/_bootstrap.py : uses importlib bootstrap machinery
 ```
 
 ### The Import System: Loading Code Dynamically
@@ -420,9 +430,10 @@ fileRecommendations:
 Include/pyerrors.h -> Python/errors.c : exception type declarations → impl
 Python/errors.c -> Objects/exceptions.c : raises built-in exception objects
 Objects/exceptions.c -> Include/pyerrors.h : concrete exception hierarchy
-Python/errors.c -> Python/traceback.c : attaches traceback on raise
-Python/traceback.c -> Include/traceback.h : tb_frame chain definition
-Python/ceval.c -> Python/errors.c : RAISE_VARARGS opcode calls PyErr_SetObject
+Python/bytecodes.c -> Python/ceval.c : RAISE_VARARGS invokes do_raise
+Python/ceval.c -> Python/errors.c : sets or restores the raised exception state
+Python/bytecodes.c -> Python/traceback.c : interpreter unwind path records traceback frames
+Python/traceback.c -> Include/cpython/traceback.h : traceback object layout
 ```
 
 ### Exceptions: Error Propagation
@@ -431,7 +442,7 @@ Python's exception system provides a structured way to handle errors and propaga
 
 ### Tracebacks: Understanding Errors
 
-When an exception is raised, Python builds a traceback object that records the call stack at the point of the error. This traceback provides detailed information about where the error occurred and how execution reached that point. Understanding tracebacks reveals how Python provides helpful error messages and debugging information.
+[RAISE_VARARGS](Python/bytecodes.c:RAISE_VARARGS) calls [do_raise](Python/ceval.c:do_raise). Raising an exception value and re-raising the active exception take different paths; the latter can restore raised-exception state directly. The interpreter's error path records traceback frames as needed before its [exception_unwind path](Python/bytecodes.c:exception_unwind) consults handler information. A traceback is a chain of participating frames, not an eager copy of the entire call stack made by every public error setter. Follow [traceback construction](Python/traceback.c:PyTraceBack_Here) alongside [the traceback layout](Include/cpython/traceback.h).
 
 ---
 id: ch8
@@ -607,6 +618,179 @@ Follow this order:
 5. Return to object and memory files to see how reference counting changes under `Py_GIL_DISABLED`.
 
 The core rule is simple: in default CPython, the GIL is the broad runtime guard; in free-threaded CPython, CPython moves that guard into object, thread-state, allocator, and extension-specific mechanisms.
+
+---
+id: ch10
+title: Chapter 10 — Worked Linux Read Trace
+fileRecommendations:
+  readingOrder:
+    - path: Modules/posixmodule.c:os_read_impl
+      description: Python os.read implementation and byte-result allocation
+      type: source
+    - path: Python/fileutils.c:_Py_read
+      description: Thread-state detachment, interruption handling, and error conversion
+      type: source
+    - path: repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read
+      description: glibc cancellation-aware read wrapper
+      type: source
+    - path: repo:torvalds/linux/arch/arm64/kernel/syscall.c:do_el0_svc
+      description: AArch64 system-call dispatch
+      type: source
+    - path: repo:torvalds/linux/fs/read_write.c:ksys_read
+      description: Kernel descriptor lookup and VFS read entry
+      type: source
+---
+
+Use an unbuffered descriptor operation to isolate the boundary:
+
+```python
+import os
+
+reader, writer = os.pipe()
+os.write(writer, b"abc")
+os.close(writer)
+try:
+    print(os.read(reader, 16))  # b'abc': a read can return fewer bytes
+    print(os.read(reader, 16))  # b'': the closed pipe has reached EOF
+finally:
+    os.close(reader)
+```
+
+[os_read_impl](Modules/posixmodule.c:os_read_impl) validates the requested size, allocates the bytes result, and calls [_Py_read](Python/fileutils.c:_Py_read). The latter limits the request, detaches the Python thread state around the C read, saves errno, and reattaches before checking Python signals. In a GIL-enabled build, that blocking region releases the GIL; a free-threaded build still needs thread-state coordination.
+
+On Linux linked against glibc, the call reaches [__libc_read](repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read). This uses SYSCALL_CANCEL, which provides pthread cancellation-point handling around the architecture-specific syscall machinery. POSIX cancellation is distinct from a Python signal handler raising an exception.
+
+For AArch64, follow [the wrapper macros](repo:bminor/glibc/sysdeps/unix/sysv/linux/aarch64/sysdep.h), Linux's [exception entry](repo:torvalds/linux/arch/arm64/kernel/entry-common.c:el0t_64_sync_handler), and [syscall dispatch](repo:torvalds/linux/arch/arm64/kernel/syscall.c:do_el0_svc). The read syscall handler reaches [ksys_read](repo:torvalds/linux/fs/read_write.c:ksys_read), which resolves the descriptor and enters vfs_read. A pipe, terminal, socket, and regular file can have different downstream behavior; this example does not imply disk I/O.
+
+On return, _Py_read retries EINTR only while the Python signal check does not report an exception. Other failures become Python exceptions through the errno conversion. os_read_impl shrinks the bytes result to the count actually read. A nonblocking empty descriptor can raise BlockingIOError rather than return EOF.
+
+A buffered Python file adds another layer: [BufferedReader](Modules/_io/bufferedio.c) may serve reads without a syscall or prefetch more bytes than the caller requested; its raw [FileIO read](Modules/_io/fileio.c:_io_FileIO_read_impl) uses _Py_read. Text decoding adds another layer again. On a Linux development host, trace a saved example with:
+
+```sh
+strace -e trace=read,write python3.14 example.py
+```
+
+Account for interpreter-startup reads before identifying the pipe descriptors.
+
+---
+id: ch11
+title: Chapter 11 — Allocation Has Multiple Routes to Linux
+fileRecommendations:
+  readingOrder:
+    - path: Doc/c-api/memory.rst
+      description: Raw, memory, and object domains plus allocator configuration
+      type: docs
+    - path: Objects/obmalloc.c:_PyMem_ArenaAlloc
+      description: Arena allocation using mappings where available
+      type: source
+    - path: Objects/obmalloc.c:_PyMem_RawMalloc
+      description: Raw allocation through the platform malloc interface
+      type: source
+    - path: repo:bminor/glibc/malloc/malloc.c:__libc_malloc
+      description: C-library allocation and reuse
+      type: source
+    - path: repo:torvalds/linux/mm/mmap.c:do_mmap
+      description: Virtual-memory mapping construction
+      type: source
+---
+
+Choose the allocator domain and build mode before following a request. [The memory API documentation](Doc/c-api/memory.rst) distinguishes raw allocation, PyMem allocation, and object allocation; allocators can also be configured or replaced. Python object lifetime does not determine one universal C-library call chain.
+
+| Configuration or request | CPython route | Possible platform boundary |
+| --- | --- | --- |
+| Default pymalloc, small request up to 512 bytes | Reuse a block from a pymalloc pool; get an arena when needed | [_PyMem_ArenaAlloc](Objects/obmalloc.c:_PyMem_ArenaAlloc) uses mmap when its mapping support is enabled |
+| Default pymalloc, larger request | Fall back to the raw allocator | [_PyMem_RawMalloc](Objects/obmalloc.c:_PyMem_RawMalloc) calls malloc |
+| Free-threaded object allocation | Mimalloc-backed object allocation | Follow [mimalloc OS allocation](Objects/mimalloc/os.c) and its [Unix primitives](Objects/mimalloc/prim/unix/prim.c:_mi_prim_alloc) |
+| Custom allocator or changed configuration | Selected domain's installed callbacks | Follow the configured allocator implementation |
+
+A pymalloc arena mapping can pass through [glibc's mmap implementation](repo:bminor/glibc/sysdeps/unix/sysv/linux/mmap64.c:__mmap64) to Linux's [mapping machinery](repo:torvalds/linux/mm/mmap.c:do_mmap), without a glibc malloc call for that arena. The raw malloc route instead enters [__libc_malloc](repo:bminor/glibc/malloc/malloc.c:__libc_malloc). glibc can reuse cached chunks or arena space; requests for more address space can use brk or mmap. Neither a Python allocation nor a C malloc call guarantees a syscall.
+
+Object deallocation, allocator reuse, virtual-memory release, and physical-page reclamation are different events. A reference count reaching zero does not promise that RSS drops. [Mappings](repo:torvalds/linux/mm/mmap.c) establish address ranges; [page-fault handling](repo:torvalds/linux/mm/memory.c:handle_mm_fault) can populate ordinary anonymous mappings later. Avoid equating a successful mapping with immediate allocation of every physical page.
+
+For an experiment, record build mode and PYTHONMALLOC configuration, then compare Python-level allocation observations with Linux mapping/syscall observations. A direct mmap can belong to an allocator arena, an extension, or a mapped file. Attribute it with a stack trace or source path before claiming that it represents one Python object.
+
+---
+id: ch12
+title: Chapter 12 — Python Threads, POSIX Threads, and Linux Tasks
+fileRecommendations:
+  readingOrder:
+    - path: Lib/threading.py
+      description: Thread.start and the joinable-thread entry
+      type: source
+    - path: Modules/_threadmodule.c:ThreadHandle_start
+      description: Thread bootstrap state and native thread creation
+      type: source
+    - path: Python/thread_pthread.h:PyThread_start_joinable_thread
+      description: CPython POSIX thread adapter
+      type: source
+    - path: repo:bminor/glibc/nptl/pthread_create.c:__pthread_create_2_1
+      description: POSIX thread stack, TLS, descriptor, and child startup
+      type: source
+    - path: repo:bminor/glibc/sysdeps/unix/sysv/linux/clone-internal.c:__clone_internal
+      description: clone3 selection and clone fallback
+      type: source
+    - path: repo:torvalds/linux/kernel/fork.c:kernel_clone
+      description: Kernel task creation
+      type: source
+---
+
+Follow [Thread.start](Lib/threading.py) to the imported _thread.start_joinable_thread entry. [The C module](Modules/_threadmodule.c:thread_PyThread_start_joinable_thread) reaches [ThreadHandle_start](Modules/_threadmodule.c:ThreadHandle_start), which prepares bootstrap state and calls the native joinable-thread API. The POSIX implementation, [PyThread_start_joinable_thread](Python/thread_pthread.h:PyThread_start_joinable_thread), uses a helper that calls pthread_create.
+
+In glibc, [pthread_create](repo:bminor/glibc/nptl/pthread_create.c:__pthread_create_2_1) arranges thread metadata, stack/TLS resources, and the child start routine. Its creation helper calls [__clone_internal](repo:bminor/glibc/sysdeps/unix/sysv/linux/clone-internal.c:__clone_internal). That wrapper attempts clone3 on supported build paths and falls back to clone when clone3 is unavailable with ENOSYS. Architecture and configuration affect the selected route; this is not a promise that every pthread creation issues clone3.
+
+The corresponding Linux clone-family syscall reaches [kernel_clone](repo:torvalds/linux/kernel/fork.c:kernel_clone), which creates a task with the requested sharing semantics. A pthread is not a forked process with an independent address space. In the child, glibc calls CPython's [pthread-signature adapter](Python/thread_pthread.h:pythread_wrapper), which invokes the [thread_run bootstrap](Modules/_threadmodule.c:thread_run). The bootstrap coordinates Python thread state before calling the Python callable.
+
+The existence of native tasks does not determine whether their Python bytecode executes in parallel. The default interpreter's GIL constrains threads sharing that GIL; a free-threaded build and per-interpreter GIL configurations have different execution rules. Likewise, releasing a lock is not a guarantee that Linux schedules a particular waiter next.
+
+On a Linux development host, save a small threading.Thread example and trace it with:
+
+```sh
+strace -f -e trace=clone,clone3,futex python3.14 example.py
+```
+
+Futex traffic can come from the GIL, joins, libc locks, or other runtime components. Identify the relevant synchronization object before assigning every futex call to the GIL.
+
+---
+id: ch13
+title: Chapter 13 — Executable Startup and Extension Loading
+fileRecommendations:
+  readingOrder:
+    - path: repo:torvalds/linux/fs/binfmt_elf.c:load_elf_binary
+      description: Executable segments, PT_INTERP, and initial user entry
+      type: source
+    - path: repo:bminor/glibc/elf/rtld.c:_dl_start
+      description: Dynamic loader initialization
+      type: source
+    - path: repo:bminor/glibc/csu/libc-start.c:__libc_start_main
+      description: Application C-runtime startup
+      type: source
+    - path: Programs/python.c:main
+      description: CPython's platform main entry
+      type: source
+    - path: Modules/main.c:Py_BytesMain
+      description: Interpreter configuration and execution orchestration
+      type: source
+    - path: Python/dynload_shlib.c:_PyImport_FindSharedFuncptr
+      description: dlopen and extension initializer symbol lookup
+      type: source
+---
+
+For a dynamically linked ELF CPython executable, Linux's [ELF loader](repo:torvalds/linux/fs/binfmt_elf.c:load_elf_binary) maps the executable and its PT_INTERP interpreter. Initial user-space execution goes to that interpreter's entry, not straight to the application's entry. glibc's [runtime loader](repo:bminor/glibc/elf/rtld.c:_dl_start) arranges dependencies, relocations, TLS, and initialization before transferring to the application's startup path.
+
+On AArch64, [application _start](repo:bminor/glibc/sysdeps/aarch64/start.S) calls [__libc_start_main](repo:bminor/glibc/csu/libc-start.c:__libc_start_main). That startup reaches [CPython's main](Programs/python.c:main), which calls [Py_BytesMain](Modules/main.c:Py_BytesMain) on the Unix path. CPython then handles configuration, interpreter initialization, and the selected script, module, or interactive command. A statically linked executable, a static PIE, and an embedding host need their own startup analysis.
+
+Loading an extension later is a separate operation. importlib's [extension loader](Lib/importlib/_bootstrap_external.py:ExtensionFileLoader) uses the extension-import machinery in [Python/import.c](Python/import.c). For the shared-library route, [_PyImport_FindSharedFuncptr](Python/dynload_shlib.c:_PyImport_FindSharedFuncptr) calls dlopen with configured flags, then looks up the expected initialization symbol with dlsym. A built-in or frozen module does not follow this shared-library route.
+
+The glibc boundaries are [dlopen](repo:bminor/glibc/dlfcn/dlopen.c:___dlopen), [_dl_open](repo:bminor/glibc/elf/dl-open.c:_dl_open), and [symbol lookup](repo:bminor/glibc/dlfcn/dlsym.c:___dlsym). Mapping and relocation happen inside the existing process. Linux may service mappings and faults, but extension import does not repeat execve or restart Python. The later module initialization and its GIL compatibility checks remain CPython responsibilities.
+
+Inspect the actual Linux executable with these commands, replacing the path with the interpreter being investigated:
+
+```sh
+readelf -l /path/to/python3.14
+readelf -d /path/to/python3.14
+```
+
+The program headers identify PT_INTERP; the dynamic section supplies dependency metadata. Compare startup loader activity with importing a known dynamically built extension using LD_DEBUG on glibc. Exact libraries and initializer behavior depend on how that interpreter and extension were built; a source tag alone does not determine the installed binary's linkage.
 
 ---
 ## References

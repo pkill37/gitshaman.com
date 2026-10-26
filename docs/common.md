@@ -575,8 +575,6 @@ From this foundation, all future learning knowledge will fork, building system-s
 
 _This document is the foundation. All project-specific guides build upon it. All future learning knowledge will fork from it._
 
-<!-- ecosystem-lesson -->
-
 ## How software fits together
 
 Compilation translates source into executable instructions. Clang parses C-family languages; LLVM supplies optimization and code generation. See [Clang code generation](repo:llvm/llvm-project/clang/lib/CodeGen/CodeGenModule.cpp). A compiler used to build a program need not run alongside it.
@@ -585,8 +583,6 @@ A language runtime supplies services while a program runs: object management, sc
 
 For I/O, follow [CPython _Py_read()](repo:python/cpython/Python/fileutils.c:_Py_read), [glibc __libc_read()](repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read), then [Linux ksys_read()](repo:torvalds/linux/fs/read_write.c:ksys_read). The syscall instruction crosses into kernel execution, where descriptors, permissions, and devices are managed.
 
-For memory, follow [CPython allocation](repo:python/cpython/Objects/obmalloc.c), [glibc malloc](repo:bminor/glibc/malloc/malloc.c), and [Linux mappings](repo:torvalds/linux/mm/mmap.c). Allocators reuse user-space blocks; they request more virtual memory when needed. Every allocation does not require a syscall.
+For memory, distinguish [CPython arena mappings](repo:python/cpython/Objects/obmalloc.c:_PyMem_ArenaAlloc) from [raw malloc requests](repo:python/cpython/Objects/obmalloc.c:_PyMem_RawMalloc). The former can call mmap directly; the latter can reach [glibc allocation](repo:bminor/glibc/malloc/malloc.c:__libc_malloc). Allocators reuse blocks, get more address space when needed, and have build-dependent alternatives such as mimalloc. [Linux mappings](repo:torvalds/linux/mm/mmap.c) and physical page population are separate stages; every object allocation does not require a syscall.
 
-For threads, follow [CPython POSIX threads](repo:python/cpython/Python/thread_pthread.h), [glibc pthread_create()](repo:bminor/glibc/nptl/pthread_create.c), and [Linux process creation](repo:torvalds/linux/kernel/fork.c). Compare [Go Linux runtime assembly](repo:golang/go/src/runtime/sys_linux_amd64.s) with [Go cgo pthread integration](repo:golang/go/src/runtime/cgo/pthread_unix.c). A goroutine is scheduled by Go and is not one OS thread per goroutine.
-
-Arrows describe their labeled relationship only. Compiler infrastructure, source ancestry, platform comparisons, and guide references are distinct from execution dependencies. Android distribution manifests describe source composition; BSD trees include userland as well as kernels, while XNU combines Mach and BSD components.
+For threads, follow [CPython POSIX threads](repo:python/cpython/Python/thread_pthread.h), [glibc pthread_create()](repo:bminor/glibc/nptl/pthread_create.c), then [clone3 selection and clone fallback](repo:bminor/glibc/sysdeps/unix/sysv/linux/clone-internal.c:__clone_internal) before [Linux task creation](repo:torvalds/linux/kernel/fork.c:kernel_clone). Compare [Go Linux runtime assembly](repo:golang/go/src/runtime/sys_linux_amd64.s) with [Go cgo pthread integration](repo:golang/go/src/runtime/cgo/pthread_unix.c). A goroutine is scheduled by Go and is not one OS thread per goroutine.

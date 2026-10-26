@@ -20,7 +20,6 @@ import { analyze, checksums, componentVersions, currentGeneration } from './anal
 import { embedGeneration } from './embeddings';
 import { serveWorkspace } from './server';
 import { share } from './share';
-import { QUIZ_HELP, runQuiz } from './quiz';
 
 const HELP = `GitShaman ${CLI_VERSION} — local repository analysis
 
@@ -35,7 +34,6 @@ Usage: gitshaman <command> [options]
   verify        Verify packaged assets, indexes, and embeddings
   checksum      Refresh observed source checksums
   share         Contribute a public commit through a GitHub PR
-  quiz          Check understanding of changes with Sphinx (quiz --help)
 
 Global: --repo <directory> --json --help
 Analyze: --committed --no-embed --force
@@ -61,10 +59,10 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   const parsed = parseCommandLine(args);
   const { values } = parsed;
   if (parsed.help) {
-    process.stdout.write(parsed.help === 'quiz' ? QUIZ_HELP : HELP);
+    process.stdout.write(HELP);
     return;
   }
-  const { command, target, quizBrowser, port } = parsed;
+  const { command, target, port } = parsed;
   const print = (result: unknown) =>
     process.stdout.write(
       `${values.json ? JSON.stringify(result) : JSON.stringify(result, null, 2)}\n`
@@ -84,14 +82,6 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return;
   }
   const root = repositoryRoot(values.repo ?? process.cwd());
-  if (command === 'quiz' && !quizBrowser) {
-    process.exitCode = await runQuiz(root, target, {
-      staged: values.staged,
-      local: values.local,
-      json: values.json,
-    });
-    return;
-  }
   if (command === 'init') {
     print(initialize(root));
     return;
@@ -164,15 +154,10 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       print(result);
       if (!values['no-open'] && !values['dry-run'] && typeof result.url === 'string')
         openBrowser(result.url);
-    } else if (command === 'viz' || quizBrowser) {
+    } else if (command === 'viz') {
       const workspace = await serveWorkspace(root, path.join(dist, 'workspace'), port);
       const { server } = workspace;
-      const targetURL = new URL(workspace.url);
-      if (quizBrowser) {
-        targetURL.searchParams.set('view', 'quiz');
-        if (values.staged) targetURL.searchParams.set('staged', '1');
-      }
-      const url = targetURL.toString();
+      const { url } = workspace;
       print({ url });
       if (!values['no-open']) openBrowser(url);
       await new Promise<void>((resolve) => {

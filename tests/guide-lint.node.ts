@@ -113,9 +113,10 @@ describe('guide reference linting', () => {
         'repo:bminor/glibc/csu/libc-start.c:__libc_start_main',
       ],
       'bminor_glibc.md': [
-        'repo:bminor/glibc/sysdeps/unix/sysv/linux/read.c:__libc_read',
+        'repo:python/cpython/Python/fileutils.c:_Py_read',
+        'repo:torvalds/linux/fs/read_write.c:ksys_read',
         'repo:torvalds/linux/fs/read_write.c:ksys_write',
-        'repo:torvalds/linux/mm/mmap.c:vm_mmap_pgoff',
+        'repo:torvalds/linux/mm/mmap.c:do_mmap',
       ],
       'python_cpython.md': [
         'repo:bminor/glibc/nptl/pthread_create.c:pthread_create',

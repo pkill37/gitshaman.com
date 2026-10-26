@@ -18,13 +18,6 @@ test('argument validation rejects unsupported combinations before accessing a re
     ['init', 'extra'],
     ['analyze', '--port', '1'],
     ['parser', '--force'],
-    ['quiz', 'unknown'],
-    ['quiz', 'status', '--staged'],
-    ['quiz', '--local'],
-    ['quiz', 'check', '--port='],
-    ['quiz', 'install-hooks', '--json'],
-    ['quiz', 'doctor', '--no-open'],
-    ['quiz', 'check', 'extra'],
     ['parser', '../src'],
     ['parser', '/src'],
     ['parser', 'src/../src'],
@@ -32,12 +25,10 @@ test('argument validation rejects unsupported combinations before accessing a re
     ['viz', '--port'],
   ])
     assert.throws(() => parseCommandLine(args), args.join(' '));
-  for (const command of ['viz', 'quiz']) {
-    for (const port of ['', ' ', '-1', '1.5', '65536', 'NaN', 'Infinity', '0x10', '1e3'])
-      assert.throws(() => parseCommandLine([command, `--port=${port}`]), /port/);
-    for (const port of ['0', '3001', '65535'])
-      assert.equal(parseCommandLine([command, '--port', port]).port, Number(port));
-  }
+  for (const port of ['', ' ', '-1', '1.5', '65536', 'NaN', 'Infinity', '0x10', '1e3'])
+    assert.throws(() => parseCommandLine(['viz', `--port=${port}`]), /port/);
+  for (const port of ['0', '3001', '65535'])
+    assert.equal(parseCommandLine(['viz', '--port', port]).port, Number(port));
 });
 
 test('CLI entry point supports help, version, init, parser, checksum, analyze, and verify', async (t) => {
@@ -58,7 +49,7 @@ test('CLI entry point supports help, version, init, parser, checksum, analyze, a
         TSX_TSCONFIG_PATH: path.resolve('tsconfig.json'),
       },
     });
-  for (const args of [[], ['--help'], ['quiz', '--help']]) {
+  for (const args of [[], ['--help']]) {
     const result = run(args);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Usage: gitshaman/);
@@ -99,7 +90,7 @@ test('CLI entry point supports help, version, init, parser, checksum, analyze, a
   assert.doesNotMatch(invalid.stderr, /TypeError|Cannot read/);
 });
 
-test('viz and quiz start authenticated workspaces and stop cleanly on signals', async (t) => {
+test('viz starts an authenticated workspace and stops cleanly on signals', async (t) => {
   const root = cliFixture();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const analyzed = spawnSync(
@@ -108,20 +99,11 @@ test('viz and quiz start authenticated workspaces and stop cleanly on signals', 
     { encoding: 'utf8' }
   );
   assert.equal(analyzed.status, 0, analyzed.stderr);
-  for (const command of ['viz', 'quiz']) {
-    await t.test(command, { timeout: 10000 }, async (subtest) => {
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    await t.test(signal, { timeout: 10000 }, async (subtest) => {
       const child = spawn(
         process.execPath,
-        [
-          '--import',
-          loader,
-          cli,
-          command,
-          '--repo',
-          root,
-          '--no-open',
-          ...(command === 'quiz' ? ['--staged'] : []),
-        ],
+        ['--import', loader, cli, 'viz', '--repo', root, '--no-open'],
         { stdio: ['ignore', 'pipe', 'pipe'] }
       );
       subtest.after(() => {
@@ -143,13 +125,11 @@ test('viz and quiz start authenticated workspaces and stop cleanly on signals', 
       });
       const url = new URL(JSON.parse(ready).url);
       assert.match(url.hash, /^#[a-f0-9]{64}$/);
-      assert.equal(url.searchParams.get('view'), command === 'quiz' ? 'quiz' : null);
-      assert.equal(url.searchParams.get('staged'), command === 'quiz' ? '1' : null);
       const status = await fetch(new URL('/api/status', url), {
         headers: { Authorization: `Bearer ${url.hash.slice(1)}` },
       });
       assert.equal(status.status, 200);
-      child.kill(command === 'quiz' ? 'SIGINT' : 'SIGTERM');
+      child.kill(signal);
       assert.deepEqual(await exit, [0, null]);
     });
   }

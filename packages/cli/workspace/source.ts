@@ -9,7 +9,6 @@ import type { FileNode } from '../../../src/types';
 import type { Snapshot } from '../src/analysis';
 import type { SearchResult } from '../src/search';
 import type { FileTreeNode } from '../../../scripts/code-index-builder';
-import type { QuizRequest, QuizSession } from '../../../src/lib/quiz';
 
 export type LocalStatus = {
   snapshot: Snapshot;
@@ -17,14 +16,11 @@ export type LocalStatus = {
   changed: string[];
   name: string;
   identity: string;
-  quizRepository?: string;
 };
 export class LocalRepositorySource implements RepositoryDataSource {
   readonly owner = 'local';
   repo = 'repository';
   revision = '';
-  quizRepository?: string;
-  quizRevision?: string;
   private treePromise?: Promise<FileNode[]>;
   private indexPromise?: Promise<LoadedCodeIndex>;
   private snapshot?: Snapshot;
@@ -56,30 +52,9 @@ export class LocalRepositorySource implements RepositoryDataSource {
     this.snapshot = status.snapshot;
     this.repo = `${status.name}-${status.snapshot.rootIdentity.slice(0, 8)}`;
     this.revision = status.snapshot.generation;
-    this.quizRepository = status.quizRepository;
-    this.quizRevision = status.snapshot.commit;
   }
   async status(): Promise<LocalStatus> {
     return (await this.request('/api/status')).json();
-  }
-  async quiz(request: QuizRequest, signal?: AbortSignal): Promise<QuizSession> {
-    const response = await fetch('/api/quiz', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal,
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      let message = text;
-      try {
-        message = JSON.parse(text).error ?? text;
-      } catch {
-        /* Plain text error. */
-      }
-      throw new Error(message);
-    }
-    return response.json();
   }
   tree(): Promise<FileNode[]> {
     return (this.treePromise ??= this.request('/api/tree')

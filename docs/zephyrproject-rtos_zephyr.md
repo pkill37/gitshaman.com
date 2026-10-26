@@ -22,7 +22,6 @@ Zephyr combines a real-time kernel with a hardware model, drivers, networking, a
 ---
 id: ch1
 title: Chapter 1 — The Build Defines the System
-questions: [{ prompt: "Where do you inspect the final software and hardware configuration of an image?", answer: "Inspect the generated .config and merged zephyr.dts in the build output, rather than relying on one input file." }]
 fileRecommendations:
   readingOrder:
     - path: README.rst
@@ -68,7 +67,6 @@ Compare the requested feature with its resolved Kconfig value, then inspect the 
 ---
 id: ch2
 title: Chapter 2 — Devices Exist Before Application Logic
-questions: [{ prompt: "Can a readiness check fix a missing driver device definition?", answer: "No. Missing definitions can fail the build or link; readiness checks apply to device objects that exist but may have failed initialization." }]
 fileRecommendations:
   readingOrder:
     - path: kernel/init.c:z_cstart
@@ -109,7 +107,6 @@ A missing alias or property can fail preprocessing or compilation. A referenced 
 ---
 id: ch3
 title: Chapter 3 — Threads Compete by Priority and Eligibility
-questions: [{ prompt: "Does k_yield let a lower-priority ready thread run?", answer: "Not by itself. The yielding thread remains ready, and the scheduler selects an eligible thread at the same or higher priority if one exists." }]
 fileRecommendations:
   readingOrder:
     - path: kernel/thread.c
@@ -145,7 +142,6 @@ Time slicing applies according to configuration and thread eligibility. SMP adds
 ---
 id: ch4
 title: Chapter 4 — Interrupts, Work Queues, and Ownership
-questions: [{ prompt: "Can a zero-latency interrupt use any API documented as ISR-safe?", answer: "No. Zero-latency interrupts must remain outside kernel interaction; ordinary ISR API permissions do not apply to them." }]
 fileRecommendations:
   readingOrder:
     - path: kernel/work.c
@@ -178,7 +174,6 @@ Mutexes protect ownership among threads and provide priority inheritance. Compar
 ---
 id: ch5
 title: Chapter 5 — Memory Protection Is a Configuration Choice
-questions: [{ prompt: "Does k_malloc wait for another thread to free memory?", answer: "No. The system allocation wrappers use K_NO_WAIT. A separate k_heap object supports timeout-capable allocation through k_heap_alloc." }]
 fileRecommendations:
   readingOrder:
     - path: kernel/mem_slab.c
@@ -212,7 +207,6 @@ Protection does not establish buffer ownership or deadline bounds. Review stack 
 ---
 id: ch6
 title: Chapter 6 — Follow One Hardware Event Through the Image
-questions: [{ prompt: "Why can a valid devicetree reference still lead to an unusable device?", answer: "The driver must be enabled and its initialization must succeed, so application code must check readiness." }]
 fileRecommendations:
   readingOrder:
     - path: samples/basic/blinky/src/main.c

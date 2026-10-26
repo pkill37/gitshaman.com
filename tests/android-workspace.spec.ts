@@ -76,7 +76,6 @@ for (const config of CURATED_REPOS.filter((entry) => entry.androidWorkspace)) {
       'aria-pressed',
       'true'
     );
-    await expect(controls).toContainText('Core projects indexed (2)');
     await expect(page.locator('.android-file-provenance')).toContainText('frameworks/base');
     await expect(page.getByRole('link', { name: 'Upstream source' })).toHaveAttribute(
       'href',
@@ -125,9 +124,11 @@ test('switching Android distributions discards an in-flight search', async ({ pa
   await routeFixture(page, lineage, true);
   await routeFixture(page, graphene);
   await page.goto(`/${lineage.slug}`);
-  await expect(page.getByRole('region', { name: 'Android workspace' })).toContainText(
-    'Core projects indexed (2)'
-  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Android workspace' })
+      .getByRole('button', { name: 'Source', exact: true })
+  ).toBeVisible();
   await page.getByRole('button', { name: 'File search', exact: true }).click();
   const requested = page.waitForRequest(
     (request) => request.url().includes('/LineageOS/') && request.url().endsWith('.sqlite')
@@ -137,9 +138,11 @@ test('switching Android distributions discards an in-flight search', async ({ pa
   await expect(page.getByRole('navigation', { name: 'AOSP repository family' })).toHaveCount(0);
   await page.goto(`/${graphene.slug}`);
   await expect(page).toHaveURL(new RegExp(graphene.slug));
-  await expect(page.getByRole('region', { name: 'Android workspace' })).toContainText(
-    'Core projects indexed (2)'
-  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Android workspace' })
+      .getByRole('button', { name: 'Source', exact: true })
+  ).toBeVisible();
   await page.getByRole('button', { name: 'File search', exact: true }).click();
   await expect(page.getByRole('searchbox', { name: 'Search all files' })).toHaveValue('');
   await expect(
@@ -159,9 +162,11 @@ for (const config of CURATED_REPOS.filter((entry) => entry.androidWorkspace)) {
     const project = workspace.projects.find((entry) => entry.path === 'frameworks/base')!;
     const file = 'frameworks/base/core/java/android/app/Activity.java';
     await page.goto(`/${config.slug}?file=${file}&line=26`);
-    await expect(page.getByRole('region', { name: 'Android workspace' })).toContainText(
-      `Core projects indexed (${workspace.projects.length})`
-    );
+    await expect(
+      page
+        .getByRole('region', { name: 'Android workspace' })
+        .getByRole('button', { name: 'Source', exact: true })
+    ).toBeVisible();
     await expect(page.locator('.monaco-editor').first()).toBeVisible();
     await expect(page.locator('.android-file-provenance')).toContainText(
       project.commit.slice(0, 12)

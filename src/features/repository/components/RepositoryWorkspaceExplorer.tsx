@@ -1718,6 +1718,35 @@ export default function RepositoryWorkspaceExplorer({
                 <section className="android-workspace-controls" aria-label="Android workspace">
                   {androidSource ? (
                     <>
+                      {androidSource &&
+                        renderedActiveTab &&
+                        (() => {
+                          const file = resolveAndroidAlias(
+                            androidSource.metadata,
+                            renderedActiveTab.path
+                          );
+                          const project = androidProjectForPath(androidSource.metadata, file);
+                          return project ? (
+                            <div className="android-file-provenance">
+                              {project.path} · {project.commit.slice(0, 12)} ·{' '}
+                              <a
+                                href={androidUpstreamUrl(
+                                  project,
+                                  file,
+                                  renderedActiveTab.scrollToLine
+                                )}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Upstream source
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="android-file-provenance">
+                              Manifest · {androidSource.metadata.manifestCommit.slice(0, 12)}
+                            </div>
+                          );
+                        })()}
                       <div role="group" aria-label="Android browser view">
                         <button
                           type="button"
@@ -1734,23 +1763,6 @@ export default function RepositoryWorkspaceExplorer({
                           Manifest
                         </button>
                       </div>
-                      <details>
-                        <summary>
-                          Core projects indexed ({androidSource.metadata.projects.length})
-                        </summary>
-                        <ul>
-                          {androidSource.metadata.projects.map((project) => (
-                            <li key={project.path}>
-                              {project.path} · {project.commit.slice(0, 12)}
-                            </li>
-                          ))}
-                        </ul>
-                        <p>
-                          Other manifest projects are not included. References show up to 200 text
-                          occurrences; indexed content is limited to 64 KiB per file. Java, Kotlin,
-                          and AIDL type definitions use heuristics.
-                        </p>
-                      </details>
                       {layoutMode === 'search' && (
                         <label>
                           Project
@@ -1839,30 +1851,6 @@ export default function RepositoryWorkspaceExplorer({
             )}
             {renderedActiveTab ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                {androidSource &&
-                  (() => {
-                    const file = resolveAndroidAlias(
-                      androidSource.metadata,
-                      renderedActiveTab.path
-                    );
-                    const project = androidProjectForPath(androidSource.metadata, file);
-                    return project ? (
-                      <div className="android-file-provenance">
-                        {project.path} · {project.commit.slice(0, 12)} ·{' '}
-                        <a
-                          href={androidUpstreamUrl(project, file, renderedActiveTab.scrollToLine)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Upstream source
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="android-file-provenance">
-                        Manifest · {androidSource.metadata.manifestCommit.slice(0, 12)}
-                      </div>
-                    );
-                  })()}
                 <CodeEditorContainer
                   key={fileSourceMode}
                   filePath={renderedActiveTab.path}

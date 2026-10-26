@@ -11,15 +11,15 @@
   "scripts": {
     "cli": "tsx packages/cli/src/cli.ts",
     "cli:build": "tsx scripts/curated-contributions.ts && tsx packages/cli/build.ts",
-    "test:cli": "npm run cli:build && node --import tsx --test tests/cli*.node.ts tests/quiz*.node.ts && playwright test --config packages/cli/playwright.config.ts",
+    "test:cli": "npm run cli:build && node --import tsx --test tests/cli*.node.ts && playwright test --config packages/cli/playwright.config.ts",
     "pretest": "npm run cli:build",
     "curated:generate": "tsx scripts/curated-contributions.ts",
     "curated:check": "tsx scripts/curated-contributions.ts --online",
-    "prebuild": "npm run curated:generate && tsx scripts/ecosystem-index.ts",
+    "prebuild": "npm run curated:generate",
     "prelint": "npm run curated:generate",
     "precorpus:sync": "npm run curated:generate",
     "prepare": "husky",
-    "predev": "tsx scripts/curated-contributions.ts && tsx scripts/ecosystem-index.ts && tsx scripts/prepare-public-assets.ts --dev --sqljs",
+    "predev": "tsx scripts/curated-contributions.ts && tsx scripts/prepare-public-assets.ts --dev --sqljs",
     "dev": "next dev --turbopack --port 3000",
     "build": "tsx scripts/build.ts",
     "start": "serve -l 3000 out -c",
@@ -39,7 +39,7 @@
     "fix:eslint": "eslint . --fix",
     "fix:prettier": "prettier --config prettier.config.mjs --write .",
     "test": "node --import tsx --test tests/*.test.mjs tests/*.node.ts && playwright test --project=chromium --project=firefox --project=mobile-chromium",
-    "test:cli:coverage": "npm run cli:build && node --import tsx --test --experimental-test-coverage --test-coverage-include=\"packages/cli/src/**\" tests/cli*.node.ts tests/quiz*.node.ts",
+    "test:cli:coverage": "npm run cli:build && node --import tsx --test --experimental-test-coverage --test-coverage-include=\"packages/cli/src/**\" tests/cli*.node.ts",
     "corpus:android": "node --import tsx scripts/android-workspace.ts"
   },
   "dependencies": {

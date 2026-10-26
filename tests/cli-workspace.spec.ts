@@ -2,11 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { test, expect } from '@playwright/test';
-import { build } from 'esbuild';
 import { cliFixture } from './helpers/cli-fixture';
 import { analyze } from '../packages/cli/src/analysis';
 import { serveWorkspace } from '../packages/cli/src/server';
-import { parseSharedQuiz, sharedQuizURL } from '../src/lib/quiz';
 
 let root: string;
 let server: http.Server;
@@ -28,110 +26,6 @@ test.afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
   if (root) fs.rmSync(root, { recursive: true, force: true });
-});
-test('Quiz shares the editor workspace and follows the selected chapter', async ({ page }) => {
-  page.setDefaultTimeout(10000);
-  const quizRequests: string[] = [];
-  await page.route('**/api/quiz', async (route) => {
-    quizRequests.push(route.request().url());
-    await route.fulfill({
-      status: 500,
-      body: 'Chapter practice must not request a change assessment.',
-    });
-  });
-  const target = new URL(url);
-  target.searchParams.set('view', 'quiz');
-  target.searchParams.set('file', 'src/auth.ts');
-  await page.goto(target.toString());
-  const quiz = page.getByRole('button', { name: 'Quiz', exact: true });
-  await expect(quiz).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.monaco-editor').first()).toBeVisible();
-  const panel = page.getByRole('region', { name: 'Chapter quiz' });
-  await expect(panel).toContainText('Repository overview');
-  await expect(panel).toContainText('This chapter has no quiz questions yet.');
-  await expect(panel.getByRole('button', { name: 'Start or resume quiz' })).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Source map', exact: true }).click();
-  await expect(panel).toContainText('Source map');
-  await expect(panel).not.toContainText('Repository overview');
-  await expect(quiz).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.monaco-editor').first()).toBeVisible();
-  await quiz.click();
-  await expect(panel).toBeHidden();
-  await quiz.click();
-  await expect(panel).toBeVisible();
-  await expect(panel).toContainText('Source map');
-  expect(quizRequests).toEqual([]);
-});
-
-test('shared practice works in the public Quiz component without a local source or model provider', async ({
-  page,
-}) => {
-  const bundle = await build({
-    stdin: {
-      contents: `import { createRoot } from 'react-dom/client';
-import Panel from './src/features/repository/components/RepositoryQuizPanel';
-createRoot(document.getElementById('root')).render(<Panel owner="example" repo="fixture" />);`,
-      resolveDir: process.cwd(),
-      loader: 'tsx',
-    },
-    bundle: true,
-    write: false,
-    outfile: '/tmp/gitshaman-quiz-fixture.js',
-    jsx: 'automatic',
-    platform: 'browser',
-    format: 'iife',
-    define: { 'process.env.NODE_ENV': '"production"' },
-  });
-  const quiz = parseSharedQuiz(
-    JSON.stringify({
-      version: 1,
-      repository: 'example/fixture',
-      revision: 'a'.repeat(40),
-      questions: [{ prompt: 'What prevents a duplicate?', explanation: 'A recorded event ID.' }],
-    })
-  );
-  const requests: string[] = [];
-  await page.route('https://quiz.example/**', async (route) => {
-    requests.push(route.request().url());
-    await route.fulfill({
-      contentType: 'text/html',
-      body: '<html><body><div id="root"></div></body></html>',
-    });
-  });
-  await page.goto(sharedQuizURL(quiz).replace('https://gitshaman.com', 'https://quiz.example'));
-  await page.addScriptTag({
-    content: bundle.outputFiles.find((file) => file.path.endsWith('.js'))!.text,
-  });
-  const panel = page.getByRole('region', { name: 'Repository quiz' });
-  await expect(panel).toContainText('What prevents a duplicate?');
-  await expect(panel).not.toContainText('A recorded event ID.');
-  await panel.getByLabel('Your reasoning').fill('My private practice reasoning');
-  await panel.getByRole('button', { name: 'Show explanation' }).click();
-  await expect(panel).toContainText('A recorded event ID.');
-  await expect(panel).toContainText('Practice complete.');
-  const downloadPromise = page.waitForEvent('download');
-  await panel.getByRole('button', { name: 'Download for Anki' }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('gitshaman-quiz-anki.txt');
-  const content = fs.readFileSync((await download.path())!, 'utf8');
-  expect(content).toContain('What prevents a duplicate?\tA recorded event ID.');
-  expect(content).not.toContain('My private practice reasoning');
-  // The regular website entry also supports importing and exporting without a shared URL.
-  await page.goto('https://quiz.example/example/fixture');
-  await page.addScriptTag({
-    content: bundle.outputFiles.find((file) => file.path.endsWith('.js'))!.text,
-  });
-  await expect(panel).toContainText('Practice and study offline');
-  await panel.getByLabel('Import practice quiz').setInputFiles({
-    name: 'practice.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(quiz)),
-  });
-  const importedDownloadPromise = page.waitForEvent('download');
-  await panel.getByRole('button', { name: 'Download for Anki' }).click();
-  const importedDownload = await importedDownloadPromise;
-  expect(fs.readFileSync((await importedDownload.path())!, 'utf8')).toBe(content);
-  expect(requests).toHaveLength(2);
 });
 test('shared repository interface, local search, entities, theme, and stale state', async ({
   page,

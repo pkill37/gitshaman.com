@@ -50,3 +50,16 @@ test.describe('curated repo routes', () => {
     expect(resolveCuratedRepoRoute(['unknown', 'repo'])).toBeNull();
   });
 });
+
+test('GCC exposes its pinned guide and compiler entry point', async ({ page }) => {
+  await page.goto('/gcc-compiler?file=gcc/main.cc&line=34');
+  await expect(page.locator('[data-guide-markdown]').first()).toContainText(
+    'The program named gcc is a driver.',
+    { timeout: 30000 }
+  );
+  await expect(
+    page.getByRole('code').getByText('main (int argc, char **argv)', { exact: true })
+  ).toBeVisible({
+    timeout: 30000,
+  });
+});

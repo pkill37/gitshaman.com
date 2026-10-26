@@ -65,17 +65,14 @@ enrichment.
 | `gitshaman verify`        | Check packaged assets, SQLite indexes, and embedding compatibility.                  |
 | `gitshaman checksum`      | Refresh observed source checksums.                                                   |
 | `gitshaman share`         | Contribute a public commit to the curated collection through a GitHub PR.            |
-| `gitshaman quiz`          | Open the Quiz workspace for Sphinx understanding checks and shared practice.         |
 
-All commands accept `--repo <directory>` and `--help`; `--json` is available except for quiz hook
-installation and removal. Analysis reads the working tree
+All commands accept `--repo <directory>` and `--help`; `--json` is also available. Analysis reads the working tree
 by default; use `--committed` to analyze `HEAD`, `--no-embed` to skip embeddings, or `--force`
 to rebuild. Run `analyze` again after source changes. `viz` binds to `127.0.0.1` on an available
 port; use `--port 3001` to select a port or `--no-open` to print the URL without opening a browser.
 The local viz uses the same repository interface as gitshaman.com: editor, indexed file search,
 entities, guides, themes, and status bar. Files and indexes load from the authenticated local
-server. Public discussions and source-file link sharing are unavailable for local repositories;
-practice quizzes can be exported separately from the Quiz panel.
+server. Public discussions and source-file link sharing are unavailable for local repositories.
 Stop the server with Ctrl+C. MCP support is deferred.
 
 ### Embeddings
@@ -105,61 +102,6 @@ set `embeddings.provider` to `openrouter`, configure `endpoint` and `model`, and
 to the name of an environment variable containing the API key. With OpenRouter configured,
 source chunks are sent to that provider when embeddings run. Keep credentials in the environment.
 Embedding-based search also sends the search query to the configured provider to generate its vector.
-
-### Quiz: understand and share the change
-
-The Quiz view uses the same repository workspace, editor, and themes locally and on gitshaman.com.
-Local understanding checks use [Sphinx](https://sphinx-six-theta.vercel.app/), an independent
-reviewer that asks about the behavior of your changes. Install its CLI separately, then choose
-a reviewer and create repository policy:
-
-```bash
-npm install -g sphinx-understand
-
-# Opt-in Sphinx setup: configures machine-wide Git hooks and a reviewer.
-# Existing hooks are chained; this command skips coding-agent integration.
-gitshaman quiz install-hooks
-gitshaman quiz init
-
-# After gitshaman init and analyze, open Quiz alongside the source editor.
-gitshaman quiz
-gitshaman quiz --staged
-```
-
-Select **Start or resume quiz**, write your prediction, and check your answer. Sphinx provides
-feedback and follow-up scenarios. Its reviewer settings and credentials are separate from
-GitShaman embeddings; the reviewer receives changed code and your answers. Review `.sphinxignore`
-and `.sphinxcontext.md` when configuring the repository.
-
-`gitshaman quiz check` runs a terminal interview without requiring GitShaman analysis.
-`gitshaman quiz --json` uses Sphinx's JSON protocol. `quiz status` and `quiz doctor` inspect setup.
-Browser mode accepts `--port` and `--no-open`, like `viz`.
-
-Sphinx hooks trigger checks according to `.sphinxconfig` (for example, `pre-push` or `pre-commit`).
-The hook uses Sphinx's questionnaire; open GitShaman's Quiz view and resume the pending assessment
-to answer alongside the code. A passing assessment is recorded by Sphinx for the waiting hook.
-`gitshaman quiz install-hooks --local` repairs repository hook coverage when a custom
-`core.hooksPath` overrides the machine-wide installation. Remove that integration with
-`gitshaman quiz uninstall-hooks --local`; without `--local`, removal is machine-wide.
-See the [Sphinx integration documentation](https://github.com/parthh01/sphinx/blob/main/docs/integrations.md)
-for hook behavior, agent integration, and configuration.
-
-Use **Copy practice link** or **Download practice quiz** to share questions and explanations.
-For local quizzes, confirm the public GitHub repository and commit before copying a link.
-Commit and publish staged changes first, then select the commit containing the behavior.
-The link opens
-the Quiz view on gitshaman.com; JSON files can be imported in either workspace. Sharing is explicit
-and excludes personal answers, model credentials, and local assessment IDs. Questions and
-explanations may describe your code, so review them before sharing. Practice runs in the browser
-without a model account and does not count as passing a Sphinx Git checkpoint. Curated source
-views use their pinned revision; each practice quiz records the commit it refers to.
-
-On gitshaman.com, open a repository and select **Quiz** in the activity bar. Open a shared
-practice link or use **Import practice quiz** to load a quiz JSON file, then choose
-**Download for Anki**. The full set exports as a UTF-8 text file with questions on the front
-and explanations on the back. In Anki, use **File → Import**, select the **Basic** note type
-and your deck, and map **Front** and **Back**. Export runs in your browser without a model
-account and excludes your practice answers.
 
 ### Share a public repository
 
@@ -235,8 +177,8 @@ npm test
 The command runs Node tests followed by Playwright in Chromium, Firefox, and mobile Chromium.
 Its preparation step builds the CLI and bundled workspace. To run only CLI checks, use
 `npm run test:cli`, which builds the package and runs CLI Node and workspace browser tests.
-This includes command subprocesses, analysis and retrieval, Sphinx requests, failure cleanup,
-and the shared Quiz UI. Run `npm run test:cli:coverage` for source-level CLI line, branch, and
+This includes command subprocesses, analysis and retrieval, failure cleanup,
+and the shared workspace UI. Run `npm run test:cli:coverage` for source-level CLI line, branch, and
 function coverage from the Node suites; browser tests run separately under `test:cli`.
 Playwright loads `.env.local` with Next.js environment loading, prepares local assets, and starts a
 development server automatically. Browser test reports and failure artifacts are written under `out/`.
@@ -296,10 +238,6 @@ To use the URL-hacking workflow, replace `github.com` with `gitshaman.com` in a 
 
 For curated repositories, GitShaman does expensive source analysis before deployment. Visitors download prebuilt snapshots and
 SQLite indexes; the application does not launch a language server for each session.
-
-Local Quiz checks call Sphinx through the CLI's authenticated server. Shared practice carries
-questions and available explanations in a URL fragment or JSON file and runs entirely in the
-browser; the static website does not hold reviewer credentials or grade Sphinx checkpoints.
 
 ### Build and corpus pipeline
 

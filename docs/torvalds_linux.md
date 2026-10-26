@@ -112,7 +112,7 @@ fileRecommendations:
     - path: mm/mmap.c:do_mmap
       description: Virtual memory area management — mmap() implementation
       type: source
-    - path: mm/page_alloc.c:__alloc_pages_nodemask
+    - path: mm/page_alloc.c:__alloc_pages
       description: Buddy allocator — physical page allocation
       type: source
     - path: fs/namei.c:path_lookupat
@@ -123,13 +123,13 @@ fileRecommendations:
       type: source
 ---
 
-Subsystems interact through narrow handoff points:
+For an ordinary buffered regular-file read, subsystem handoffs can follow this route. Pipes, sockets, devices, direct I/O, cache hits, and filesystem choices can take different paths:
 
 - A `read(2)` syscall enters through [`arch/arm64/kernel/entry-common.c:el0t_64_sync_handler`](arch/arm64/kernel/entry-common.c:el0t_64_sync_handler).
 - It dispatches into [`fs/read_write.c:vfs_read`](fs/read_write.c:vfs_read).
 - The VFS calls the filesystem's `->read_iter()` hook in the filesystem operation area of [`include/linux/fs.h:file_operations`](include/linux/fs.h:file_operations).
 - The request hits the page cache in [`mm/filemap.c:generic_file_read_iter`](mm/filemap.c:generic_file_read_iter).
-- On a cache miss, block I/O flows through [`block/bio.c:submit_bio_noacct`](block/bio.c:submit_bio_noacct) to a driver.
+- On a cache miss, block I/O flows through [`block/blk-core.c:submit_bio_noacct`](block/blk-core.c:submit_bio_noacct) to a driver.
 
 ---
 id: ch3
@@ -154,7 +154,7 @@ fileRecommendations:
     - path: mm/mmap.c:do_mmap
       description: mmap() implementation — VMA creation and management
       type: source
-    - path: mm/page_alloc.c:__alloc_pages_nodemask
+    - path: mm/page_alloc.c:__alloc_pages
       description: Physical page allocator — buddy system
       type: source
     - path: include/linux/mm_types.h:mm_struct
@@ -164,11 +164,17 @@ fileRecommendations:
 
 The kernel doesn't view memory as a flat map — it tracks it as a responsibility. Every byte of physical RAM is represented by a `struct page`. Every range of a process's virtual address space is a `struct vm_area_struct` (VMA). The process as a whole carries a `struct mm_struct` linking them together.
 
-Physical memory is organized into NUMA nodes → zones → page blocks → pages. The buddy allocator ([`mm/page_alloc.c:__alloc_pages_nodemask`](mm/page_alloc.c:__alloc_pages_nodemask)) satisfies page-granularity requests, splitting and coalescing power-of-two blocks to fight fragmentation. Smaller allocations go through SLUB ([`mm/slub.c:kmem_cache_alloc`](mm/slub.c:kmem_cache_alloc)), which maintains per-CPU caches of fixed-size objects.
+Physical memory is organized into NUMA nodes → zones → page blocks → pages. The buddy allocator ([`mm/page_alloc.c:__alloc_pages`](mm/page_alloc.c:__alloc_pages)) satisfies page-granularity requests, splitting and coalescing power-of-two blocks to fight fragmentation. Smaller allocations go through SLUB ([`mm/slub.c:kmem_cache_alloc`](mm/slub.c:kmem_cache_alloc)), which maintains per-CPU caches of fixed-size objects.
 
 Virtual memory is populated on demand. [`mmap(2)`](mmap(2)) creates a mapping and returns its virtual address; for an ordinary anonymous or file mapping, physical pages may be supplied later as accesses trigger page faults. The fault handler ([`arch/arm64/mm/fault.c:do_mem_abort`](arch/arm64/mm/fault.c:do_mem_abort)) checks permissions, obtains or reads a page, and installs a PTE. `MAP_PRIVATE` makes writes private through copy-on-write, while `MAP_SHARED` makes suitable writes visible through the shared mapping. Copy-on-write for [`fork(2)`](fork(2)) uses the same mechanism: child and parent initially refer to shared pages that are made read-only, and a write fault creates a private copy.
 
 Isolation is enforced structurally. Each process has its own `mm_struct` and its own page tables. The kernel is mapped into every process's address space at high virtual addresses, but those pages carry supervisor-only PTEs — inaccessible from ring 3. The canonical arm64 layout is documented in [`Documentation/arm64/memory.rst#Memory+Layout`](Documentation/arm64/memory.rst#Memory+Layout).
+
+### Android Binder is a driver-managed mapping example
+
+To distinguish a mapping from an allocator request, start at [LineageOS ProcessState](repo:LineageOS/android/frameworks/native/libs/binder/ProcessState.cpp). It maps the Binder device's receive-buffer range. Follow [binder_mmap](drivers/android/binder.c:binder_mmap) into [binder_alloc_mmap_handler](drivers/android/binder_alloc.c:binder_alloc_mmap_handler) to inspect how this driver initializes its userspace range. It has different responsibilities from an anonymous heap mapping.
+
+Return to [GrapheneOS's allocator integration](repo:GrapheneOS/platform_manifest/bionic/libc/bionic/malloc_common.cpp) or [ART's heap configuration](repo:LineageOS/android/art/runtime/gc/heap.cc) for allocation policy above the kernel. A mapping address, a Python or Java object, and an allocator-owned block are different units. The Android device's actual kernel can differ from this Linux 6.1 baseline.
 
 ---
 id: ch4
@@ -211,7 +217,13 @@ Before PID 1 exists, the boot CPU is already executing as the statically allocat
 
 The last act of [`start_kernel()`](init/main.c:start_kernel) is [`rest_init()`](init/main.c:rest_init). It first creates PID 1 running `kernel_init()` so that init obtains the reserved process ID, then creates PID 2 running [`kthreadd`](kernel/kthread.c:kthreadd), the daemon that creates and manages later kernel threads. PID 1 mounts the root filesystem, executes the init binary (`/sbin/init` or systemd), and becomes the first userspace process. The original boot task then calls `schedule_preempt_disabled()` and enters the CPU idle loop.
 
-Running ./hello from a shell involves the shell calling [`execve(2)`](execve(2)), which reaches [`fs/exec.c:do_execveat_common`](fs/exec.c:do_execveat_common). On success, `execve()` does **not** return: it replaces the calling process's program image, maps the new ELF segments, constructs the initial stack with `argv`/`envp`, and starts execution at the ELF entry point (`_start`), not `main()`. Process identity and attributes such as the PID survive the replacement, while memory mappings are discarded and file descriptors marked close-on-exec are closed. From `_start`, glibc's [`__libc_start_main`](repo:bminor/glibc/csu/libc-start.c:__libc_start_main) performs user-space startup before calling `main()`.
+Running ./hello from a shell involves the shell calling [`execve(2)`](execve(2)), which reaches [`fs/exec.c:do_execveat_common`](fs/exec.c:do_execveat_common). On success, `execve()` does **not** return: it replaces the calling process's program image, maps the new ELF segments, constructs the initial stack with `argv`/`envp`, and sets up the initial user-space entry. For a dynamically linked ELF executable with PT_INTERP, [load_elf_binary](fs/binfmt_elf.c:load_elf_binary) also maps the ELF interpreter and enters its entry point. With glibc, [the dynamic loader](repo:bminor/glibc/elf/rtld.c:_dl_start) prepares shared dependencies and relocations before transferring to the application's startup entry (`_start` on the example ABI). Static executables and static PIE follow different startup paths. Process identity and attributes such as the PID survive the replacement, while memory mappings are discarded and file descriptors marked close-on-exec are closed. From `_start`, glibc's [`__libc_start_main`](repo:bminor/glibc/csu/libc-start.c:__libc_start_main) performs user-space startup before calling `main()`. For a Unix CPython executable, [Programs/python.c](repo:python/cpython/Programs/python.c:main) supplies main and calls [Py_BytesMain](repo:python/cpython/Modules/main.c:Py_BytesMain). Importing an extension later can invoke [dlopen](repo:python/cpython/Python/dynload_shlib.c:_PyImport_FindSharedFuncptr) inside that existing process; it does not repeat execve.
+
+### Compare Linux PID 1 with Android init
+
+[LineageOS init main](repo:LineageOS/android/system/core/init/main.cpp:main) and [GrapheneOS init main](repo:GrapheneOS/platform_manifest/system/core/init/main.cpp:main) are userspace Android startup code, separate from Linux's kernel initialization functions. Their [service configuration](repo:LineageOS/android/system/core/rootdir/init.rc) expresses Android actions and services; the Linux kernel does not parse that file.
+
+Continue through [app_process](repo:LineageOS/android/frameworks/base/cmds/app_process/app_main.cpp:main) into [ZygoteInit](repo:LineageOS/android/frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:forkSystemServer) and [SystemServer startup](repo:LineageOS/android/frameworks/base/services/java/com/android/server/SystemServer.java:startBootstrapServices). This links the generic kernel task and executable-loading concepts to the Android processes that ultimately start applications and SystemUI. Use the manifest-selected device kernel when reproducing a particular boot.
 
 ---
 id: ch5
@@ -233,7 +245,7 @@ fileRecommendations:
     - path: arch/arm64/kernel/entry-common.c:el0t_64_sync_handler
       description: Syscall entry — where user space crosses into the kernel
       type: source
-    - path: kernel/sys.c:ksys_sync
+    - path: fs/sync.c:ksys_sync
       description: Generic system call implementations
       type: source
     - path: include/uapi/asm-generic/unistd.h:__NR_read
@@ -291,6 +303,12 @@ The CFS scheduler tracks each task's **virtual runtime** — actual CPU time wei
 
 Interrupt context is categorically different: assume no sleeping [`current` task](arch/arm64/include/asm/current.h:current), never block, and bound the work done in the handler. Work that needs to block is deferred — softirqs can run on the return path after the IRQ handler returns; workqueues run later in dedicated kernel threads with full process context.
 
+### Use Zygote to compare fork with fork-and-exec
+
+[LineageOS's native Zygote implementation](repo:LineageOS/android/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp:ForkCommon) supplies an Android example of process creation. Read it alongside [kernel_clone](kernel/fork.c:kernel_clone), then examine [GrapheneOS's Zygote dispatch](repo:GrapheneOS/platform_manifest/frameworks/base/core/java/com/android/internal/os/ZygoteConnection.java:L276) and [native fork-and-exec entry](repo:GrapheneOS/platform_manifest/frameworks/base/core/jni/com_android_internal_os_Zygote.cpp:com_android_internal_os_Zygote_nativeForkExec).
+
+Creating a child and replacing its program image are separate operations; [do_execveat_common](fs/exec.c:do_execveat_common) explains the latter. Android decides the launch policy and prepares process state, while the kernel implements the creation and replacement mechanisms. GrapheneOS-specific kernel extensions need the matching device sources; the stock kernel guide alone cannot establish the full behavior of that launch path.
+
 ---
 id: ch7
 title: Chapter 7 — Communication and Cooperation
@@ -314,21 +332,38 @@ fileRecommendations:
     - path: kernel/signal.c:do_send_sig_info
       description: Signal generation, queueing, and delivery
       type: source
-    - path: kernel/futex/core.c:futex_wait
+    - path: kernel/futex/waitwake.c:futex_wait
       description: Fast userspace mutex — kernel-side wait/wake implementation
       type: source
     - path: kernel/sched/wait.c:prepare_to_wait_event
       description: Wait queues — the general sleep-until-event mechanism
       type: source
+    - path: drivers/android/binder.c:binder_ioctl_write_read
+      description: Binder ioctl transport beneath Android framework calls
+      type: source
+    - path: security/selinux/hooks.c:selinux_binder_transaction
+      description: SELinux transaction hook beneath Android service authorization
+      type: source
+    - path: repo:LineageOS/android/frameworks/native/libs/binder/IPCThreadState.cpp:talkWithDriver
+      description: Android native client issuing the Binder ioctl
+      type: source
 ---
 
-Signals are the kernel's oldest delivery mechanism. [`kill(2)`](kill(2)) requests delivery to a process or thread, and the kernel records pending signal state. Delivery happens when the target thread returns toward user mode and the signal is not blocked: [`arch/arm64/kernel/entry.S:exit_to_user_mode_prepare`](arch/arm64/kernel/entry.S:exit_to_user_mode_prepare) checks `TIF_SIGPENDING`, and the kernel either applies the default action, ignores the signal, or builds a user-space handler frame. Signal handlers run in user space and return through a signal-return system call such as [`rt_sigreturn(2)`](rt_sigreturn(2)). Each thread has its own signal mask, while process-directed signals may be delivered to an eligible thread; this is why “send” and “handle” are separate steps.
+Signals are the kernel's oldest delivery mechanism. [`kill(2)`](kill(2)) requests delivery to a process or thread, and the kernel records pending signal state. Delivery happens when the target thread returns toward user mode and the signal is not blocked: [`arch/arm64/kernel/signal.c:do_notify_resume`](arch/arm64/kernel/signal.c:do_notify_resume) checks `TIF_SIGPENDING`, and the kernel either applies the default action, ignores the signal, or builds a user-space handler frame. Signal handlers run in user space and return through a signal-return system call such as [`rt_sigreturn(2)`](rt_sigreturn(2)). Each thread has its own signal mask, while process-directed signals may be delivered to an eligible thread; this is why “send” and “handle” are separate steps.
 
-User-space mutexes are commonly built on **futexes** (fast userspace locking). A futex is a 32-bit word in user memory. User space performs the uncontended atomic state transition itself; only when it must wait or wake does [`futex(2)`](futex(2)) enter the kernel, at [`kernel/futex/core.c:futex_wait`](kernel/futex/core.c:futex_wait). The wait operation compares the word with an expected value and blocks only if it still matches, closing the race between “check the lock” and “go to sleep.” Threads can share a futex in their address space; separate processes can do so by placing it in shared memory such as a `MAP_SHARED` mapping. The system call provides a coordination point, not the mutex algorithm by itself.
+User-space mutexes are commonly built on **futexes** (fast userspace locking). A futex is a 32-bit word in user memory. User space performs the uncontended atomic state transition itself; only when it must wait or wake does [`futex(2)`](futex(2)) enter the kernel, at [`kernel/futex/waitwake.c:futex_wait`](kernel/futex/waitwake.c:futex_wait). The wait operation compares the word with an expected value and blocks only if it still matches, closing the race between “check the lock” and “go to sleep.” Threads can share a futex in their address space; separate processes can do so by placing it in shared memory such as a `MAP_SHARED` mapping. The system call provides a coordination point, not the mutex algorithm by itself.
 
 Wait queues ([`kernel/sched/wait.c:prepare_to_wait_event`](kernel/sched/wait.c:prepare_to_wait_event)) are the general sleep mechanism inside the kernel. A subsystem declares a `wait_queue_head_t`; a task calls `wait_event()` to sleep until a condition is true; another path calls `wake_up()` to wake waiters. Block I/O completion, network data arrival, and pipe writes all follow this pattern.
 
 The modern kernel provides distinct user-space communication channels: `/proc` exposes per-process and system state as a synthetic filesystem; `ioctl` is a device-specific escape hatch; `mmap` creates shared memory regions without copying; eBPF lets user space attach verified programs to thousands of kernel tracepoints and hooks, without loading a kernel module.
+
+### Worked bridge: Android Binder and kernel SELinux
+
+[GrapheneOS's Binder client](repo:GrapheneOS/platform_manifest/frameworks/native/libs/binder/IPCThreadState.cpp:talkWithDriver) and [LineageOS's client](repo:LineageOS/android/frameworks/native/libs/binder/IPCThreadState.cpp:talkWithDriver) issue BINDER_WRITE_READ ioctl requests. Match the structures in [the Binder UAPI](include/uapi/linux/android/binder.h), then follow [binder_ioctl](drivers/android/binder.c:binder_ioctl) → [binder_ioctl_write_read](drivers/android/binder.c:binder_ioctl_write_read) → write-command processing and [binder_transaction](drivers/android/binder.c:binder_transaction). A single ioctl can exchange a stream of commands; it does not necessarily represent one application method call.
+
+The driver invokes security hooks as part of transaction handling. [selinux_binder_transaction](security/selinux/hooks.c:selinux_binder_transaction) calls [AVC permission machinery](security/selinux/avc.c:avc_has_perm). Compare that kernel decision with [GrapheneOS package-state authorization](repo:GrapheneOS/platform_manifest/frameworks/base/services/core/java/com/android/server/pm/GosPackageStatePermissions.java) or [LineageOS's preference write](repo:LineageOS/android/packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange). Driver transport checks and service-specific operation checks protect different boundaries.
+
+For another kernel/userspace split, follow [Bionic's mutex code](repo:LineageOS/android/bionic/libc/bionic/pthread_mutex.cpp:pthread_mutex_lock) to its wait helper and back to [futex_wait](kernel/futex/waitwake.c:futex_wait). Android's synchronization library defines the mutex behavior above the kernel primitive. These source pairs illustrate interfaces; they do not assert that the Android snapshots ship this exact Linux release.
 
 ---
 id: ch8
@@ -371,6 +406,10 @@ I/O in the kernel is layered. A [`read(2)`](read(2)) on a regular file may find 
 Scheduling and I/O interact constantly: a task blocked on I/O sits in `TASK_INTERRUPTIBLE`, removed from the CFS run queues. When the I/O completes the interrupt handler calls [`wake_up()`](kernel/sched/wait.c:wake_up), the task moves to `TASK_RUNNING`, and CFS will schedule it at its next opportunity.
 
 KVM turns Linux into a Type-1 hypervisor. In VMX root mode the host kernel manages guest CPU state (`struct kvm_vcpu`). When the guest executes a privileged instruction the CPU performs a VMEXIT, saving all guest registers. KVM inspects the exit reason, emulates or delegates to user-space QEMU, and resumes the guest with `VMRESUME` — all transparent to the guest OS.
+
+### Continue a graphics ownership question into Android
+
+[DMA-buffer export](drivers/dma-buf/dma-buf.c:dma_buf_export) and [mapping](drivers/dma-buf/dma-buf.c:dma_buf_mmap) introduce a kernel interface for shared device buffers. Compare the ownership concepts with [LineageOS BufferQueueProducer](repo:LineageOS/android/frameworks/native/libs/gui/BufferQueueProducer.cpp) and [GrapheneOS SurfaceFlinger](repo:GrapheneOS/platform_manifest/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp). The comparison identifies layers to investigate; the HAL and device driver determine the actual buffer path, so a shared-buffer concept is not proof of a direct call between these files.
 
 ---
 id: ch10

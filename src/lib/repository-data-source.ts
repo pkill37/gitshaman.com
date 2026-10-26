@@ -2,7 +2,6 @@ import type { AndroidWorkspaceSource } from './android/source';
 import type { FileNode } from '@/types';
 import type { LoadedCodeIndex } from './code-index';
 import type { FileFetchResult } from './file-fetch-debug';
-import type { QuizRequest, QuizSession } from './quiz';
 
 /** Optional host-provided data for the shared repository interface. */
 export interface RepositoryDataSource {
@@ -13,9 +12,6 @@ export interface RepositoryDataSource {
   tree(): Promise<FileNode[]>;
   file(path: string, signal?: AbortSignal): Promise<FileFetchResult>;
   index(): Promise<LoadedCodeIndex>;
-  quiz?(request: QuizRequest, signal?: AbortSignal): Promise<QuizSession>;
-  quizRepository?: string;
-  quizRevision?: string;
 }
 
 let source: RepositoryDataSource | undefined;

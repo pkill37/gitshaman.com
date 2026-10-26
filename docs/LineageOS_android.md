@@ -20,262 +20,306 @@ defaultOpenIds:
 
 # LineageOS Source In The Mind
 
-Read LineageOS as a composed Android platform: a manifest selects projects, product configuration selects artifacts, and processes cooperate through framework APIs and native services. This guide follows concrete implementation paths through the manifest-derived core source snapshot.
+LineageOS combines shared Android projects with its product configuration, SDK, services, and applications. This guide follows PIN-layout scrambling as a worked example: a Settings controller writes a per-user value, a separately identified provider checks access, and SystemUI rearranges its keypad. The other chapters explain how that feature fits into the build and running platform.
 
-Use Source for checkout-relative links below and Manifest for project selection. The switch sits at the bottom of the explorer. Each source file exposes its project owner and pinned upstream commit. The coverage disclosure lists the hosted projects; kernels, device trees, prebuilts, and other manifest projects remain outside this reading subset. Search can be restricted to a project. Reference results are text occurrences, with heuristic Java, Kotlin, and AIDL type lookup rather than a complete compiler-resolved call graph. Large files may be truncated in the hosted view; use the upstream link for complete implementations.
+The source tour is pinned to the manifest and hosted project commits shown in provenance. Linux links use the separate Linux 6.1 guide as a subsystem baseline; they do not identify the kernel shipped by every LineageOS device. Use the selected device kernel and configuration to establish that boundary in a build. It covers core Android projects and vendor/lineage, not every SDK, device, kernel, vendor, or prebuilt component. Chapter 8 marks the SDK boundary and supplies separately pinned upstream links instead of pretending the provider is hosted locally.
 
-Start with setup and the build graph, follow boot into services, then trace one visible Settings feature through IPC and authorization. Compare distributions at the same source entry point after understanding that shared AOSP structure.
+Source opens checkout-relative paths; Manifest opens source-composition files. The editor displays complete eligible text files up to 2 MiB, while symbol indexing examines only their first 64 KiB and text search keeps a shorter prefix of at most 16,384 characters from that input. Methods visible later in a file may not appear in search. Use the method and line links below, and follow upstream provenance for files omitted by the hosting limit. Reference results are bounded text occurrences and heuristic type matches, rather than proven execution paths.
 
 ---
 id: ch1
-title: Chapter 1 — From Manifest to a Reproducible Workspace
+title: Chapter 1 — Assemble and Record a LineageOS Checkout
 fileRecommendations:
   readingOrder:
-    - path: default.xml
-      description: Resolve project paths, remotes, revisions, and included manifests
-      type: source
     - path: README.mkdn
-      description: Pinned checkout and sync instructions
+      description: Pinned branch and Git LFS setup instructions
       type: docs
-    - path: build/make/envsetup.sh
-      description: Shell entry points for selecting and building a product
+    - path: default.xml
+      description: GitHub default branch and AOSP remote revision
       type: source
-    - path: build/make/core/product.mk
-      description: Product configuration loading and inheritance
+    - path: snippets/lineage.xml
+      description: Included LineageOS SDK, apps, and distribution projects
+      type: source
+    - path: build/make/envsetup.sh:lunch
+      description: Product, release, and variant selection
       type: source
 ---
 
-A manifest project has two identities: its remote repository name and its destination path in the checkout. Follow [the manifest](default.xml) from remote definitions to the default revision and then individual projects. An explicit project revision overrides the default; included manifests can add more selections. The branch name alone does not freeze every repository. Record resolved commits when comparing builds.
+LineageOS's [default manifest](default.xml) combines a GitHub default revision of lineage-24.0 with an AOSP remote pinned to `android-17.0.0_r1`. Revision precedence is project override, selected remote revision, then default revision. Thus frameworks/base inherits the LineageOS branch, while build/blueprint selects the AOSP remote's Android tag. Ignoring the remote revision would misidentify part of the checkout.
 
-The pinned [LineageOS README](README.mkdn) initializes Repo with branch lineage-24.0 and Git LFS, then syncs the project set. Follow its [device build instructions](https://wiki.lineageos.org/devices/) for the chosen hardware. Use [AOSP setup](https://source.android.com/docs/setup/start) for shared Repo terminology; preserve the distribution-specific manifest and branch when following it.
+The main manifest [includes the distribution fragment](snippets/lineage.xml). That fragment adds the Lineage SDK and other product projects to the selected source graph. A local manifest is a separate Repo mechanism that can further alter a checkout. Distinguish included distribution fragments from changes made by a device builder.
 
-For local work, prepare the host using the distribution's build instructions, initialize Repo with the intended release, and sync the complete tree. A Git clone of this manifest does not fetch the operating system. The hosted core snapshot is a reading environment; device support, kernels, toolchains, and proprietary vendor inputs still belong to a full build checkout.
+The [pinned README](README.mkdn) supplies this development workflow. Run it in a fresh directory after installing the host prerequisites from the [device build guide](https://wiki.lineageos.org/devices/):
 
-Open [envsetup](build/make/envsetup.sh) to locate `lunch` and `m`, then [product configuration](build/make/core/product.mk) to understand what a selected target inherits. Sourcing envsetup changes the current shell; selecting a product determines the configuration that later build commands consume. Keep the release, device, and build variant together in your notes before diagnosing compilation or runtime behavior.
+```sh
+repo init -u https://github.com/LineageOS/android.git -b lineage-24.0 --git-lfs
+repo sync
+repo manifest -r -o resolved-manifest.xml
+source build/envsetup.sh
+lunch --help
+```
+
+The branch is movable. The resolved manifest records the commits actually fetched; preserve it with device configuration, proprietary inputs, and build settings. It does not automatically match the older GitShaman core snapshot, whose project commits are shown in file provenance. A manifest commit and a project branch name alone do not freeze a full device build.
+
+Select the target through the chosen device's instructions. This [envsetup implementation](build/make/envsetup.sh:lunch) takes product, release, and variant, with `trunk_staging` as the new-form release default. The GrapheneOS snapshot defaults differently; copying its target string or release assumption is not a substitute for selecting a LineageOS product.
 
 ---
 id: ch2
-title: Chapter 2 — Build Configuration Becomes Installed Modules
+title: Chapter 2 — Connect Product Packages to the Settings Module
 fileRecommendations:
   readingOrder:
-    - path: build/soong/README.md
-      description: Soong module definitions and build-system concepts
-      type: docs
-    - path: build/soong/root.bp
-      description: Top-level Blueprint configuration
+    - path: vendor/lineage/config/common.mk:L151
+      description: Common distribution apps and settings-provider package selection
       type: source
-    - path: build/make/core/main.mk
-      description: Make orchestration for the platform build
+    - path: packages/apps/Settings/Android.bp:L198
+      description: Settings build module and its privileges
       type: source
-    - path: packages/apps/Settings/Android.bp
-      description: A concrete application module and its dependencies
+    - path: build/make/core/product.mk:inherit-product
+      description: Product makefile inheritance
       type: source
-    - path: vendor/lineage/config/common.mk
-      description: Distribution product inheritance and package selections
+    - path: build/soong/android/module.go:InitAndroidModule
+      description: Shared Soong module infrastructure
       type: source
 ---
 
-Android's build graph answers a different question from its manifest. Repo decides which repositories exist; product configuration and module definitions decide which artifacts enter an image. A checked-out application is not automatically installed in every product.
+[Common product configuration](vendor/lineage/config/common.mk:L151) selects LineageParts and LineageSettingsProvider among its packages. This is an installed-artifact decision, separate from [the fragment](snippets/lineage.xml) that makes their source repositories available. A product must inherit the relevant configuration for its package list to apply; a file's presence in the tree does not prove that every target uses it.
 
-Start with [the Soong overview](build/soong/README.md) and [top-level Blueprint configuration](build/soong/root.bp). Then inspect [Settings' module definition](packages/apps/Settings/Android.bp): identify its module name, source inputs, libraries, resources, and platform integration. Trace any referenced module by name with project-scoped search. Read [Make's main orchestration](build/make/core/main.mk) alongside [product inheritance](build/make/core/product.mk) to see how older Make configuration and Soong coexist.
+Now inspect [Settings' Android.bp](packages/apps/Settings/Android.bp:L198). The app module is named Settings, uses platform APIs, and is privileged. Compare those build attributes with the permissions it requests in [its application manifest](packages/apps/Settings/AndroidManifest.xml). Privileged installation is not a blanket grant of all requested access.
 
-LineageOS adds another useful layer in [its common product configuration](vendor/lineage/config/common.mk). Follow the inherited configuration and package selections there, then return to the selected module's build definition. [Manifest snippets](snippets/) shape source composition; they are distinct from product makefiles that decide which modules enter a build.
+[Product inheritance](build/make/core/product.mk:inherit-product) explains how package lists accumulate. [Soong's module machinery](build/soong/android/module.go:InitAndroidModule) explains how module types fit into the build. The [top-level root.bp](build/soong/root.bp) explains automatic Blueprint discovery; it does not list the active build graph.
 
-As an exercise, distinguish three facts about Settings: where Repo places its source, which module builds the application, and which product configuration includes it. These are separate edges. When a source change does not affect an image, check product selection and installed-module configuration before assuming the compiler ignored the edit. Build commands and target names vary by release; inspect this snapshot's [envsetup implementation](build/make/envsetup.sh) rather than copying a target from another Android branch.
+After selecting the correct device target, `m Settings` builds the application module and dependencies. A change to PIN scrambling can also require framework/SystemUI or SDK/provider artifacts, depending on the edited layer. Map the files to their owning projects before assuming that rebuilding Settings alone updates the complete feature.
 
 ---
 id: ch3
-title: Chapter 3 — Boot from Init to Android Applications
+title: Chapter 3 — Trace Boot to SystemUI and the Lock Screen
 fileRecommendations:
   readingOrder:
-    - path: system/core/init/main.cpp
-      description: Native init entry point and boot-stage dispatch
+    - path: system/core/init/main.cpp:main
+      description: Init entry and stage dispatch
       type: source
-    - path: system/core/init/init.cpp
-      description: Second-stage init and event processing
+    - path: system/core/rootdir/init.zygote64.rc
+      description: A concrete Zygote service definition
       type: source
-    - path: system/core/rootdir/init.rc
-      description: Boot actions and imported service configuration
+    - path: frameworks/base/cmds/app_process/app_main.cpp:main
+      description: Native runtime entry
       type: source
-    - path: frameworks/base/core/java/com/android/internal/os/ZygoteInit.java
-      description: Managed process startup and system-server launch
+    - path: frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:forkSystemServer
+      description: Zygote starts system server
       type: source
-    - path: frameworks/base/services/java/com/android/server/SystemServer.java
-      description: Framework service initialization
+    - path: frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi
+      description: SystemUI startup request
       type: source
 ---
 
-Read boot as a sequence of processes gaining responsibilities. Begin at [init's native entry point](system/core/init/main.cpp), follow its stage dispatch into [second-stage init](system/core/init/init.cpp), and connect that execution to [the root init configuration](system/core/rootdir/init.rc). Actions respond to triggers; service declarations describe processes and their execution context. [Service management](system/core/init/service.cpp) and [property handling](system/core/init/property_service.cpp) explain two mechanisms used throughout startup.
+The lock screen is not drawn by the Settings application. Begin with [init](system/core/init/main.cpp:main) and [the root boot configuration](system/core/rootdir/init.rc), then inspect [a 64-bit Zygote service](system/core/rootdir/init.zygote64.rc). The device's Zygote property selects the actual imported configuration, so this example is not universal across all targets.
 
-Continue with [ZygoteInit](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java), which prepares the managed process environment and starts system server. Then inspect [SystemServer](frameworks/base/services/java/com/android/server/SystemServer.java): search for its bootstrap, core, and other service startup phases. Initialization order matters because later services depend on earlier facilities being available.
+The service executes [app_process](frameworks/base/cmds/app_process/app_main.cpp:main), which enters ZygoteInit. [forkSystemServer](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:forkSystemServer) leads to the framework's long-lived service process. Locate [startSystemUi](frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi) to see the request that starts SystemUI. Follow the package/component chosen there rather than assuming SystemUI runs inside system_server.
 
-For LineageOS, place distribution service additions on this startup spine before investigating their behavior. Product and device configuration can change the set of installed services, so compare an observed device boot against its selected build target rather than assuming every manifest project starts a process.
+For the PIN-scrambling case study, this establishes two UI owners: Settings writes the preference, while SystemUI displays the credential keypad. [KeyguardPinViewController.onViewAttached](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java:onViewAttached) reads the setting when its view attaches. [startAppearAnimation](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java:startAppearAnimation) reads it again as the keypad appears.
 
-For an application process, [ActivityThread](frameworks/base/core/java/android/app/ActivityThread.java) is another useful entry point. Follow application binding and the main message loop. Do not treat it as the launcher of every Android process: native daemons, Zygote, system server, and applications have different startup paths. A practical debugging map records the process, the init or framework entry point, and the first dependency that must be ready.
+These lifecycle reads are concrete update points. The inspected methods do not establish a continuous live subscription to every setting change. Keep that distinction when testing a preference while the lock-screen view already exists.
+
+### Separate Android startup policy from Linux process machinery
+
+[Android init's service setup](system/core/init/service.cpp:SetProcessAttributesAndCaps) prepares process attributes and capabilities for native services. Compare that userspace policy with [Linux credential handling](repo:torvalds/linux/kernel/cred.c:commit_creds) and [task creation](repo:torvalds/linux/kernel/fork.c:kernel_clone). A Linux task's UID and credentials are kernel state; which service should run with which identity comes from Android configuration and service code.
+
+For applications, follow [the native Zygote fork path](frameworks/base/core/jni/com_android_internal_os_Zygote.cpp:ForkCommon) toward the same Linux task machinery. SystemUI's lock-screen behavior remains userspace code after that process exists. Linux does not shuffle the PIN keypad or interpret the LineageSettings preference.
 
 ---
 id: ch4
-title: Chapter 4 — Binder Connects Clients to System Services
+title: Chapter 4 — Identify the IPC Contract behind a Preference
 fileRecommendations:
   readingOrder:
-    - path: frameworks/base/core/java/android/app/ContextImpl.java
-      description: Framework client access to system facilities
+    - path: frameworks/base/core/java/android/app/ContextImpl.java:getSystemService
+      description: Context lookup path
       type: source
-    - path: frameworks/base/core/java/android/os/IBinder.java
-      description: Java Binder interface contract
+    - path: frameworks/base/core/java/android/app/SystemServiceRegistry.java:getSystemService
+      description: Framework manager registry
       type: source
-    - path: frameworks/base/core/java/android/os/Binder.java
-      description: Java Binder endpoint and calling identity
+    - path: frameworks/base/core/java/android/content/ContentResolver.java:call
+      description: Content-provider call API
       type: source
-    - path: frameworks/native/libs/binder/IPCThreadState.cpp
-      description: Native Binder transaction handling
+    - path: packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange
+      description: Lineage setting submission
       type: source
-    - path: frameworks/native/cmds/servicemanager/main.cpp
-      description: Native service-manager startup
+    - path: frameworks/native/libs/binder/IPCThreadState.cpp:talkWithDriver
+      description: Native userspace Binder ioctl
+      type: source
+    - path: repo:torvalds/linux/drivers/android/binder.c:binder_ioctl_write_read
+      description: Kernel transport for Binder read/write requests
       type: source
 ---
 
-A manager object in an application and the service implementing its requests often live in different processes. Binder supplies the IPC boundary. Start at [ContextImpl](frameworks/base/core/java/android/app/ContextImpl.java), identify a system-service lookup, and distinguish the local API object from the remote service it reaches.
+A feature trace should name the interface that crosses a process boundary. [ContextImpl.getSystemService](frameworks/base/core/java/android/app/ContextImpl.java:getSystemService) delegates manager lookup to [SystemServiceRegistry](frameworks/base/core/java/android/app/SystemServiceRegistry.java:getSystemService). It does not imply that all settings are written through a manager returned by that registry.
 
-Read [IBinder](frameworks/base/core/java/android/os/IBinder.java) for the low-level Java contract and [Binder](frameworks/base/core/java/android/os/Binder.java) for endpoint behavior and caller identity. In [native transaction handling](frameworks/native/libs/binder/IPCThreadState.cpp), locate transaction submission and dispatch. [ProcessState](frameworks/native/libs/binder/ProcessState.cpp) manages process-wide Binder state, while [service-manager startup](frameworks/native/cmds/servicemanager/main.cpp) introduces the service registry. These files explain different parts of IPC; they are not a single direct call chain.
+The PIN-scrambling [preference callback](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange) instead uses LineageSettings.System.putInt with a ContentResolver. The Lineage SDK client converts that value to a per-user provider operation; the provider call is the relevant IPC contract. [ContentResolver.call](frameworks/base/core/java/android/content/ContentResolver.java:call) supplies the framework-facing API for provider-defined calls.
 
-For LineageOS extensions, establish whether a service belongs to the common Android framework or another project in [the manifest](default.xml). Shared Binder machinery still supplies transport, but the interface contract and permission checks belong to the service being called. An unhosted service needs an upstream source follow-up.
+The SDK client and provider live in the lineage-sdk project selected by [the included manifest](snippets/lineage.xml). They are outside the hosted core subset. Chapter 8 links a separately pinned upstream SDK revision to close that boundary explicitly. The local core lock covers a separate project set.
 
-For each service request, write down the client API, interface, server implementation, calling UID, and permission check. Search the interface name across framework and native projects. Generated AIDL glue may be produced during a full build, so a source search does not necessarily expose every intermediate method. Avoid equating a text reference with proof that a call executes: follow the implementation and the process boundary before drawing that conclusion.
+For Binder transport below the provider interface, read [Binder](frameworks/base/core/java/android/os/Binder.java) and [IPCThreadState](frameworks/native/libs/binder/IPCThreadState.cpp). Distinguish transport, provider permissions, and preference visibility. A UI controller being available does not establish that another caller can write the same setting.
+
+### Trace provider IPC below the Android API
+
+A content-provider call can cross processes over Binder. To inspect that transport, open [IPCThreadState.talkWithDriver](frameworks/native/libs/binder/IPCThreadState.cpp:talkWithDriver), locate its BINDER_WRITE_READ ioctl, and follow Linux [binder_ioctl_write_read](repo:torvalds/linux/drivers/android/binder.c:binder_ioctl_write_read) into [transaction processing](repo:torvalds/linux/drivers/android/binder.c:binder_transaction). Use [the Binder UAPI definitions](repo:torvalds/linux/include/uapi/linux/android/binder.h) to match the exchanged structures. Provider acquisition and caching can add other steps; a local call need not always cross a process boundary.
+
+The kernel driver does not interpret LOCKSCREEN_PIN_SCRAMBLE_LAYOUT. It transports Binder commands and objects; the SDK provider authorizes the write and stores the setting. Return to [the Settings preference callback](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange) after reading the kernel code to keep the transport and application contract connected.
 
 ---
 id: ch5
-title: Chapter 5 — ART, Java Libraries, and Native Memory
+title: Chapter 5 — Keep Runtime and Library Responsibilities Separate
 fileRecommendations:
   readingOrder:
     - path: art/runtime/runtime.cc
-      description: ART runtime creation and lifecycle
+      description: Runtime creation and initialization
       type: source
     - path: art/runtime/gc/heap.cc
-      description: Managed heap configuration and collection
+      description: Managed heap and collection configuration
       type: source
     - path: libcore/ojluni/src/main/java/java/lang/String.java
-      description: Core Java library implementation
+      description: Java library operations and runtime interaction
       type: source
     - path: bionic/libc/bionic/malloc_common.cpp
-      description: Native allocation dispatch and integration
+      description: Native allocation integration
       type: source
 ---
 
-Separate three layers that application code can cross. ART executes managed code and coordinates the managed heap. Libcore supplies Java library implementations. Bionic supplies Android's native C library interface. They work together, but a Java library change, a garbage-collector change, and a native allocator change have different owners and failure modes.
+LineageOS assembles ART, Libcore, and Bionic as separate manifest projects. Use their pinned commits to identify the runtime baseline before attributing a crash or performance change to a distribution customization. [Runtime initialization](art/runtime/runtime.cc) and [heap configuration](art/runtime/gc/heap.cc) govern managed execution; [String](libcore/ojluni/src/main/java/java/lang/String.java) is a Java library entry point; [malloc integration](bionic/libc/bionic/malloc_common.cpp) belongs to native memory handling.
 
-Open [ART's runtime lifecycle](art/runtime/runtime.cc), then [the managed heap](art/runtime/gc/heap.cc). Locate runtime initialization and heap configuration before following collection behavior. Use [String](libcore/ojluni/src/main/java/java/lang/String.java) as a concrete library entry point and inspect where operations rely on runtime support. Move to [Bionic allocation dispatch](bionic/libc/bionic/malloc_common.cpp) to see native allocation integration; dispatch code alone does not describe every allocator backend.
+The PIN layout's list shuffle is application-side Java behavior in SystemUI. Its existence does not imply a special garbage collector, allocator, or credential-storage format. Keep the feature's small view transformation separate from the platform runtime supporting the process.
 
-For LineageOS, compare runtime and library behavior only after recording the ART, Libcore, and Bionic revisions selected by [the manifest](default.xml). A difference from another distribution can come from an Android baseline update rather than a LineageOS customization. Keep that distinction explicit in any performance or compatibility hypothesis.
+For a broader memory investigation, first decide whether the failing resource is a managed object, native allocation, or another process's state. Then follow the corresponding project. Comparing only Settings or SystemUI cannot establish a runtime-library regression, and changing the compiler or runtime can affect code whose own source did not change.
 
-When investigating memory, first identify whether the allocation belongs to the managed heap, native code, or another process. A Java reference disappearing does not imply that all native resources held by an object have been released. For a useful reading exercise, compare the inputs to ART heap configuration with Bionic's allocation entry points and list which subsystem owns each decision. Use pinned upstream links to compare the same files across releases without confusing source selection with measured runtime behavior.
+Use [GrapheneOS's allocator-selection class](repo:GrapheneOS/platform_manifest/frameworks/base/core/java/android/ext/settings/app/AswUseHardenedMalloc.java) as a contrast in scope: that is explicit distribution configuration around native allocation. The LineageOS PIN example changes keypad presentation. Compare behavior at its actual layer instead of treating all platform patches as the same kind of modification.
+
+### Read Bionic against the Linux syscall boundary
+
+Android's native C library here is Bionic. [Its syscall description file](bionic/libc/SYSCALLS.TXT) distinguishes mmap-related entry points by ABI; generated stubs and architecture conventions connect them to the selected kernel. Compare [Linux do_mmap](repo:torvalds/linux/mm/mmap.c:do_mmap) with [handle_mm_fault](repo:torvalds/linux/mm/memory.c:handle_mm_fault) to distinguish creating virtual address ranges from populating ordinary mappings on access. ART's object and garbage-collection rules remain another layer above these interfaces.
+
+For synchronization, [Bionic's pthread mutex implementation](bionic/libc/bionic/pthread_mutex.cpp:pthread_mutex_lock) can use [its futex helper](bionic/libc/private/bionic_futex.h:__futex_wait_ex). Linux [futex_wait](repo:torvalds/linux/kernel/futex/waitwake.c:futex_wait) implements the wait-side primitive, not the whole pthread mutex algorithm. An uncontended userspace lock need not make a syscall. This is a concrete shared kernel interface despite Bionic and glibc having different userspace implementations.
 
 ---
 id: ch6
-title: Chapter 6 — Graphics and Media Have Their Own Service Boundaries
+title: Chapter 6 — Separate Keypad Presentation from Graphics and Media Services
 fileRecommendations:
   readingOrder:
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPINView.java:updatePinScrambling
+      description: View-level digit reassignment
+      type: source
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/NumPadKey.java:setDigit
+      description: Updates each key to its assigned digit
+      type: source
     - path: frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
-      description: Display composition service implementation
+      description: System display composition
       type: source
     - path: frameworks/av/media/libmediaplayerservice/MediaPlayerService.cpp
-      description: Media playback service implementation
-      type: source
-    - path: frameworks/base/core/java/android/app/ActivityThread.java
-      description: Application lifecycle and process-side execution
+      description: Playback service implementation
       type: source
 ---
 
-An application does not directly provide the complete display or media stack. Its process participates in a system assembled from framework APIs, IPC, native services, and hardware-specific components. Treat graphics composition and media playback as separate investigations with different buffers, services, and device dependencies.
+[updatePinScrambling](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPINView.java:updatePinScrambling) changes which digit is assigned to each existing keypad view. When scrambling is enabled it shuffles the numbers; when disabled after a state change it restores the default list. It finds the NumPadKey children and calls [setDigit](frameworks/base/packages/SystemUI/src/com/android/keyguard/NumPadKey.java:setDigit). The view's label and input behavior must agree on the assigned digit.
 
-Open [SurfaceFlinger](frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp), locate its initialization and service-facing methods, and identify the responsibilities around layers and display composition. Then open [MediaPlayerService](frameworks/av/media/libmediaplayerservice/MediaPlayerService.cpp) and follow client creation toward a playback implementation. These entry points introduce the hosted native services; they do not cover every codec, GPU driver, or vendor implementation.
+This is a view-level transformation. [SurfaceFlinger](frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp) composes display layers, but it does not choose the keypad's digit permutation. A wrong digit label should first send the investigation to KeyguardPINView and NumPadKey, while composition failures require a different trace through the rendering stack and device support.
 
-LineageOS device support can supply hardware components beyond these platform entry points. Use [the manifest](default.xml) and the [device build instructions](https://wiki.lineageos.org/devices/) to identify those dependencies. A platform source trace alone does not explain a device-specific display or codec result.
+[MediaPlayerService](frameworks/av/media/libmediaplayerservice/MediaPlayerService.cpp) is another native service with its own clients and playback implementations. Its presence in the same Android checkout does not make it part of this feature. Use it as a separate exercise in tracing a framework API to native service ownership.
 
-Return to [ActivityThread](frameworks/base/core/java/android/app/ActivityThread.java) to anchor the application's process and lifecycle, then use search to locate the relevant framework API and its native boundary. Record whether a failure occurs in the app, a platform service, or device-specific code. The core snapshot supports the first two parts of that map. Consult the manifest for the remaining project owners before attributing a display or media problem to a distribution patch.
+For device-specific display or playback defects, identify the target, component, and manifest project before comparing distribution code. The hosted native services cannot stand in for uninspected GPU drivers, codecs, or vendor hardware implementations.
+
+### Follow graphics buffer ownership to kernel interfaces
+
+[Android's BufferQueue producer](frameworks/native/libs/gui/BufferQueueProducer.cpp) introduces a buffer-ownership boundary below view code. For a separate kernel-side reading exercise, inspect [DMA-buffer export and sharing](repo:torvalds/linux/drivers/dma-buf/dma-buf.c:dma_buf_export) and [dma_buf_mmap](repo:torvalds/linux/drivers/dma-buf/dma-buf.c:dma_buf_mmap). These interfaces help explain buffer sharing between userspace and drivers.
+
+This is an ownership comparison, not a claim that every SurfaceFlinger operation directly calls dma_buf_mmap. The actual allocator, HAL, graphics driver, synchronization, and device configuration determine the path. A wrong PIN digit assignment belongs first to the SystemUI view trace; a buffer-import or driver failure requires the relevant platform and device sources.
 
 ---
 id: ch7
-title: Chapter 7 — Permissions and SELinux Enforce Different Boundaries
+title: Chapter 7 — Check Provider Authorization and Credential Boundaries
 fileRecommendations:
   readingOrder:
-    - path: frameworks/base/core/java/android/content/pm/PackageManager.java
-      description: Framework package and permission API surface
+    - path: packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:isPinLock
+      description: Feature visibility depends on a secure numeric credential
+      type: source
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java
+      description: Keypad controller and credential submission context
       type: source
     - path: frameworks/base/services/permission/java/com/android/server/permission/access/permission/PermissionService.kt
-      description: Permission-state management implementation
+      description: Runtime-permission implementation
       type: source
     - path: system/sepolicy/private/system_server.te
-      description: Platform policy rules for system server
+      description: Platform system-server policy
       type: source
     - path: system/sepolicy/private/app.te
-      description: Platform application-domain policy
-      type: source
-    - path: system/sepolicy/public/te_macros
-      description: Reusable SELinux policy macros
+      description: Platform app policy
       type: source
 ---
 
-Android permission checks and SELinux policy describe different enforcement layers. A granted application permission does not by itself permit every kernel-visible operation. Process identity, service-side checks, and SELinux domains still matter.
+[isPinLock](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:isPinLock) checks the stored credential quality and whether the user is secure. This controls availability of the preference. Provider-write authorization and PIN verification happen at other boundaries.
 
-Begin with [PackageManager's API](frameworks/base/core/java/android/content/pm/PackageManager.java), then inspect [permission management](frameworks/base/services/permission/java/com/android/server/permission/access/permission/PermissionService.kt). Search for a specific permission name or state transition instead of reading the entire implementation linearly. Follow a caller into the service that performs the protected operation to find the actual enforcement point; permission-state storage is not the only place authorization happens.
+The separate SDK provider requires its Lineage settings-write permission for the System-table call used by this feature. Follow the pinned provider implementation in chapter 8 to see where that permission is checked. An app presenting a preference and a process accepted by the provider are different subjects of review.
 
-Read [system-server policy](system/sepolicy/private/system_server.te) alongside [application-domain policy](system/sepolicy/private/app.te). Expand unfamiliar rules using [the shared policy macros](system/sepolicy/public/te_macros). A macro invocation can encode a relationship that is easy to miss when scanning one policy file.
+PIN scrambling does not change the credential itself. [The controller](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java) still participates in the normal unlock flow while the keypad view changes its digit assignments. Do not infer stronger PIN entropy, changed lockout behavior, or a different credential verifier from the shuffle implementation.
 
-For LineageOS, compare common platform policy with the policy extensions supplied by the selected device and vendor configuration. [Common product configuration](vendor/lineage/config/common.mk) helps orient the distribution layer; it does not list every runtime authorization check. Keep a framework permission change separate from an SELinux rule change in a review.
+[Runtime permission management](frameworks/base/services/permission/java/com/android/server/permission/access/permission/PermissionService.kt), [system-server SELinux rules](system/sepolicy/private/system_server.te), and [app-domain policy](system/sepolicy/private/app.te) remain other enforcement layers. The device's final policy has inputs outside this snapshot. For this case study, identify the provider permission and selected user before moving to SELinux diagnostics; do not invent a policy change merely because the feature is security-related.
 
-For a denied operation, record the calling UID, requested operation, relevant framework check, source and target SELinux contexts, and the rule involved. Device policy extends the platform policy in a full checkout. The hosted subset does not establish the final policy for every device, and a single allow rule does not establish a security guarantee.
+### Keep Linux MAC enforcement beside provider permissions
+
+[Linux's SELinux Binder hook](repo:torvalds/linux/security/selinux/hooks.c:selinux_binder_transaction) and [AVC permission checks](repo:torvalds/linux/security/selinux/avc.c:avc_has_perm) provide a kernel authorization layer underneath provider IPC. Android's [app policy](system/sepolicy/private/app.te) and [policy macros](system/sepolicy/public/te_macros) help describe the policy inputs; the provider's Lineage write permission still checks the requested operation in userspace.
+
+A denial at either layer can stop the preference update, but the diagnostic evidence differs. Identify the service permission and user for a provider error, or the source/target contexts and class for an SELinux denial. Passing the kernel transport check does not prove that a caller may change the stored preference or unlock a device.
 
 ---
 id: ch8
-title: Chapter 8 — Trace a Settings Feature across the Platform
+title: Chapter 8 — Worked Trace — Scramble the Lock-Screen PIN Layout
 fileRecommendations:
   readingOrder:
-    - path: packages/apps/Settings/AndroidManifest.xml
-      description: Settings application components and declared permissions
+    - path: packages/apps/Settings/src/com/android/settings/password/ChooseLockGeneric.java
+      description: Constructs the PIN-scrambling preference controller
       type: source
-    - path: packages/apps/Settings/src/com/android/settings/Settings.java
-      description: Settings activity entry classes
+    - path: packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange
+      description: Writes the boolean as a Lineage setting
       type: source
-    - path: packages/apps/Settings/src/com/android/settings/SettingsActivity.java
-      description: Activity routing and fragment integration
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java:onViewAttached
+      description: Reads the selected user setting
       type: source
-    - path: packages/apps/Settings/Android.bp
-      description: Build dependencies for the Settings application
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPINView.java:updatePinScrambling
+      description: Shuffles or restores keypad digits
+      type: source
+    - path: frameworks/base/packages/SystemUI/src/com/android/keyguard/NumPadKey.java:setDigit
+      description: Applies each assigned digit
       type: source
 ---
 
-Use Settings to practice a complete feature trace. Start with [the application manifest](packages/apps/Settings/AndroidManifest.xml): select an activity and identify its exported status, intent filters, and declared permissions. Continue through [Settings' entry classes](packages/apps/Settings/src/com/android/settings/Settings.java) and [SettingsActivity](packages/apps/Settings/src/com/android/settings/SettingsActivity.java) to the destination fragment or controller. Search the destination class in the Settings project.
+Start at [ChooseLockGeneric](packages/apps/Settings/src/com/android/settings/password/ChooseLockGeneric.java), which constructs PinScramblePreferenceController. Its [availability check](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:isPinLock) requires a secure numeric credential. [updateState](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:updateState) reads LOCKSCREEN_PIN_SCRAMBLE_LAYOUT with a default of zero; [onPreferenceChange](packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange) writes one or zero using LineageSettings.System.putInt.
 
-From that controller, follow the backing framework API or stored setting. Then locate the service that consumes it and the check that authorizes the operation. The UI, persisted value, and enforcement can live in separate projects. [The application's build definition](packages/apps/Settings/Android.bp) helps explain which libraries the controller can use.
+The provider boundary is outside the hosted snapshot. The following companion links use SDK commit `49948877d217b8a5374e3e56253a4ce35f82fc54`, separately inspected for this guide and outside GitShaman's core lock. [LineageSettings](https://github.com/LineageOS/android_lineage-sdk/blob/49948877d217b8a5374e3e56253a4ce35f82fc54/sdk/src/java/lineageos/providers/LineageSettings.java#L1689) defines the setting key. Its integer-write API reaches a per-user provider call. [The provider's PUT_system branch](https://github.com/LineageOS/android_lineage-sdk/blob/49948877d217b8a5374e3e56253a4ce35f82fc54/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageSettingsProvider.java#L169) checks the Lineage WRITE_SETTINGS permission before writing. [Its manifest](https://github.com/LineageOS/android_lineage-sdk/blob/49948877d217b8a5374e3e56253a4ce35f82fc54/packages/LineageSettingsProvider/AndroidManifest.xml#L31) also declares write access requirements. The [distribution fragment](snippets/lineage.xml) identifies the SDK project, and [common product configuration](vendor/lineage/config/common.mk:L151) selects its provider module.
 
-For a LineageOS customization, compare the Settings controller with [common product configuration](vendor/lineage/config/common.mk) and the project selection in [the manifest](default.xml). Some features rely on distribution services or resources outside the shared Settings module. Identify that dependency before treating a UI-only patch as a complete feature.
+On the consumer side, [KeyguardPinViewController.onViewAttached](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java:onViewAttached) reads the setting for the selected user. [startAppearAnimation](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPinViewController.java:startAppearAnimation) repeats that read. Both pass the result to [updatePinScrambling](frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPINView.java:updatePinScrambling), which shuffles or restores the digit list and updates each [NumPadKey](frameworks/base/packages/SystemUI/src/com/android/keyguard/NumPadKey.java:setDigit). The Settings write uses its ContentResolver's user; the consumer explicitly chooses the selected lock-screen user. Preserve that distinction in multi-user testing.
 
-Produce a small feature notebook: entry activity, controller, preference key or API, service, permission, and policy dependencies. Include concrete file links for each edge found in the snapshot. If a step reaches an unhosted project, record its manifest path and upstream owner instead of inventing a local implementation. This method scales from a visible Settings switch to a platform behavior change and provides a better patch-review checklist than searching for the same label everywhere.
+This closes the route: Settings controller → per-user provider write and authorization → SystemUI read → keypad digit assignment. Test disabled, enabled, and restored layouts with a disposable development credential. Check that a key enters the digit it displays, and re-open the keypad to exercise the documented lifecycle reads. The feature changes presentation; the inspected trace does not establish a new credential-verification mechanism.
 
 ---
 id: ch9
-title: Chapter 9 — Compare Distributions at the Same Source Boundary
+title: Chapter 9 — Compare Features, Provenance, and Missing Projects
 fileRecommendations:
   readingOrder:
-    - path: default.xml
-      description: Recheck the selected project owners and revisions
+    - path: snippets/lineage.xml
+      description: Distribution-specific source projects
       type: source
-    - path: frameworks/base/services/java/com/android/server/SystemServer.java
-      description: Compare framework service startup at a shared entry point
+    - path: vendor/lineage/config/common.mk:L151
+      description: Distribution-specific installed components
       type: source
-    - path: system/core/init/init.cpp
-      description: Compare native platform startup at a shared entry point
+    - path: repo:GrapheneOS/platform_manifest/config.yml
+      description: GrapheneOS composition configuration
       type: source
-    - path: packages/apps/Settings/AndroidManifest.xml
-      description: Compare the exposed Settings components
+    - path: repo:GrapheneOS/platform_manifest/frameworks/base/core/java/com/android/internal/os/ZygoteConnection.java:L276
+      description: GrapheneOS exec-spawning launch branch
       type: source
 ---
 
-Compare with [GrapheneOS service startup](repo:GrapheneOS/platform_manifest/frameworks/base/services/java/com/android/server/SystemServer.java), [GrapheneOS Binder](repo:GrapheneOS/platform_manifest/frameworks/base/core/java/android/os/Binder.java), and [GrapheneOS Settings](repo:GrapheneOS/platform_manifest/packages/apps/Settings/AndroidManifest.xml). Use [its manifest](repo:GrapheneOS/platform_manifest/default.xml) for project ownership, and [miniageOS](repo:ofdryads/miniageos/README.md) for a smaller product built downstream of LineageOS.
+The LineageOS example spans source selection, product installation, Settings, the SDK provider, and SystemUI. [The included fragment](snippets/lineage.xml) selects SDK source; [common product configuration](vendor/lineage/config/common.mk:L151) selects the provider artifact; the two UI projects write and consume the setting. These are concrete responsibilities, not interchangeable descriptions of a manifest project.
 
-Choose a shared entry point such as [SystemServer](frameworks/base/services/java/com/android/server/SystemServer.java), [init](system/core/init/init.cpp), or [Settings' manifest](packages/apps/Settings/AndroidManifest.xml). Record each project's pinned upstream commit before comparing implementations. Different Android bases can explain changes that would otherwise look distribution-specific. A forked repository name identifies ownership, not the purpose or effect of every patch.
+Compare that route with [GrapheneOS's composition input](repo:GrapheneOS/platform_manifest/config.yml) and [exec-spawning implementation](repo:GrapheneOS/platform_manifest/frameworks/base/core/java/com/android/internal/os/ZygoteConnection.java:L276). In its guide, the per-app switch crosses IPackageManager, is filtered by GrapheneOS package-state policy, and affects process launch. The LineageOS PIN control uses a settings provider and changes a view. Both involve Settings, but their IPC contracts and runtime effects differ.
 
-For each difference, classify the affected layer: product composition, module selection, application UI, framework service, native runtime, or policy. Then follow its dependencies with the reading paths above. Keep [the source manifest](default.xml) beside the code so a project replacement or revision change remains visible.
+The pinned manifests share the AOSP `android-17.0.0_r1` baseline; that does not make the fork commits identical. Record the exact project commits from provenance when comparing [LineageOS service startup](frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi) with [GrapheneOS startup](repo:GrapheneOS/platform_manifest/frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi). Explain a changed call or condition before attributing a behavior to one distribution.
 
-Finish by choosing one feature and explaining its setup requirements, startup path, process boundary, authorization checks, and build module. That exercise turns the manifest into an implementation map and makes gaps in the hosted subset explicit.
+The companion SDK revision in chapter 8 is an explicit external dependency of this source tour. Recheck it against a resolved manifest before reproducing a full build. Keeping that boundary visible is more useful than treating the hosted core subset as a complete LineageOS device checkout.

@@ -548,6 +548,26 @@ export const BUILTIN_CURATED_REPOS: CuratedRepoConfig[] = [
     sitemapPriority: 0.8,
   },
   {
+    id: 'gcc-15.2.0',
+    owner: 'gcc-mirror',
+    repo: 'gcc',
+    slug: 'gcc-compiler',
+    ref: 'releases/gcc-15.2.0',
+    revision: '5115c7e447fc07457443df874bf57840e8316d5f',
+    guideId: 'gcc-guide',
+    displayName: 'GCC',
+    icon: '⚙️',
+    gradient: 'from-red-500/10 to-orange-500/10',
+    category: 'Languages',
+    avatarFile: 'gnu.png',
+    description:
+      'GNU Compiler Collection, from C and C++ parsing through GIMPLE, SSA optimization, RTL, target code generation, and runtime support.',
+    seoDescription:
+      'Explore GCC 15.2 source with a guided compiler walkthrough. Trace the driver, front ends, GIMPLE and SSA passes, RTL, register allocation, machine descriptions, and regression tests.',
+    seoKeywords: ['GCC', 'GNU Compiler Collection', 'GIMPLE', 'RTL', 'SSA', 'compiler internals'],
+    sitemapPriority: 0.8,
+  },
+  {
     id: 'llvm-18.1.0',
     owner: 'llvm',
     repo: 'llvm-project',
@@ -695,6 +715,7 @@ const CURATED_REPO_ACCENTS: Record<string, string> = {
   'microsoft/typescript-go': '#3178c6',
   'bminor/glibc': '#dc2626',
   'llvm/llvm-project': '#8b5cf6',
+  'gcc-mirror/gcc': '#e6a05b',
 };
 
 export function getCuratedRepoAccent(owner: string, repo: string): string {

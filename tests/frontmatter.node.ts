@@ -6,13 +6,13 @@ import { parseFrontmatter } from '../src/lib/frontmatter';
 test('parses nested guide metadata and preserves section delimiters in the body', () => {
   const body = '## Guide\n\n---\nid: chapter\ntitle: Chapter\n---\nText';
   const result = parseFrontmatter(
-    '---\nowner: example\nlearningGoals:\n  - Read code\nquestions:\n  - prompt: Why?\n    answer: Because\n---\n' +
+    '---\nowner: example\nlearningGoals:\n  - Read code\ntrace:\n  - path: src/main.c\n    description: Entry point\n---\n' +
       body
   );
   assert.deepEqual(result.data, {
     owner: 'example',
     learningGoals: ['Read code'],
-    questions: [{ prompt: 'Why?', answer: 'Because' }],
+    trace: [{ path: 'src/main.c', description: 'Entry point' }],
   });
   assert.equal(result.content, body);
 });

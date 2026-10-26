@@ -22,7 +22,6 @@ FreeRTOS supplies the scheduling and synchronization core of an embedded firmwar
 ---
 id: ch1
 title: Chapter 1 — A Kernel Inside Your Firmware
-questions: [{ prompt: "Does the idle task become ready only when application tasks block?", answer: "No. It remains ready at the lowest priority; scheduling determines when it runs." }]
 fileRecommendations:
   readingOrder:
     - path: README.md
@@ -48,7 +47,6 @@ Separate three responsibilities: the application defines the workload, the kerne
 ---
 id: ch2
 title: Chapter 2 — Ready Is a Scheduling Decision
-questions: [{ prompt: "Does a tick interrupt always switch tasks?", answer: "No. It advances time and can release delayed tasks, but switching depends on ready tasks and scheduler configuration." }]
 fileRecommendations:
   readingOrder:
     - path: tasks.c:TCB_t
@@ -81,7 +79,6 @@ Trace [`xTaskIncrementTick()`](tasks.c:xTaskIncrementTick) removing expired entr
 ---
 id: ch3
 title: Chapter 3 — Queues Transfer Data, Mutexes Transfer Ownership
-questions: [{ prompt: "Does releasing the mutex that caused inheritance always restore the holder's base priority?", answer: "No. In the normal release path, FreeRTOS retains the inherited priority while the task still holds other mutexes." }]
 fileRecommendations:
   readingOrder:
     - path: queue.c
@@ -109,7 +106,6 @@ Task notifications provide per-task signaling without a separate queue object. C
 ---
 id: ch4
 title: Chapter 4 — Interrupts Hand Work to Tasks
-questions: [{ prompt: "Can an interrupt above the syscall urgency boundary call a FromISR API?", answer: "No. ISR-safe APIs still require an interrupt priority within the port's permitted kernel-call range." }]
 fileRecommendations:
   readingOrder:
     - path: portable/GCC/ARM_CM4F/port.c
@@ -134,7 +130,6 @@ Inspect [`vPortValidateInterruptPriority()`](portable/GCC/ARM_CM4F/port.c:vPortV
 ---
 id: ch5
 title: Chapter 5 — Timers and Memory Have Execution Costs
-questions: [{ prompt: "Why can a timer callback deadlock when it waits to submit a timer command?", answer: "The timer service task is waiting for queue space that only that same task can free by processing commands." }]
 fileRecommendations:
   readingOrder:
     - path: timers.c
@@ -169,7 +164,6 @@ In this upstream kernel, task stack depths and the values from `uxTaskGetStackHi
 ---
 id: ch6
 title: Chapter 6 — Trace a Deadline End to End
-questions: [{ prompt: "Does making a task ready guarantee that it meets its deadline?", answer: "No. Interrupt latency, higher-priority work, blocking, and execution time still determine when it finishes." }]
 fileRecommendations:
   readingOrder:
     - path: portable/GCC/ARM_CM4F/port.c

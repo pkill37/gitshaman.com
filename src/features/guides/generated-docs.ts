@@ -7,18 +7,19 @@ import LineageOSAndroidMd3 from '../../../docs/LineageOS_android.md?raw';
 import appleOssDistributionsXnuMd4 from '../../../docs/apple-oss-distributions_xnu.md?raw';
 import bminorGlibcMd5 from '../../../docs/bminor_glibc.md?raw';
 import freebsdFreebsdSrcMd6 from '../../../docs/freebsd_freebsd-src.md?raw';
-import ghostbsdGhostbsdSrcMd7 from '../../../docs/ghostbsd_ghostbsd-src.md?raw';
-import golangGoMd8 from '../../../docs/golang_go.md?raw';
-import littlekernelLkMd9 from '../../../docs/littlekernel_lk.md?raw';
-import llvmProjectMd10 from '../../../docs/llvm_project.md?raw';
-import microsoftTypescriptGoMd11 from '../../../docs/microsoft_typescript-go.md?raw';
-import mrcxlinuxSrv03rtmAnikaMd12 from '../../../docs/mrcxlinux_srv03rtm-anika.md?raw';
-import nextbsdReduxNextbsdKernelMd13 from '../../../docs/nextbsd-redux_nextbsd-kernel.md?raw';
-import pythonCpythonMd14 from '../../../docs/python_cpython.md?raw';
-import reactosReactosMd15 from '../../../docs/reactos_reactos.md?raw';
-import seL4SeL4Md16 from '../../../docs/seL4_seL4.md?raw';
-import torvaldsLinuxMd17 from '../../../docs/torvalds_linux.md?raw';
-import zephyrprojectRtosZephyrMd18 from '../../../docs/zephyrproject-rtos_zephyr.md?raw';
+import gccMirrorGccMd7 from '../../../docs/gcc-mirror_gcc.md?raw';
+import ghostbsdGhostbsdSrcMd8 from '../../../docs/ghostbsd_ghostbsd-src.md?raw';
+import golangGoMd9 from '../../../docs/golang_go.md?raw';
+import littlekernelLkMd10 from '../../../docs/littlekernel_lk.md?raw';
+import llvmProjectMd11 from '../../../docs/llvm_project.md?raw';
+import microsoftTypescriptGoMd12 from '../../../docs/microsoft_typescript-go.md?raw';
+import mrcxlinuxSrv03rtmAnikaMd13 from '../../../docs/mrcxlinux_srv03rtm-anika.md?raw';
+import nextbsdReduxNextbsdKernelMd14 from '../../../docs/nextbsd-redux_nextbsd-kernel.md?raw';
+import pythonCpythonMd15 from '../../../docs/python_cpython.md?raw';
+import reactosReactosMd16 from '../../../docs/reactos_reactos.md?raw';
+import seL4SeL4Md17 from '../../../docs/seL4_seL4.md?raw';
+import torvaldsLinuxMd18 from '../../../docs/torvalds_linux.md?raw';
+import zephyrprojectRtosZephyrMd19 from '../../../docs/zephyrproject-rtos_zephyr.md?raw';
 
 export const DOCS_MARKDOWN: Record<string, string> = {
   'FreeRTOS_FreeRTOS-Kernel.md': FreeRTOSFreeRTOSKernelMd1,
@@ -27,16 +28,17 @@ export const DOCS_MARKDOWN: Record<string, string> = {
   'apple-oss-distributions_xnu.md': appleOssDistributionsXnuMd4,
   'bminor_glibc.md': bminorGlibcMd5,
   'freebsd_freebsd-src.md': freebsdFreebsdSrcMd6,
-  'ghostbsd_ghostbsd-src.md': ghostbsdGhostbsdSrcMd7,
-  'golang_go.md': golangGoMd8,
-  'littlekernel_lk.md': littlekernelLkMd9,
-  'llvm_project.md': llvmProjectMd10,
-  'microsoft_typescript-go.md': microsoftTypescriptGoMd11,
-  'mrcxlinux_srv03rtm-anika.md': mrcxlinuxSrv03rtmAnikaMd12,
-  'nextbsd-redux_nextbsd-kernel.md': nextbsdReduxNextbsdKernelMd13,
-  'python_cpython.md': pythonCpythonMd14,
-  'reactos_reactos.md': reactosReactosMd15,
-  'seL4_seL4.md': seL4SeL4Md16,
-  'torvalds_linux.md': torvaldsLinuxMd17,
-  'zephyrproject-rtos_zephyr.md': zephyrprojectRtosZephyrMd18,
+  'gcc-mirror_gcc.md': gccMirrorGccMd7,
+  'ghostbsd_ghostbsd-src.md': ghostbsdGhostbsdSrcMd8,
+  'golang_go.md': golangGoMd9,
+  'littlekernel_lk.md': littlekernelLkMd10,
+  'llvm_project.md': llvmProjectMd11,
+  'microsoft_typescript-go.md': microsoftTypescriptGoMd12,
+  'mrcxlinux_srv03rtm-anika.md': mrcxlinuxSrv03rtmAnikaMd13,
+  'nextbsd-redux_nextbsd-kernel.md': nextbsdReduxNextbsdKernelMd14,
+  'python_cpython.md': pythonCpythonMd15,
+  'reactos_reactos.md': reactosReactosMd16,
+  'seL4_seL4.md': seL4SeL4Md17,
+  'torvalds_linux.md': torvaldsLinuxMd18,
+  'zephyrproject-rtos_zephyr.md': zephyrprojectRtosZephyrMd19,
 };

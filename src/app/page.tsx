@@ -1,4 +1,3 @@
-import EcosystemMap from '@/features/ecosystem/EcosystemMap';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import CuratedRepositoryPortalLink from './CuratedRepositoryPortalLink';
@@ -29,6 +28,7 @@ const INDEX_REPO_SLUG_ORDER = [
   'cpython',
   'gnu-c-library',
   'llvm-project',
+  'gcc-compiler',
 ] as const;
 const CURATED_REPO_CATEGORIES = [
   {
@@ -54,7 +54,14 @@ const CURATED_REPO_CATEGORIES = [
   {
     id: 'languages',
     title: 'Languages',
-    slugs: ['cpython', 'go-language', 'typescript-compiler', 'gnu-c-library', 'llvm-project'],
+    slugs: [
+      'cpython',
+      'go-language',
+      'typescript-compiler',
+      'gnu-c-library',
+      'llvm-project',
+      'gcc-compiler',
+    ],
   },
 ] as const;
 
@@ -247,9 +254,6 @@ function LandingPage() {
               </article>
             </div>
           </section>
-        </div>
-        <div className="mx-auto mb-14 w-full max-w-[1600px]">
-          <EcosystemMap />
         </div>
         <div className="mx-auto w-full max-w-5xl">
           <nav aria-label="Site map" className="shaman-site-map mx-auto max-w-5xl">

@@ -5,9 +5,6 @@ import http from 'node:http';
 import { currentGeneration, freshness, fileTree } from './analysis';
 import { readConfig, readEligibleFile, workingFiles } from './repository';
 import { search } from './search';
-import { requestQuiz } from './quiz';
-import { sourceIdentity } from './share';
-import type { QuizRequest } from '../../../src/lib/quiz';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -19,14 +16,6 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.svg': 'image/svg+xml',
 };
-class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
 
 function sendFile(file: string, response: http.ServerResponse): void {
   fs.createReadStream(file)
@@ -45,14 +34,6 @@ export async function serveWorkspace(
   const config = readConfig(root);
   const token = crypto.randomBytes(32).toString('hex');
   let origin = '';
-  let quizBusy = false;
-  const quizControllers = new Set<AbortController>();
-  let quizRepository: string | undefined;
-  try {
-    quizRepository = sourceIdentity(root);
-  } catch {
-    /* A public remote is optional. */
-  }
   const server = http.createServer((request, response) => {
     void (async () => {
       const controller = new AbortController();
@@ -77,9 +58,8 @@ export async function serveWorkspace(
         return;
       }
       const url = new URL(request.url ?? '/', origin);
-      const quizPost = url.pathname === '/api/quiz' && request.method === 'POST';
-      if (request.method !== 'GET' && !quizPost) {
-        response.writeHead(405, { Allow: url.pathname === '/api/quiz' ? 'POST' : 'GET' }).end();
+      if (request.method !== 'GET') {
+        response.writeHead(405, { Allow: 'GET' }).end();
         return;
       }
       const json = (value: unknown) => {
@@ -92,48 +72,12 @@ export async function serveWorkspace(
           response.writeHead(401).end('Missing session authorization');
           return;
         }
-        if (url.pathname === '/api/quiz') {
-          if (!quizPost) {
-            response.writeHead(405, { Allow: 'POST' }).end();
-            return;
-          }
-          if (quizBusy) {
-            response.writeHead(409).end('A quiz request is already running.');
-            return;
-          }
-          if (
-            request.headers['content-type']?.split(';')[0].trim().toLowerCase() !==
-            'application/json'
-          ) {
-            response.writeHead(415).end('Expected application/json');
-            return;
-          }
-          quizBusy = true;
-          quizControllers.add(controller);
-          try {
-            const chunks: Buffer[] = [];
-            let size = 0;
-            for await (const chunk of request) {
-              size += chunk.length;
-              if (size > 64 * 1024) chunks.length = 0;
-              else chunks.push(chunk);
-            }
-            if (size > 64 * 1024) throw new HttpError(413, 'Quiz request is too large.');
-            const input = JSON.parse(Buffer.concat(chunks).toString('utf8')) as QuizRequest;
-            json(await requestQuiz(root, input, controller.signal));
-          } finally {
-            quizControllers.delete(controller);
-            quizBusy = false;
-          }
-          return;
-        }
         if (url.pathname === '/api/status') {
           json({
             snapshot,
             ...freshness(root, snapshot),
             name: path.basename(root),
             identity: `local:${snapshot.rootIdentity}:${snapshot.generation}`,
-            quizRepository,
           });
           return;
         }
@@ -204,16 +148,13 @@ export async function serveWorkspace(
         response.destroy();
         return;
       }
-      response.writeHead(error instanceof HttpError ? error.status : 400, {
+      response.writeHead(400, {
         'Content-Type': 'application/json',
       });
       response.end(
         JSON.stringify({ error: error instanceof Error ? error.message : 'Request failed' })
       );
     });
-  });
-  server.on('close', () => {
-    for (const controller of quizControllers) controller.abort();
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);

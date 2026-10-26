@@ -30,9 +30,6 @@ trace:
   - path: path/to/entry-file.c
     description: First source entry point
     type: source
-questions:
-  - prompt: What problem does this subsystem solve?
-    answer: Replace this with the short answer the reader should be able to give.
 fileRecommendations:
   readingOrder:
     - path: path/to/entry-file.c:symbol_name

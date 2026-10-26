@@ -2350,24 +2350,6 @@ body {
   word-break: break-word;
 }
 
-.guide-knowledge-check-question > summary::marker {
-  color: var(--guide-rec-accent);
-}
-
-.guide-knowledge-check-question > summary:focus-visible {
-  outline: 2px solid var(--guide-rec-accent);
-  outline-offset: -2px;
-}
-
-.guide-knowledge-check-answer {
-  margin: 0;
-  padding: 0.35rem 0.65rem 0.65rem 1.5rem;
-  color: var(--vscode-text-secondary, #aaa2b0);
-  font-size: 0.76rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
 .vscode-theme-light .guide-recommendation-group {
   background: linear-gradient(
     145deg,
@@ -2720,8 +2702,7 @@ body {
   border-radius: 8px;
 }
 
-.android-workspace-controls,
-.android-file-provenance {
+.android-workspace-controls {
   padding: 8px 12px;
   border-bottom: 1px solid var(--vscode-border);
   font-size: 12px;
@@ -2748,9 +2729,7 @@ body {
 .android-workspace-controls button[aria-pressed='true'] {
   border-color: var(--repo-accent);
 }
-.android-workspace-controls details {
-  margin-top: 8px;
-}
-.android-workspace-controls ul {
-  padding-left: 16px;
+
+.android-file-provenance {
+  margin-bottom: 8px;
 }

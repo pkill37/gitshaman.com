@@ -35,7 +35,6 @@ export interface GuideSection {
   narrativePaths?: string[];
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   learningGoals?: string[];
-  questions?: Array<{ prompt: string; answer: string }>;
   trace?: FileRecommendation[];
   fileRecommendations?: {
     readingOrder?: FileRecommendation[];
