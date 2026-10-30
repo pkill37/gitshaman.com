@@ -16,6 +16,7 @@ defaultOpenIds:
   - ch7
   - ch8
   - ch9
+  - ch10
 ---
 
 # LineageOS Source In The Mind
@@ -323,3 +324,44 @@ Compare that route with [GrapheneOS's composition input](repo:GrapheneOS/platfor
 The pinned manifests share the AOSP `android-17.0.0_r1` baseline; that does not make the fork commits identical. Record the exact project commits from provenance when comparing [LineageOS service startup](frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi) with [GrapheneOS startup](repo:GrapheneOS/platform_manifest/frameworks/base/services/java/com/android/server/SystemServer.java:startSystemUi). Explain a changed call or condition before attributing a behavior to one distribution.
 
 The companion SDK revision in chapter 8 is an explicit external dependency of this source tour. Recheck it against a resolved manifest before reproducing a full build. Keeping that boundary visible is more useful than treating the hosted core subset as a complete LineageOS device checkout.
+
+---
+id: ch10
+title: Chapter 10 — Follow the AOSP Boot Pipeline from ROM to Zygote
+fileRecommendations:
+  readingOrder:
+    - path: system/core/init/main.cpp:main
+      description: Native init entry and first/second-stage dispatch
+      type: source
+    - path: system/core/init/first_stage_init.cpp
+      description: Early mounts and transition to SELinux setup
+      type: source
+    - path: system/core/init/selinux.cpp:SetupSelinux
+      description: Load policy, restore init context, and re-exec init
+      type: source
+    - path: system/core/rootdir/init.rc
+      description: Root init actions and Zygote configuration import
+      type: source
+    - path: system/core/rootdir/init.zygote64.rc
+      description: 64-bit Zygote service declaration
+      type: source
+    - path: frameworks/base/cmds/app_process/app_main.cpp:main
+      description: app_process entry into the managed runtime
+      type: source
+    - path: frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main
+      description: Zygote preload, socket, and system-server startup
+      type: source
+---
+
+Treat Android boot as a chain of trust and process handoffs, not as one executable called “Android.” The exact ROM and bootloader names are SoC and device specific, but the responsibilities are stable. For the platform-level overview, compare AOSP's [bootloader documentation](https://source.android.com/docs/core/architecture/bootloader), [Verified Boot documentation](https://source.android.com/docs/security/features/verifiedboot), and the [init README](https://android.googlesource.com/platform/system/core/+/main/init/README.md) with the pinned source below:
+
+1. **Boot ROM (immutable first code).** Reset vectors enter code fused into the SoC. It initializes the hardware needed to locate the next stage and authenticates the manufacturer-supplied first-stage bootloader when the platform supports a hardware root of trust. ROM code is outside the LineageOS checkout.
+2. **Bootloaders.** A small first-stage loader brings up DRAM and loads a richer bootloader. The latter selects normal, recovery, or fastboot mode, supplies the device tree and boot arguments, and verifies the boot artifacts. On modern devices this includes `boot` or `init_boot`, `vendor_boot`, `dtbo`, and the partitions covered by Android Verified Boot (AVB). Locked devices must reject an image whose signature or rollback index is invalid; an unlocked development device may display a warning instead.
+3. **Linux kernel.** The bootloader places the kernel, ramdisk, device tree, and command line in memory, then jumps to the kernel entry point. Linux initializes CPUs, memory, drivers, and pseudo-filesystems and starts the ramdisk's `/init` as PID 1. The kernel does not start Zygote and does not interpret `init.rc`.
+4. **First-stage init.** `init` mounts the filesystems needed to find partitions and reads the first-stage fstab. It establishes `/dev`, `/proc`, `/sys`, and `/sys/fs/selinux`, mounts required partitions (including logical or dynamically discovered partitions), and prepares the files that second-stage init needs. In system-as-root layouts, the exact mount arrangement differs by release and device.
+5. **SELinux setup and second-stage init.** First-stage init execs itself with the `selinux_setup` argument. [`SetupSelinux`](system/core/init/selinux.cpp:SetupSelinux) loads the split or monolithic policy, applies file labels, restores `/system/bin/init`'s context, and re-execs with `second_stage`. Second-stage init then parses `init.rc` and its imports, creates directories and properties, starts `ueventd` and other native services, mounts `/data`, and runs class triggers such as `early-init`, `fs`, `post-fs`, `post-fs-data`, and `late-init`. The imported init configuration selects the ABI-specific Zygote service.
+6. **Zygote and system server.** A device-selected init service starts `app_process` with the Zygote class and socket options. `app_process` enters [`ZygoteInit`](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main), preloads the runtime, opens the Zygote command socket, and forks `system_server`. System server starts core framework services and requests SystemUI; later application launches are fork requests handled by Zygote.
+
+SELinux runs across this whole handoff. The kernel enforces labels and permissions; init assigns domains and file contexts to services; framework permissions and Binder checks remain separate userspace gates. A successful AVB check says that an image is authentic, and a successful process fork says that a task was created. Neither proves that a caller can access a service: diagnose a denial using the AVC's source context, target context, class, and permission, then inspect the corresponding `system/sepolicy` inputs and the built device policy.
+
+For a device-specific trace, capture bootloader status and kernel command-line properties, then correlate `init` timing and service logs with the selected fstab and ABI-specific Zygote service. Keep vendor boot code, the device kernel, and generated policy in scope: this hosted LineageOS core snapshot can show the Android handoff points, but it cannot prove the complete boot path for every product.

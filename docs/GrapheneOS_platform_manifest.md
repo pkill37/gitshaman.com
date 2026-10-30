@@ -16,6 +16,7 @@ defaultOpenIds:
   - ch7
   - ch8
   - ch9
+  - ch10
 ---
 
 # GrapheneOS Source In The Mind
@@ -331,3 +332,44 @@ The exec-spawning case now supplies a specific comparison: GrapheneOS has AswUse
 For a change in the other direction, follow [LineageOS's PIN-layout implementation](repo:LineageOS/android/frameworks/base/packages/SystemUI/src/com/android/keyguard/KeyguardPINView.java:updatePinScrambling) and its [Settings controller](repo:LineageOS/android/packages/apps/Settings/src/com/android/settings/security/screenlock/PinScramblePreferenceController.java:onPreferenceChange). Its guide traces a UI preference into a provider and SystemUI. That is a different kind of change from replacing an app launch path.
 
 For a review, name the behavior, identify the branch where it changes, and include the app-state or product configuration that enables it. Use the pinned upstream file links for the complete implementation and history. This produces a source-grounded comparison instead of a list of distribution goals.
+
+---
+id: ch10
+title: Chapter 10 — Follow the AOSP Boot Pipeline from ROM to Zygote
+fileRecommendations:
+  readingOrder:
+    - path: system/core/init/main.cpp:main
+      description: Native init entry and first/second-stage dispatch
+      type: source
+    - path: system/core/init/first_stage_init.cpp
+      description: Early mounts and transition to SELinux setup
+      type: source
+    - path: system/core/init/selinux.cpp:SetupSelinux
+      description: Load policy, restore init context, and re-exec init
+      type: source
+    - path: system/core/rootdir/init.rc
+      description: Root init actions and Zygote configuration import
+      type: source
+    - path: system/core/rootdir/init.zygote64.rc
+      description: 64-bit Zygote service declaration
+      type: source
+    - path: frameworks/base/cmds/app_process/app_main.cpp:main
+      description: app_process entry into the managed runtime
+      type: source
+    - path: frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main
+      description: Zygote preload, socket, and system-server startup
+      type: source
+---
+
+The AOSP boot path is a sequence of trust decisions and process handoffs. Device vendors choose the ROM and bootloader implementation, while the Android source tree becomes authoritative at the kernel/init boundary. Use AOSP's [bootloader documentation](https://source.android.com/docs/core/architecture/bootloader), [Verified Boot documentation](https://source.android.com/docs/security/features/verifiedboot), and the [init README](https://android.googlesource.com/platform/system/core/+/main/init/README.md) alongside this GrapheneOS source trace:
+
+1. **Boot ROM** is immutable SoC code reached after reset. It initializes enough hardware to find and authenticate the first bootloader. Its keys and fuse configuration form the hardware root of trust and are not part of GrapheneOS or AOSP source.
+2. **Bootloaders** initialize DRAM, choose normal/recovery/fastboot mode, load the kernel and device tree, pass boot arguments, and enforce AVB. Modern chains commonly verify `boot` or `init_boot`, `vendor_boot`, `dtbo`, and other chained partitions, including rollback indexes. A locked device rejects an invalid image; an unlocked device can boot with an explicit warning.
+3. **Linux** receives control with the kernel, ramdisk, device tree, and command line in memory. It initializes architecture code, memory, drivers, and pseudo-filesystems, then executes ramdisk `/init` as PID 1. Linux creates tasks and enforces kernel security hooks; it does not parse Android service definitions or launch Zygote itself.
+4. **First-stage init** mounts `/dev`, `/proc`, `/sys`, and SELinuxfs, reads the first-stage fstab, and mounts the partitions required to find the real system. Dynamic partitions, logical mounts, recovery, and system-as-root change the details, so the product's fstab and boot arguments matter.
+5. **SELinux setup and second-stage init** are an explicit re-exec. First-stage init invokes `init selinux_setup`; [`SetupSelinux`](system/core/init/selinux.cpp:SetupSelinux) loads the device's split policy, labels files, restores the init context, and re-execs as `second_stage`. Second-stage init parses `init.rc` imports, sets properties and directories, starts native daemons, mounts `/data`, and executes boot triggers. The device-selected Zygote init configuration imports the ABI-specific service.
+6. **Zygote and framework startup** begin when init starts `app_process`. [`ZygoteInit`](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main) preloads classes and resources, listens on the Zygote socket, and forks `system_server`. System server starts framework services and SystemUI; application processes are subsequently forked (or, for GrapheneOS's optional launch path, forked and execed) from the Zygote protocol.
+
+Keep four security layers distinct while reading this path: AVB authenticates boot artifacts; Linux credentials and LSM hooks constrain tasks; SELinux domains and types constrain Android processes and objects; Binder and framework permissions govern API access. A process that passed AVB and was forked by Zygote can still receive an SELinux AVC denial or a framework permission denial. The useful diagnostic record is the exact boot mode, image chain, command line, init stage, and AVC source/target/class—not a generic claim that “Android booted securely.”
+
+To reproduce a GrapheneOS boot trace, start with the device's resolved manifest and vendor boot configuration, inspect the selected fstab and Zygote service file, then correlate kernel logs, init timing properties, and system-server startup. The hosted manifest and framework files explain GrapheneOS's userspace handoff and launch modifications; they do not include every vendor bootloader, device kernel, or generated SELinux policy.

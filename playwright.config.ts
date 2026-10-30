@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import nextEnv from '@next/env';
+import { firefoxLaunchOptions } from './scripts/firefox-launch-options';
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd(), true);
@@ -54,7 +55,7 @@ export default defineConfig({
       name: 'firefox',
       workers: 1,
       grepInvert: /@mobile/,
-      use: { ...devices['Desktop Firefox'], launchOptions: { env: testEnvironment } },
+      use: { ...devices['Desktop Firefox'], launchOptions: firefoxLaunchOptions(testEnvironment) },
     },
     {
       name: 'mobile-chromium',

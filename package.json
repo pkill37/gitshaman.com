@@ -22,7 +22,7 @@
     "predev": "tsx scripts/curated-contributions.ts && tsx scripts/prepare-public-assets.ts --dev --sqljs",
     "dev": "next dev --turbopack --port 3000",
     "build": "tsx scripts/build.ts",
-    "start": "serve -l 3000 out -c",
+    "start": "serve -l 3000 out",
     "clean": "rm -rf repos public/repos public/sqljs public/public-stage-manifest.json out .next .eslintcache",
     "corpus:sync": "EXPLORAR_SKIP_SEMANTIC_ENRICHMENT=1 tsx scripts/download-repos.ts --depth=1",
     "corpus:semantic": "tsx scripts/prepare-compilation-databases.ts",
@@ -59,8 +59,18 @@
     "sql.js": "^1.14.2"
   },
   "overrides": {
-    "dompurify": "3.4.12",
-    "sharp": "0.35.3"
+    "dompurify": "3.4.17",
+    "sharp": "0.35.5",
+    "serve": {
+      "compression": "1.8.2"
+    },
+    "markdownlint-cli": {
+      "js-yaml": "5.5.0",
+      "smol-toml": "1.9.1"
+    },
+    "micromark-extension-math": {
+      "katex": "0.18.2"
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -83,7 +93,7 @@
     "monaco-editor": "^0.53.0",
     "prettier": "^3.9.6",
     "raw-loader": "^4.0.2",
-    "serve": "^10.0.2",
+    "serve": "^14.2.6",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "write-good": "^1.0.8"

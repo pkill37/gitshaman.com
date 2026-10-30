@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { firefoxLaunchOptions } from '../../scripts/firefox-launch-options';
 
 export default defineConfig({
   testDir: '../../tests',
@@ -9,6 +10,9 @@ export default defineConfig({
   outputDir: '../../out/cli-tests',
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'], launchOptions: firefoxLaunchOptions() },
+    },
   ],
 });
