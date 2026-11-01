@@ -2,7 +2,7 @@
 import React from 'react';
 import { parseFrontmatter as matter } from '@/lib/frontmatter';
 import { marked } from 'marked';
-import { GuideSection, FileRecommendation } from '@/lib/project-guides';
+import { GuideSection, FileRecommendation, FileRecommendations } from '@/lib/project-guides';
 import { createFileRecommendationsComponent } from '@/lib/project-guides';
 import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import { debugLog } from '@/lib/browser-debug';
@@ -45,12 +45,7 @@ interface SectionFrontmatter {
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   learningGoals?: string[];
   trace?: FileRecommendation[];
-  fileRecommendations?: {
-    readingOrder?: FileRecommendation[];
-    docs?: FileRecommendation[];
-    source?: FileRecommendation[];
-    directories?: FileRecommendation[];
-  };
+  fileRecommendations?: FileRecommendations;
 }
 
 function isDifficulty(value: unknown): value is SectionFrontmatter['difficulty'] {

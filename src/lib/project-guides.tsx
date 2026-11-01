@@ -15,6 +15,13 @@ export interface FileRecommendation {
   type?: 'docs' | 'source' | 'directory';
 }
 
+export interface FileRecommendations {
+  readingOrder?: FileRecommendation[];
+  docs?: FileRecommendation[];
+  source?: FileRecommendation[];
+  directories?: FileRecommendation[];
+}
+
 type RecommendationType = 'docs' | 'source' | 'directory';
 
 interface RecommendationItem extends FileRecommendation {
@@ -36,12 +43,7 @@ export interface GuideSection {
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   learningGoals?: string[];
   trace?: FileRecommendation[];
-  fileRecommendations?: {
-    readingOrder?: FileRecommendation[];
-    docs?: FileRecommendation[];
-    source?: FileRecommendation[];
-    directories?: FileRecommendation[];
-  };
+  fileRecommendations?: FileRecommendations;
   /** Mermaid diagram describing the pedagogical graph for this chapter */
   graph?: string;
 }

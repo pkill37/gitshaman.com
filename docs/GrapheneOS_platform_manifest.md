@@ -337,38 +337,22 @@ For a review, name the behavior, identify the branch where it changes, and inclu
 id: ch10
 title: Chapter 10 — Follow the AOSP Boot Pipeline from ROM to Zygote
 fileRecommendations:
-  readingOrder:
-    - path: system/core/init/main.cpp:main
-      description: Native init entry and first/second-stage dispatch
-      type: source
-    - path: system/core/init/first_stage_init.cpp
-      description: Early mounts and transition to SELinux setup
-      type: source
-    - path: system/core/init/selinux.cpp:SetupSelinux
-      description: Load policy, restore init context, and re-exec init
-      type: source
-    - path: system/core/rootdir/init.rc
-      description: Root init actions and Zygote configuration import
-      type: source
-    - path: system/core/rootdir/init.zygote64.rc
-      description: 64-bit Zygote service declaration
-      type: source
-    - path: frameworks/base/cmds/app_process/app_main.cpp:main
-      description: app_process entry into the managed runtime
-      type: source
-    - path: frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main
-      description: Zygote preload, socket, and system-server startup
-      type: source
+  docs:
+    - path: "https://source.android.com/docs/core/architecture/bootloader"
+      description: Bootloader stages and verified-boot handoff
+      type: docs
+    - path: "https://source.android.com/docs/security/features/verifiedboot"
+      description: Verified Boot and rollback protection
+      type: docs
 ---
 
-The AOSP boot path is a sequence of trust decisions and process handoffs. Device vendors choose the ROM and bootloader implementation, while the Android source tree becomes authoritative at the kernel/init boundary. Use AOSP's [bootloader documentation](https://source.android.com/docs/core/architecture/bootloader), [Verified Boot documentation](https://source.android.com/docs/security/features/verifiedboot), and the [init README](https://android.googlesource.com/platform/system/core/+/main/init/README.md) alongside this GrapheneOS source trace:
+This chapter maps the AOSP boot chain onto the GrapheneOS source snapshot. Boot ROM and vendor bootloader code establish the hardware trust root and verify images before the checked-in Android handoff begins. The [bootloader guide](https://source.android.com/docs/core/architecture/bootloader), [Verified Boot guide](https://source.android.com/docs/security/features/verifiedboot), and [init README](https://android.googlesource.com/platform/system/core/+/main/init/README.md) describe platform behavior; the source links below locate the hosted implementation.
 
-1. **Boot ROM** is immutable SoC code reached after reset. It initializes enough hardware to find and authenticate the first bootloader. Its keys and fuse configuration form the hardware root of trust and are not part of GrapheneOS or AOSP source.
-2. **Bootloaders** initialize DRAM, choose normal/recovery/fastboot mode, load the kernel and device tree, pass boot arguments, and enforce AVB. Modern chains commonly verify `boot` or `init_boot`, `vendor_boot`, `dtbo`, and other chained partitions, including rollback indexes. A locked device rejects an invalid image; an unlocked device can boot with an explicit warning.
-3. **Linux** receives control with the kernel, ramdisk, device tree, and command line in memory. It initializes architecture code, memory, drivers, and pseudo-filesystems, then executes ramdisk `/init` as PID 1. Linux creates tasks and enforces kernel security hooks; it does not parse Android service definitions or launch Zygote itself.
-4. **First-stage init** mounts `/dev`, `/proc`, `/sys`, and SELinuxfs, reads the first-stage fstab, and mounts the partitions required to find the real system. Dynamic partitions, logical mounts, recovery, and system-as-root change the details, so the product's fstab and boot arguments matter.
-5. **SELinux setup and second-stage init** are an explicit re-exec. First-stage init invokes `init selinux_setup`; [`SetupSelinux`](system/core/init/selinux.cpp:SetupSelinux) loads the device's split policy, labels files, restores the init context, and re-execs as `second_stage`. Second-stage init parses `init.rc` imports, sets properties and directories, starts native daemons, mounts `/data`, and executes boot triggers. The device-selected Zygote init configuration imports the ABI-specific service.
-6. **Zygote and framework startup** begin when init starts `app_process`. [`ZygoteInit`](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main) preloads classes and resources, listens on the Zygote socket, and forks `system_server`. System server starts framework services and SystemUI; application processes are subsequently forked (or, for GrapheneOS's optional launch path, forked and execed) from the Zygote protocol.
+The bootloader passes the verified kernel, ramdisk, device tree, and command line to Linux. Linux initializes the hardware and launches ramdisk `/init` as PID 1. First-stage init mounts the filesystems and partitions needed to reach Android; device fstab, recovery mode, dynamic partitions, and system-as-root determine the details for a particular product.
+
+Init then runs its SELinux setup stage. [`SetupSelinux`](system/core/init/selinux.cpp:SetupSelinux) loads the selected policy, restores init's file context, and re-execs init in second stage. That stage imports the root and device-specific rc files, starts native services, mounts `/data`, and evaluates boot triggers. Inspect [the root init configuration](system/core/rootdir/init.rc) and [the 64-bit service example](system/core/rootdir/init.zygote64.rc) to see how the selected ABI determines the Zygote service.
+
+The service starts `app_process`, which enters [`ZygoteInit`](frameworks/base/core/java/com/android/internal/os/ZygoteInit.java:main). Zygote preloads runtime state, accepts commands on its socket, and forks `system_server`; framework startup then brings up core services and SystemUI. GrapheneOS's optional per-app fork-and-exec route belongs to later application launches, as traced in chapters 3 and 8.
 
 Keep four security layers distinct while reading this path: AVB authenticates boot artifacts; Linux credentials and LSM hooks constrain tasks; SELinux domains and types constrain Android processes and objects; Binder and framework permissions govern API access. A process that passed AVB and was forked by Zygote can still receive an SELinux AVC denial or a framework permission denial. The useful diagnostic record is the exact boot mode, image chain, command line, init stage, and AVC source/target/class—not a generic claim that “Android booted securely.”
 

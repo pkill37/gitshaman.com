@@ -258,6 +258,7 @@ export default function RepositoryWorkspaceExplorer({
   const androidConfigured = !!getCuratedRepo(owner ?? '', repo ?? '')?.androidWorkspace;
   const workspaceId = `${fileSourceMode}:${repoLabel}@${selectedVersion}:${androidSource?.metadata.snapshot ?? ''}`;
   const [referenceSearch, setReferenceSearch] = useState<ReferenceSearchState | null>(null);
+  const referenceSearchRef = useRef<ReferenceSearchState | null>(null);
 
   // Mobile panel state
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -289,6 +290,7 @@ export default function RepositoryWorkspaceExplorer({
   const handleReferenceSearch = useCallback(
     (next: ReferenceSearchState) => {
       if (next.workspaceId !== workspaceId) return;
+      referenceSearchRef.current = next;
       setReferenceSearch((current) =>
         next.isLoading || current?.requestId === next.requestId ? next : current
       );
@@ -820,10 +822,11 @@ export default function RepositoryWorkspaceExplorer({
       repoIdentifier
     );
     const savedSearchQuery = loadFromLocalStorage(searchKey, '', isString);
-    queueMicrotask(() => {
-      setWorkspaceSearchQuery(savedSearchQuery);
-    });
-  }, [isHydrated, repoIdentifier, setWorkspaceSearchQuery]);
+    // Find References can open before storage hydration completes. Preserve its
+    // symbol query instead of replacing it with the previous free-text query.
+    if (referenceSearchRef.current?.workspaceId === workspaceId) return;
+    queueMicrotask(() => setWorkspaceSearchQuery(savedSearchQuery));
+  }, [isHydrated, repoIdentifier, setWorkspaceSearchQuery, workspaceId]);
 
   useEffect(() => {
     if (isHydrated && repoIdentifier) {

@@ -845,6 +845,13 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
     const extension = filename.split('.').pop()?.toLowerCase();
 
     switch (extension) {
+      case 'java':
+        return 'java';
+      case 'kt':
+      case 'kts':
+        // Monaco has no built-in Kotlin tokenizer; Java tokenization still
+        // provides useful syntax coloring for Kotlin source files.
+        return 'java';
       case 'c':
         return 'c';
       case 'h':
@@ -857,7 +864,9 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       case 'csx':
         return 'csharp';
       case 's':
-      case 'S':
+      case 'asm':
+      case 'aarch64':
+      case 'x86':
         return 'asm';
       case 'py':
         return 'python';

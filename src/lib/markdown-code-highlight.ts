@@ -1,6 +1,70 @@
 import { escapeHtml } from './markdown-navigation';
 
 const KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
+  asm: [
+    'add', 'adr', 'adrp', 'and', 'asr', 'b', 'beq', 'bne', 'bl', 'blr', 'br', 'cmp',
+    'cmn', 'ldr', 'ldp', 'lsl', 'lsr', 'mov', 'movk', 'movn', 'movz', 'mul', 'nop',
+    'orr', 'pop', 'push', 'ret', 'stp', 'str', 'sub', 'svc', 'test', 'xor',
+  ],
+  java: [
+    'abstract',
+    'assert',
+    'boolean',
+    'break',
+    'byte',
+    'case',
+    'catch',
+    'char',
+    'class',
+    'const',
+    'continue',
+    'default',
+    'do',
+    'double',
+    'else',
+    'enum',
+    'extends',
+    'final',
+    'finally',
+    'float',
+    'for',
+    'if',
+    'implements',
+    'import',
+    'instanceof',
+    'int',
+    'interface',
+    'long',
+    'native',
+    'new',
+    'package',
+    'private',
+    'protected',
+    'public',
+    'return',
+    'short',
+    'static',
+    'strictfp',
+    'super',
+    'switch',
+    'synchronized',
+    'this',
+    'throw',
+    'throws',
+    'transient',
+    'try',
+    'void',
+    'volatile',
+    'while',
+  ],
+  kotlin: [
+    'as', 'break', 'by', 'catch', 'class', 'companion', 'const', 'continue', 'data',
+    'do', 'else', 'enum', 'false', 'final', 'finally', 'for', 'fun', 'if', 'in',
+    'init', 'interface', 'internal', 'is', 'lateinit', 'null', 'object', 'open',
+    'operator', 'override', 'package', 'private', 'protected', 'public', 'return',
+    'sealed', 'super', 'suspend', 'this', 'throw', 'true', 'try', 'typealias',
+    'val', 'var', 'when', 'while',
+  ],
   c: [
     'auto',
     'break',
@@ -132,14 +196,25 @@ const KEYWORDS_BY_LANGUAGE: Record<string, string[]> = {
 };
 
 const LANGUAGE_ALIASES: Record<string, string> = {
+  arm: 'asm',
+  arm64: 'asm',
+  aarch64: 'asm',
   asm: 'asm',
   assembly: 'asm',
+  gas: 'asm',
+  nasm: 'asm',
+  x86: 'asm',
+  x86_64: 'asm',
   c: 'c',
   cc: 'cpp',
   cpp: 'cpp',
   cxx: 'cpp',
   h: 'c',
   hpp: 'cpp',
+  java: 'java',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  kotlin: 'kotlin',
   javascript: 'js',
   js: 'js',
   jsx: 'js',
@@ -186,7 +261,7 @@ function highlightComment(line: string, language: string | undefined): string {
     language === 'python' || language === 'shell'
       ? line.indexOf('#')
       : language === 'asm'
-        ? line.indexOf(';')
+        ? Math.min(...[line.indexOf(';'), line.indexOf('//')].filter((index) => index >= 0), Infinity)
         : line.indexOf('//');
 
   if (commentStart < 0) {
