@@ -336,14 +336,6 @@ For a review, name the behavior, identify the branch where it changes, and inclu
 ---
 id: ch10
 title: Chapter 10 — Follow the AOSP Boot Pipeline from ROM to Zygote
-fileRecommendations:
-  docs:
-    - path: "https://source.android.com/docs/core/architecture/bootloader"
-      description: Bootloader stages and verified-boot handoff
-      type: docs
-    - path: "https://source.android.com/docs/security/features/verifiedboot"
-      description: Verified Boot and rollback protection
-      type: docs
 ---
 
 This chapter maps the AOSP boot chain onto the GrapheneOS source snapshot. Boot ROM and vendor bootloader code establish the hardware trust root and verify images before the checked-in Android handoff begins. The [bootloader guide](https://source.android.com/docs/core/architecture/bootloader), [Verified Boot guide](https://source.android.com/docs/security/features/verifiedboot), and [init README](https://android.googlesource.com/platform/system/core/+/main/init/README.md) describe platform behavior; the source links below locate the hosted implementation.
