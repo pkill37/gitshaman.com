@@ -22,7 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  HUSKY: '0'
   NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
