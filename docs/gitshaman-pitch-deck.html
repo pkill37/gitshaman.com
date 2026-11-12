@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GitShaman — Pitch Deck</title>
+  <style>
+    :root { --ink:#f5f1e8; --muted:#aaa4b3; --bg:#0f0e15; --panel:#17171f; --line:#2b2834; --teal:#63d8c9; --lime:#b9f97d; --gold:#ffdf7e; --pink:#ff8fb8; --purple:#a78bfa; }
+    @page { size: 13.333in 7.5in; margin: 0; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; background:#09090d; color:var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    body { counter-reset: slide; }
+    .slide { width:13.333in; height:7.5in; position:relative; overflow:hidden; page-break-after:always; padding:.63in .78in; background:var(--bg); }
+    .slide:last-child { page-break-after:auto; }
+    .slide::before { content:""; position:absolute; inset:0; background: radial-gradient(circle at 90% 0%, rgba(167,139,250,.13), transparent 34%), radial-gradient(circle at 0% 100%, rgba(99,216,201,.10), transparent 32%); pointer-events:none; }
+    .inner { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; }
+    .eyebrow { color:var(--teal); font-size:11px; letter-spacing:.18em; text-transform:uppercase; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:58px; line-height:1.02; letter-spacing:-.08em; max-width:7.2in; }
+    h2 { font-size:35px; line-height:1.08; letter-spacing:-.06em; max-width:8.5in; }
+    h3 { font-size:15px; color:var(--gold); letter-spacing:.05em; text-transform:uppercase; }
+    .sub { color:var(--muted); font-size:16px; line-height:1.45; max-width:6.4in; }
+    .footer { margin-top:auto; display:flex; justify-content:space-between; color:#6f6a77; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+    .accent { color:var(--teal); }
+    .muted { color:var(--muted); }
+    .gold { color:var(--gold); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.34in; }
+    .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:.2in; }
+    .card { border:1px solid var(--line); background:rgba(23,23,31,.88); border-radius:18px; padding:.25in; }
+    .card p { color:var(--muted); font-size:13px; line-height:1.5; margin-top:10px; }
+    .topline { display:flex; justify-content:space-between; align-items:center; margin-bottom:.42in; }
+    .pill { border:1px solid #4c4657; color:var(--gold); border-radius:99px; padding:8px 12px; font-size:11px; }
+    .hero { display:grid; grid-template-columns:1.06fr .94fr; gap:.45in; align-items:center; flex:1; }
+    .hero-copy { display:flex; flex-direction:column; gap:.28in; }
+    .hero-mark { height:3.65in; border:1px solid #393342; border-radius:28px; background:linear-gradient(140deg,#17171f,#101820); display:grid; place-items:center; position:relative; overflow:hidden; }
+    .hero-mark::after { content:""; position:absolute; width:3.8in; height:3.8in; border-radius:50%; border:1px solid rgba(99,216,201,.25); box-shadow:0 0 0 20px rgba(99,216,201,.04), 0 0 0 42px rgba(99,216,201,.025); }
+    .sigil { width:1.8in; height:1.8in; border:2px solid var(--teal); border-radius:46% 54% 50% 50%; transform:rotate(45deg); display:grid; place-items:center; box-shadow:0 0 32px rgba(99,216,201,.24); }
+    .sigil span { transform:rotate(-45deg); color:var(--gold); font-size:38px; }
+    .quote { border-left:3px solid var(--teal); padding-left:16px; color:var(--ink); font-size:18px; line-height:1.35; max-width:7.1in; }
+    .metric { font-size:40px; letter-spacing:-.08em; color:var(--lime); }
+    .metric-label { color:var(--muted); font-size:12px; line-height:1.35; margin-top:4px; }
+    .flow { display:grid; grid-template-columns:1fr 44px 1fr 44px 1fr; align-items:center; margin-top:.36in; }
+    .flowbox { min-height:1.62in; display:flex; flex-direction:column; justify-content:space-between; }
+    .arrow { text-align:center; color:var(--teal); font-size:24px; }
+    .step { font-size:11px; color:var(--gold); letter-spacing:.12em; }
+    .code { font-size:12px; line-height:1.65; color:#cbc4d1; background:#0a0a0f; border:1px solid #332f3b; border-radius:16px; padding:18px 20px; white-space:pre; }
+    .code .kw { color:var(--purple); } .code .fn { color:var(--teal); } .code .str { color:var(--gold); } .code .cm { color:#6f6a77; }
+    .visual { border-radius:22px; overflow:hidden; border:1px solid #393342; background:#111017; }
+    .visual svg { display:block; width:100%; height:auto; }
+    .split { display:grid; grid-template-columns:.95fr 1.05fr; gap:.42in; align-items:center; flex:1; }
+    .big-idea { font-size:28px; line-height:1.18; letter-spacing:-.06em; }
+    .list { display:grid; gap:12px; margin-top:.25in; }
+    .list div { display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:start; color:var(--muted); font-size:13px; line-height:1.45; }
+    .list b { color:var(--ink); font-weight:600; }
+    .dot { color:var(--teal); }
+    .roadmap { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:.38in; }
+    .roadmap .card { min-height:1.8in; }
+    .roadmap small { color:var(--teal); font-size:11px; }
+    .roadmap strong { display:block; margin-top:14px; font-size:15px; }
+    .cta { flex:1; display:flex; flex-direction:column; justify-content:center; gap:.32in; }
+    .cta h2 { max-width:8in; }
+    .cta-row { display:flex; gap:12px; align-items:center; }
+    .cta-chip { border:1px solid var(--teal); color:var(--teal); padding:12px 16px; border-radius:12px; font-size:13px; }
+    .source { color:#6f6a77; font-size:9px; line-height:1.35; margin-top:12px; }
+    @media screen { .slide { margin:24px auto; box-shadow:0 12px 50px rgba(0,0,0,.45); } }
+  </style>
+</head>
+<body>
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">GitShaman / pitch deck</div><div class="pill">source code, made legible</div></div>
+    <div class="hero">
+      <div class="hero-copy"><div class="eyebrow">The Git companion for exploring complex codebases</div><h1>Read the system.<br><span class="accent">See the shape.</span></h1><p class="sub">GitShaman turns repositories into navigable workspaces: indexed source, semantic relationships, curated guides, and a local CLI for the code you actually own.</p><div class="quote">“From <span class="gold">where is this?</span> to <span class="accent">how does this system work?</span>”</div></div>
+      <div class="hero-mark"><div class="sigil"><span>⌘</span></div></div>
+    </div>
+    <div class="footer"><span>gitshaman.com</span><span>01 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">01 / The problem</div><div class="pill">context is the bottleneck</div></div>
+    <h2>Modern repositories are searchable — but still hard to understand.</h2>
+    <p class="sub" style="margin-top:18px">The friction is not finding a file. It is building a trustworthy mental model across files, symbols, services, and history.</p>
+    <div class="grid3" style="margin-top:.48in">
+      <div class="card"><div class="metric">01</div><h3 style="margin-top:12px">Fragmented context</h3><p>Docs, source, search, and diagrams live in separate tools. Engineers stitch the story together by hand.</p></div>
+      <div class="card"><div class="metric">02</div><h3 style="margin-top:12px">Expensive onboarding</h3><p>New contributors learn architecture through guesswork, tribal knowledge, and repeated questions.</p></div>
+      <div class="card"><div class="metric">03</div><h3 style="margin-top:12px">Opaque change</h3><p>Finding the right symbol is easy. Knowing what depends on it — and why — is the hard part.</p></div>
+    </div>
+    <div class="footer"><span>GitShaman frames the problem as code comprehension</span><span>02 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">02 / The product</div><div class="pill">one workspace, many ways in</div></div>
+    <div class="split">
+      <div><div class="big-idea">A source browser that behaves like a map, not a filing cabinet.</div><div class="list"><div><span class="dot">✦</span><span><b>Curated guides</b><br>Start with the concepts that matter.</span></div><div><span class="dot">✦</span><span><b>VS Code-like workspace</b><br>Stay close to the code while you explore.</span></div><div><span class="dot">✦</span><span><b>Semantic graph</b><br>See relationships between symbols and files.</span></div><div><span class="dot">✦</span><span><b>Local CLI</b><br>Bring the same workflow to private repositories.</span></div></div></div>
+      <div class="visual"><svg viewBox="0 0 640 420" aria-label="A semantic graph connecting source code concepts"><rect width="640" height="420" fill="#111017"/><path d="M148 206l126-92 126 70 94-82M148 206l100 116 152-138M400 184l94 96M274 114l-26 208" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round" opacity=".78"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffdf7e"/><stop offset=".35" stop-color="#a78bfa"/><stop offset=".7" stop-color="#63d8c9"/><stop offset="1" stop-color="#b9f97d"/></linearGradient></defs><g fill="#17171f" stroke-width="6"><circle cx="148" cy="206" r="42" stroke="#ffdf7e"/><circle cx="274" cy="114" r="46" stroke="#a78bfa"/><circle cx="400" cy="184" r="52" stroke="#63d8c9"/><circle cx="494" cy="102" r="38" stroke="#b9f97d"/><circle cx="248" cy="322" r="40" stroke="#ff8fb8"/><circle cx="494" cy="280" r="44" stroke="#efc66f"/></g><path d="M126 206h44M252 114h44M372 184h56M474 102h40M228 322h40M470 280h48" stroke="#aaa4b3" stroke-width="8" stroke-linecap="round" opacity=".62"/></svg></div>
+    </div>
+    <div class="footer"><span>Product thesis: make understanding a first-class code workflow</span><span>03 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">03 / How it works</div><div class="pill">from repository to understanding</div></div>
+    <h2>Three layers turn raw source into a navigable model.</h2>
+    <div class="flow">
+      <div class="card flowbox"><span class="step">01 / INGEST</span><div><h3>Read the repository</h3><p>Curated snapshots or a local Git worktree become the foundation.</p></div></div><div class="arrow">→</div>
+      <div class="card flowbox"><span class="step">02 / INDEX</span><div><h3>Build the index</h3><p>Files, symbols, structure, search, and optional compiler enrichment are connected.</p></div></div><div class="arrow">→</div>
+      <div class="card flowbox"><span class="step">03 / EXPLORE</span><div><h3>Follow the relationships</h3><p>Move from guide to file to symbol to graph — without losing the thread.</p></div></div>
+    </div>
+    <div class="code" style="margin-top:.34in"><span class="cm">// the local-first loop</span>
+<span class="kw">gitshaman</span> init --repo <span class="str">./my-repository</span>
+<span class="kw">gitshaman</span> analyze --repo <span class="str">./my-repository</span>
+<span class="kw">gitshaman</span> viz --repo <span class="str">./my-repository</span>   <span class="cm"># open the workspace</span></div>
+    <div class="footer"><span>Built to be useful before the model is perfect</span><span>04 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">04 / The wedge</div><div class="pill">where the pain is sharpest</div></div>
+    <div class="split">
+      <div><h2>Start with the repositories that have become systems.</h2><p class="sub" style="margin-top:18px">GitShaman is designed for the moment when a codebase is too important to rewrite and too complex to hold in one person’s head.</p><div class="list"><div><span class="dot">◆</span><span><b>Systems teams</b><br>Operating systems, compilers, runtimes, infrastructure.</span></div><div><span class="dot">◆</span><span><b>Open-source maintainers</b><br>Make architecture legible to contributors.</span></div><div><span class="dot">◆</span><span><b>Engineering orgs</b><br>Reduce the tax of onboarding and ownership transfer.</span></div></div></div>
+      <div class="visual"><svg viewBox="0 0 640 420" aria-label="Code index illustration"><rect width="640" height="420" fill="#111017"/><g fill="#17171f" stroke="#ffffff" stroke-opacity=".08"><rect x="58" y="82" width="142" height="86" rx="16"/><rect x="58" y="194" width="142" height="86" rx="16"/><rect x="58" y="306" width="142" height="54" rx="16"/></g><path d="M88 115h78M88 140h52M88 227h82M88 252h44M88 334h70" stroke="#aaa4b3" stroke-width="9" stroke-linecap="round" opacity=".54"/><path d="M218 125h122M218 237h122M218 333h122" stroke="url(#g2)" stroke-width="6" stroke-linecap="round" stroke-dasharray="11 14"/><defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffdf7e"/><stop offset=".4" stop-color="#ff8fb8"/><stop offset=".72" stop-color="#63d8c9"/><stop offset="1" stop-color="#b9f97d"/></linearGradient></defs><rect x="340" y="86" width="242" height="248" rx="24" fill="#17171f" stroke="url(#g2)" stroke-opacity=".62"/><circle cx="462" cy="180" r="58" fill="#0f0e15" stroke="#63d8c9" stroke-width="8"/><path d="M502 220l48 48M436 178h53M462 152v53" stroke="#efc66f" stroke-width="10" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="footer"><span>Initial audience is a strategic hypothesis to validate</span><span>05 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">05 / Why now</div><div class="pill">the codebase is the new interface</div></div>
+    <h2>AI can write code faster. Teams still need to understand what they already have.</h2>
+    <div class="grid2" style="margin-top:.48in">
+      <div class="card"><h3>AI increases the need for context</h3><p>More generated code means more review, more dependencies, and more questions about system behavior. The durable advantage is a better model of the repository.</p></div>
+      <div class="card"><h3>Local data is a product requirement</h3><p>Private code, regulated environments, and developer trust make local indexing and portable workspaces a natural foundation.</p></div>
+    </div>
+    <div class="grid3" style="margin-top:.2in"><div class="card"><div class="metric">↗</div><div class="metric-label">code volume and surface area</div></div><div class="card"><div class="metric">↗</div><div class="metric-label">distributed ownership</div></div><div class="card"><div class="metric">↗</div><div class="metric-label">pressure to onboard faster</div></div></div>
+    <p class="source">Strategic framing, not a market-size claim. Validate with customer interviews.</p>
+    <div class="footer"><span>Timing thesis</span><span>06 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">06 / The advantage</div><div class="pill">depth over novelty</div></div>
+    <h2>GitShaman compounds where generic search stops.</h2>
+    <div class="grid3" style="margin-top:.48in"><div class="card"><h3>Repository-native</h3><p>Understands files, symbols, guides, indexes, and the shape of the project — not just text matches.</p></div><div class="card"><h3>Local-first</h3><p>The CLI analyzes a worktree and opens a local workspace. The core loop does not require sending source away.</p></div><div class="card"><h3>Open-source gravity</h3><p>Curated public repositories create a visible corpus, a teaching surface, and a path to community contribution.</p></div></div>
+    <div class="card" style="margin-top:.2in; display:flex; justify-content:space-between; align-items:center; gap:20px"><div><h3>Defensible workflow</h3><p>Guides → source → symbols → relationships → discussion is a connected journey. Each step makes the next one more valuable.</p></div><div style="font-size:30px;color:var(--teal);white-space:nowrap">guide → graph → code</div></div>
+    <div class="footer"><span>Strategic advantage: connected context</span><span>07 / 08</span></div>
+  </div></section>
+
+  <section class="slide"><div class="inner">
+    <div class="topline"><div class="eyebrow">07 / The next chapter</div><div class="pill">working roadmap</div></div>
+    <h2>Turn a strong exploration workflow into a daily engineering habit.</h2>
+    <div class="roadmap"><div class="card"><small>NOW</small><strong>Prove the loop</strong><p>Deepen the repository experience, sharpen guides, and learn from maintainers and systems teams.</p></div><div class="card"><small>NEXT</small><strong>Make context collaborative</strong><p>Shared annotations, durable explanations, repository-scoped discussion, and team onboarding paths.</p></div><div class="card"><small>THEN</small><strong>Own the comprehension layer</strong><p>Portable indexes, integrations, and workflows that sit between source code and every tool that acts on it.</p></div></div>
+    <div class="cta"><h2 style="font-size:29px">Seeking design partners who care about making complex code understandable.</h2><div class="cta-row"><div class="cta-chip">systems teams</div><div class="cta-chip">open-source maintainers</div><div class="cta-chip">developer tooling</div></div></div>
+    <div class="footer"><span>GitShaman / make the system legible</span><span>08 / 08</span></div>
+  </div></section>
+</body>
+</html>
