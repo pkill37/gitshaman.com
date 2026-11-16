@@ -11,6 +11,7 @@ dist
 # Generated files
 next-env.d.ts
 *.tsbuildinfo
+src/curated/registry.ts
 
 # Logs
 *.log

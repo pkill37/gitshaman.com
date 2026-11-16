@@ -1,5 +1,5 @@
 import { ANDROID_CORE_PROJECTS } from './android/workspace';
-import contributions from '../curated/registry.json' with { type: 'json' };
+import contributions from '../curated/registry';
 import { validateContribution, type CuratedContribution } from './curated-contribution';
 
 export interface CuratedRepoConfig {

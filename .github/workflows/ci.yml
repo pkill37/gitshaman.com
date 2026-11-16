@@ -43,6 +43,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes clangd
+      - name: Check Cloudflare Pages Functions bundling
+        run: npm run curated:generate && npm run test:pages-functions
       - run: npm test
       - name: Upload test reports
         if: ${{ !cancelled() }}

@@ -12,6 +12,7 @@
     "cli": "tsx packages/cli/src/cli.ts",
     "cli:build": "tsx scripts/curated-contributions.ts && tsx packages/cli/build.ts",
     "test:cli": "npm run cli:build && node --import tsx --test tests/cli*.node.ts && playwright test --config packages/cli/playwright.config.ts",
+    "test:pages-functions": "npx --yes wrangler@3.114.17 pages functions build functions --outfile .cache/pages-functions/worker.js",
     "pretest": "npm run cli:build",
     "curated:generate": "tsx scripts/curated-contributions.ts",
     "curated:check": "tsx scripts/curated-contributions.ts --online",
