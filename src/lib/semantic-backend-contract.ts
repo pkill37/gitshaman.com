@@ -101,7 +101,7 @@ export interface SemanticQueryResult<TKind extends SemanticQueryKind = SemanticQ
   complete: boolean;
 }
 
-export type SemanticQueryItems<TKind extends SemanticQueryKind> = TKind extends 'definition'
+type SemanticQueryItems<TKind extends SemanticQueryKind> = TKind extends 'definition'
   ? BackendDefinition[]
   : TKind extends 'references'
     ? Location[]

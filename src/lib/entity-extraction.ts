@@ -1,9 +1,9 @@
 import { findSymbolsInFile } from '@/lib/cross-reference';
 
-export type EntityKind =
+type EntityKind =
   'struct' | 'class' | 'type' | 'function' | 'enum' | 'interface' | 'macro' | 'variable';
 
-export interface EntityField {
+interface EntityField {
   name: string;
   type: string;
 }

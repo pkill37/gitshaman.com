@@ -8,10 +8,9 @@ export const CODE_INDEX_VERSION = 4;
 export const MIN_SUPPORTED_CODE_INDEX_VERSION = 2;
 export const CODE_INDEX_FILE_NAME = 'code-index.sqlite';
 export const CODE_INDEX_SEARCH_RESULT_LIMIT = 200;
-export const CODE_INDEX_PREVIEW_ENRICH_LIMIT = 20;
 export const CODE_INDEX_MAX_CONTENT_BYTES = 64 * 1024;
 
-export type CodeIndexFileMatchType = 'filename' | 'quoted' | 'content';
+type CodeIndexFileMatchType = 'filename' | 'quoted' | 'content';
 
 export interface CodeIndexFileEntry {
   path: string;
@@ -921,67 +920,4 @@ export function buildSearchOccurrences(content: string, query: string): SearchPr
     }
   });
   return results;
-}
-
-export function buildSearchPreview(content: string, query: string): SearchPreview | null {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return null;
-  }
-
-  const terms = normalizedQuery.match(/[a-z0-9_]+/g)?.filter(Boolean) ?? [];
-  const quotedPhrases = extractQuotedPhrases(query);
-  if (terms.length === 0) {
-    return null;
-  }
-
-  const lines = content.split('\n');
-
-  const findMatch = (predicate: (line: string) => boolean): SearchPreview | null => {
-    for (let index = 0; index < lines.length; index += 1) {
-      const originalLine = lines[index] ?? '';
-      if (!predicate(originalLine.toLowerCase())) {
-        continue;
-      }
-
-      const preview = originalLine.trim() || '(empty line)';
-      const searchLine = originalLine.toLowerCase();
-      const firstTerm =
-        quotedPhrases.find((phrase) => searchLine.includes(phrase)) ??
-        terms.find((term) => searchLine.includes(term));
-      const column = firstTerm !== undefined ? searchLine.indexOf(firstTerm) + 1 : 1;
-
-      return {
-        line: index + 1,
-        column,
-        preview,
-      };
-    }
-
-    return null;
-  };
-
-  if (quotedPhrases.length > 0) {
-    const quotedMatch = findMatch((line) => quotedPhrases.some((phrase) => line.includes(phrase)));
-    if (quotedMatch) {
-      return quotedMatch;
-    }
-  }
-
-  const exactMatch = findMatch((line) => terms.every((term) => line.includes(term)));
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  const partialMatch = findMatch((line) => terms.some((term) => line.includes(term)));
-  if (partialMatch) {
-    return partialMatch;
-  }
-
-  const fallbackPreview = lines[0]?.trim() || '(empty file)';
-  return {
-    line: 1,
-    column: 1,
-    preview: fallbackPreview,
-  };
 }

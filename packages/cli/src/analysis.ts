@@ -45,7 +45,7 @@ export type Snapshot = {
   capabilities: Array<Record<string, unknown>>;
   embeddings: 'pending' | 'ready' | 'skipped';
 };
-export const logger = {
+const logger = {
   log: (message: string) => process.stderr.write(`${message}\n`),
   warn: (message: string) => process.stderr.write(`${message}\n`),
 };
@@ -88,7 +88,7 @@ export function fileTree(files: string[]): FileTreeNode[] {
   }
   return tree;
 }
-export function createRetrieval(directory: string, source: string, files: string[]): void {
+function createRetrieval(directory: string, source: string, files: string[]): void {
   const db = new Database(path.join(directory, 'retrieval.sqlite'));
   try {
     db.exec(`CREATE TABLE Chunks(Id INTEGER PRIMARY KEY, Path TEXT NOT NULL, StartLine INTEGER NOT NULL, EndLine INTEGER NOT NULL, Content TEXT NOT NULL, Hash TEXT NOT NULL);

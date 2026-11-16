@@ -25,7 +25,7 @@ export type Github = {
   publicGet: (endpoint: string) => Promise<Record<string, unknown>>;
   gh: (args: string[], input?: unknown) => unknown;
 };
-export const github: Github = {
+const github: Github = {
   async publicGet(endpoint) {
     const response = await fetch(`https://api.github.com/${endpoint}`, {
       headers: { Accept: 'application/vnd.github+json' },

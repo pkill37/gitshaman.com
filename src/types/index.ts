@@ -25,7 +25,7 @@ export interface EditorTab {
   navigationNonce?: number; // Bumped for repeated navigation to same target
 }
 
-export type WorkspaceSearchMatchType = 'filename' | 'quoted' | 'content';
+type WorkspaceSearchMatchType = 'filename' | 'quoted' | 'content';
 
 export interface WorkspaceSearchResult {
   file: string;

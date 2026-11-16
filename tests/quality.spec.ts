@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { routeCorpusRepository } from './helpers/corpus-routing';
 
 /**
  * Quality and Accessibility Tests
@@ -15,6 +16,18 @@ test.describe('Quality Checks', { tag: '@a11y' }, () => {
   });
 
   test('repository page has no accessibility violations', async ({ page }) => {
+    // Keep the accessibility scan independent of downloaded or hosted corpus data.
+    await routeCorpusRepository({
+      page,
+      owner: 'torvalds',
+      repo: 'linux',
+      manifest: {
+        tree: [
+          { name: 'Makefile', type: 'f' },
+          { name: 'init', type: 'd', children: [{ name: 'main.c', type: 'f' }] },
+        ],
+      },
+    });
     await page.goto('/linux-kernel', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('region', { name: 'Repository file tree' })).toContainText(
       'Makefile'

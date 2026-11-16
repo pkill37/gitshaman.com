@@ -1,5 +1,5 @@
 export const SITE_NAME = 'gitshaman.com';
-export const SITE_URL = 'https://gitshaman.com';
+const SITE_URL = 'https://gitshaman.com';
 export const SOURCE_REPOSITORY_URL = 'https://github.com/pkill37/gitshaman.com';
 
 export function getSiteUrl(): string {

@@ -13,7 +13,7 @@ const SOURCE_LANGUAGES: Record<string, string> = {
 };
 const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', '.cache']);
 
-export function findCompilationDatabase(repoDir: string): string | null {
+function findCompilationDatabase(repoDir: string): string | null {
   // Prefer build-system output over our source-only fallback at the root.
   for (const candidate of [
     'build/compile_commands.json',

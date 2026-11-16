@@ -14,7 +14,7 @@ export const ANDROID_CORE_PROJECTS = [
   'packages/apps/Settings',
 ];
 
-export type AndroidMapping = { kind: 'copyfile' | 'linkfile'; src: string; dest: string };
+type AndroidMapping = { kind: 'copyfile' | 'linkfile'; src: string; dest: string };
 export type AndroidProject = {
   path: string;
   name: string;

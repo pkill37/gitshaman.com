@@ -42,7 +42,7 @@ export interface RepositoryState {
   downloadProgress: DownloadProgress | null;
 }
 
-export interface RepositoryActions {
+interface RepositoryActions {
   // Repository management
   setRepository: (
     source: 'github' | 'uploaded',

@@ -119,24 +119,6 @@ export async function routeCorpusRepository({
   return requests;
 }
 
-export function expectOnlyLocalCorpusWasHit(requests: RoutedCorpusRequests): void {
-  if (requests.local.length === 0) {
-    throw new Error('Expected local staged corpus to be requested');
-  }
-  if (requests.r2.length > 0) {
-    throw new Error(`Expected no R2 corpus requests, got ${requests.r2.join(', ')}`);
-  }
-}
-
-export function expectOnlyR2CorpusWasHit(requests: RoutedCorpusRequests): void {
-  if (requests.r2.length === 0) {
-    throw new Error('Expected R2 corpus to be requested');
-  }
-  if (requests.local.length > 0) {
-    throw new Error(`Expected no local staged corpus requests, got ${requests.local.join(', ')}`);
-  }
-}
-
 export function expectBothCorpusSourcesWereHit(requests: RoutedCorpusRequests): void {
   if (requests.local.length === 0 || requests.r2.length === 0) {
     throw new Error(

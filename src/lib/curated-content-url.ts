@@ -23,7 +23,7 @@ function getConfiguredPublicR2BaseUrl(): string {
   return baseUrl ? normalizeBaseUrl(baseUrl) : '';
 }
 
-export function getR2BucketBaseUrl(): string {
+function getR2BucketBaseUrl(): string {
   const configuredBaseUrl = getConfiguredPublicR2BaseUrl();
   if (configuredBaseUrl) {
     return configuredBaseUrl;

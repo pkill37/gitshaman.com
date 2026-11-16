@@ -1,4 +1,4 @@
-export interface BrowserDebugEntry {
+interface BrowserDebugEntry {
   label: string;
   payload?: unknown;
   timestamp: string;

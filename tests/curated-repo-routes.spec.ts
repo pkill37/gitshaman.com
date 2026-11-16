@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { routeCorpusRepository } from './helpers/corpus-routing';
 
 import {
   CURATED_REPOS,
@@ -52,6 +54,26 @@ test.describe('curated repo routes', () => {
 });
 
 test('GCC exposes its pinned guide and compiler entry point', async ({ page }) => {
+  const gcc = CURATED_REPOS.find((repo) => repo.slug === 'gcc-compiler');
+  if (!gcc) throw new Error('Missing curated GCC repository');
+
+  // CI has no downloaded corpus. Serve the pinned source locally so this route
+  // test does not depend on a deployed R2 object or GitHub availability.
+  const requests = await routeCorpusRepository({
+    page,
+    owner: gcc.owner,
+    repo: gcc.repo,
+    manifest: {
+      tree: [{ name: 'gcc', type: 'd', children: [{ name: 'main.cc', type: 'f' }] }],
+    },
+    files: {
+      'gcc/main.cc': await readFile(
+        new URL('./fixtures/gcc-15.2.0-main.cc', import.meta.url),
+        'utf8'
+      ),
+    },
+  });
+
   await page.goto('/gcc-compiler?file=gcc/main.cc&line=34');
   await expect(page.locator('[data-guide-markdown]').first()).toContainText(
     'The program named gcc is a driver.',
@@ -62,4 +84,7 @@ test('GCC exposes its pinned guide and compiler entry point', async ({ page }) =
   ).toBeVisible({
     timeout: 30000,
   });
+  expect(requests.local).toContainEqual(
+    expect.stringContaining(`/repos/${gcc.owner}/${gcc.repo}/${gcc.revision}/gcc/main.cc`)
+  );
 });

@@ -17,7 +17,7 @@ export type BugReportIssueInput = {
   screenshotIncluded: boolean;
 };
 
-export type BugReportDiagnostics = {
+type BugReportDiagnostics = {
   cleanUrl: string;
   route: string;
   userAgent: string;
@@ -33,7 +33,7 @@ function getIssueTarget(): { owner: string; repo: string } {
   };
 }
 
-export function getCleanCurrentUrl(): string {
+function getCleanCurrentUrl(): string {
   if (typeof window === 'undefined') {
     return '';
   }
@@ -44,7 +44,7 @@ export function getCleanCurrentUrl(): string {
   return url.toString();
 }
 
-export function collectBugReportDiagnostics(): BugReportDiagnostics {
+function collectBugReportDiagnostics(): BugReportDiagnostics {
   return {
     cleanUrl: getCleanCurrentUrl(),
     route: typeof window === 'undefined' ? '' : window.location.pathname,

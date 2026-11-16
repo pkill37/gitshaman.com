@@ -154,7 +154,7 @@ export function safeRelative(file: string): boolean {
     !/[\x00-\x1f\x7f]/.test(file)
   );
 }
-export function eligible(file: string): boolean {
+function eligible(file: string): boolean {
   const name = path.posix.basename(file);
   return (
     safeRelative(file) &&

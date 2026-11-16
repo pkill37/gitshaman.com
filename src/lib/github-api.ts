@@ -314,36 +314,3 @@ export async function buildFileTree(
     return [];
   }
 }
-
-/**
- * Get file icon based on type and extension
- */
-export function getFileIcon(node: FileNode): string {
-  if (node.type === 'directory') {
-    return node.isExpanded ? '📂' : '📁';
-  }
-
-  const extension = node.name.split('.').pop()?.toLowerCase();
-  switch (extension) {
-    case 'c':
-      return '⚙️';
-    case 'h':
-      return '🔧';
-    case 's':
-    case 'S':
-      return '🔩';
-    case 'py':
-      return '🐍';
-    case 'sh':
-      return '🐚';
-    case 'md':
-      return '📖';
-    case 'json':
-      return '📋';
-    case 'yaml':
-    case 'yml':
-      return '⚙️';
-    default:
-      return '📄';
-  }
-}

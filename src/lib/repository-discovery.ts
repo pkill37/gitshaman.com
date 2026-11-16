@@ -11,7 +11,7 @@ export interface RepositoryDiscovery {
   warnings: string[];
 }
 
-export function workspacePatterns(manifest: Record<string, unknown>): string[] {
+function workspacePatterns(manifest: Record<string, unknown>): string[] {
   const workspaces = manifest.workspaces;
   const patterns = Array.isArray(workspaces)
     ? workspaces

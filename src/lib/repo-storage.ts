@@ -9,7 +9,7 @@ export interface FileEntry {
   size?: number;
 }
 
-export interface RepositoryMetadata {
+interface RepositoryMetadata {
   source: 'github' | 'uploaded'; // 'uploaded' kept for backward compatibility
   identifier: string; // owner~repo for GitHub repositories
   branches: string[];
@@ -118,7 +118,7 @@ function putInStore(
 /**
  * Initialize IndexedDB database
  */
-export async function initStorage(): Promise<void> {
+async function initStorage(): Promise<void> {
   if (initPromise) {
     return initPromise;
   }
@@ -239,12 +239,6 @@ function visitRepositoryRecords(
     };
     request.onerror = () => reject(request.error);
   });
-}
-
-function includeRepositoryBranch(metadata: RepositoryMetadata | null, branch: string): string[] {
-  const branches = metadata ? [...metadata.branches] : [];
-  if (!branches.includes(branch)) branches.push(branch);
-  return branches;
 }
 
 /**
@@ -370,93 +364,6 @@ export async function getDirectoryMetadata(
 }
 
 /**
- * Force immediate metadata update
- * Call this when root directory metadata is downloaded to ensure metadata is stored
- * Note: We don't calculate total size since we're always lazy loading (size is unknown)
- */
-export async function finalizeRepositoryMetadata(
-  source: 'github' | 'uploaded',
-  identifier: string,
-  branch: string
-): Promise<void> {
-  const metadataKey = getMetadataKey(source, identifier);
-
-  try {
-    const database = await ensureDB();
-
-    // Get existing metadata
-    const metadata = await getFromStore<RepositoryMetadata>(database, METADATA_STORE, metadataKey);
-
-    const branches = includeRepositoryBranch(metadata, branch);
-
-    // Calculate size of currently downloaded files only (not total repository size)
-    const downloadedSize = await calculateRepositorySize(source, identifier);
-
-    // Create display name
-    let displayName = identifier;
-    if (source === 'github') {
-      displayName = identifier.replace('~', '/');
-    }
-
-    // Update metadata (size is only for downloaded files, not total)
-    const metadataToStore = {
-      id: metadataKey,
-      source,
-      identifier,
-      branches: branches.sort(),
-      totalSize: downloadedSize, // Only size of downloaded files
-      lastAccessed: Date.now(),
-      displayName,
-    };
-    console.log('[Repo Storage] Storing repository metadata:', {
-      source,
-      identifier,
-      branch,
-      metadata: metadataToStore,
-    });
-
-    await putInStore(database, METADATA_STORE, metadataToStore, () => {
-      console.log('[Repo Storage] Repository metadata stored successfully:', {
-        source,
-        identifier,
-        branch,
-      });
-    });
-  } catch (error) {
-    console.error('[Repo Storage] Failed to finalize repository metadata:', {
-      source,
-      identifier,
-      branch,
-      error,
-    });
-    throw error;
-  }
-}
-
-/**
- * Calculate repository size
- */
-async function calculateRepositorySize(
-  source: 'github' | 'uploaded',
-  identifier: string
-): Promise<number> {
-  try {
-    const database = await ensureDB();
-    const transaction = database.transaction([FILES_STORE], 'readonly');
-    const store = transaction.objectStore(FILES_STORE);
-    const index = store.index('identifier');
-
-    let totalSize = 0;
-
-    return visitRepositoryRecords(index, source, identifier, (cursor) => {
-      totalSize += cursor.value.size || 0;
-    }).then(() => totalSize);
-  } catch {
-    return 0;
-  }
-}
-
-/**
  * Get storage usage information
  */
 export async function getStorageUsage(): Promise<StorageUsage> {
@@ -523,40 +430,6 @@ export async function getStorageUsage(): Promise<StorageUsage> {
       repositories: [],
       availableSpace: undefined,
     };
-  }
-}
-
-/**
- * Clear entire repository (all branches)
- */
-export async function clearRepository(
-  source: 'github' | 'uploaded',
-  identifier: string
-): Promise<void> {
-  try {
-    const database = await ensureDB();
-    const transaction = database.transaction([FILES_STORE, METADATA_STORE], 'readwrite');
-    const filesStore = transaction.objectStore(FILES_STORE);
-    const metadataStore = transaction.objectStore(METADATA_STORE);
-    const index = filesStore.index('identifier');
-
-    // Delete all files for this repository
-    await visitRepositoryRecords(index, source, identifier, (cursor) => {
-      cursor.delete();
-    });
-
-    // Delete metadata
-    const metadataKey = getMetadataKey(source, identifier);
-    await new Promise<void>((resolve, reject) => {
-      const request = metadataStore.delete(metadataKey);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-
-    console.log(`Cleared repository: ${source}/${identifier}`);
-  } catch (error) {
-    console.error('Failed to clear repository:', error);
-    throw new Error(`Failed to clear repository: ${source}/${identifier}`);
   }
 }
 

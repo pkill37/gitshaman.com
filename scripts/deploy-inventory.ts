@@ -4,7 +4,7 @@ import path from 'node:path';
 
 export type LocalArtifact = { size: number; hash: string };
 export type RemoteArtifact = { size: number; etag: string };
-export type PublishedArtifact = LocalArtifact & { etag: string };
+type PublishedArtifact = LocalArtifact & { etag: string };
 export type PublishedInventory = Record<string, PublishedArtifact>;
 type CachedArtifact = LocalArtifact & { stamp: string };
 
@@ -62,7 +62,7 @@ export async function scanArtifacts(dir: string, cachePath: string, forceHash = 
   return { files, hashed, bytes };
 }
 
-export function needsUpload(
+function needsUpload(
   local: LocalArtifact,
   remote: RemoteArtifact | undefined,
   published: PublishedArtifact | undefined

@@ -265,7 +265,7 @@ export function getRepoLinkAttributes(target: RepoNavigationTarget): string {
 }
 
 /** Cross-repository references carry an explicit owner/repository target. */
-export function isExternalRepoReference(target: RepoNavigationTarget): boolean {
+function isExternalRepoReference(target: RepoNavigationTarget): boolean {
   return Boolean(target.owner && target.repo);
 }
 

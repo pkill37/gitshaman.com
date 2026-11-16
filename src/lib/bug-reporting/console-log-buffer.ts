@@ -1,6 +1,6 @@
 'use client';
 
-export type ConsoleLogLevel = 'debug' | 'error' | 'info' | 'log' | 'warn';
+type ConsoleLogLevel = 'debug' | 'error' | 'info' | 'log' | 'warn';
 
 export type ConsoleLogEntry = {
   level: ConsoleLogLevel;

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 export const DOCS_DIR = path.join(process.cwd(), 'docs');
-export const NON_GUIDE_DOCS = new Set(['common.md', '_template.md', 'README.md']);
+const NON_GUIDE_DOCS = new Set(['common.md', '_template.md', 'README.md']);
 
 export function isGuideMarkdownFile(fileName: string): boolean {
   return fileName.endsWith('.md') && !NON_GUIDE_DOCS.has(fileName) && !fileName.startsWith('_');

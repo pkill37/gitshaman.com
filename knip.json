@@ -1,4 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "functions/**/!(_*).ts",
+    "packages/cli/workspace/{index,dynamic,link,navigation}.{ts,tsx}",
+    "scripts/code-index-worker.ts",
+    "scripts/render-pitch-deck.mjs",
+    "scripts/report-build.ts",
+    "tests/*.node.ts",
+    "tests/fixtures/{clangd-call-hierarchy,fake-r2-cli}.mjs"
+  ],
   "tags": ["-lintignore"]
 }

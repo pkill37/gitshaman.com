@@ -48,7 +48,7 @@ export interface GuideSection {
   graph?: string;
 }
 
-export interface ProjectGuide {
+interface ProjectGuide {
   id: string;
   name: string;
   description?: string;
