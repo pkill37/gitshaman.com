@@ -2,7 +2,10 @@ import { chromium } from '@playwright/test';
 import { resolve } from 'node:path';
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({
+  viewport: { width: 1280, height: 720 },
+  deviceScaleFactor: 1,
+});
 const input = resolve('docs/gitshaman-pitch-deck.html');
 await page.goto(`file://${input}`, { waitUntil: 'load' });
 await page.pdf({

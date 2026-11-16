@@ -926,14 +926,13 @@
 @media (max-width: 1023px) {
   .vscode-container {
     flex-direction: column;
-    padding-bottom: 56px; /* Space for mobile nav bar */
   }
 
   .vscode-sidebar {
     position: absolute;
     left: 0;
     top: 0;
-    bottom: 56px; /* Above mobile nav bar */
+    bottom: 0;
     z-index: 100;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
     transform: translateX(-100%);
@@ -958,7 +957,7 @@
     left: 0;
     right: 0;
     top: 0;
-    bottom: 56px; /* Above mobile nav bar */
+    bottom: 0;
   }
 
   .vscode-editor-container.mobile-hidden {
@@ -969,7 +968,7 @@
     position: absolute;
     right: 0;
     top: 0;
-    bottom: 56px; /* Above mobile nav bar */
+    bottom: 0;
     z-index: 100;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
     transform: translateX(100%);
@@ -992,7 +991,6 @@
   }
 
   .cursor-statusbar {
-    bottom: 56px !important;
     flex-wrap: wrap;
     padding: 4px 8px;
     font-size: 10px;
@@ -1543,4 +1541,142 @@
 .monaco-editor-background,
 .monaco-editor .margin {
   background-color: var(--vscode-bg-primary) !important;
+}
+
+.workspace-mobile-repo,
+.workspace-mobile-guide,
+.workspace-mobile-empty {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .repository-workspace.shaman-workspace-enter {
+    animation: none;
+  }
+
+  .repository-workspace-body {
+    flex-direction: column !important;
+  }
+
+  .repository-workspace .workspace-activity-bar {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 2px !important;
+    padding: 4px 8px !important;
+    border-bottom: 1px solid var(--vscode-border);
+  }
+
+  .workspace-mobile-repo {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 6px;
+    color: var(--vscode-text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .repository-workspace .workspace-activity-button {
+    width: 40px !important;
+    height: 44px !important;
+    flex-shrink: 0;
+  }
+
+  .workspace-mobile-guide {
+    display: block;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--vscode-border);
+    border-radius: 6px;
+    background: var(--vscode-bg-primary);
+    color: var(--vscode-text-primary);
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .workspace-mobile-guide[aria-pressed='true'] {
+    color: var(--repo-accent);
+    border-color: currentColor;
+  }
+
+  .repository-workspace-content {
+    min-height: 0;
+  }
+
+  .workspace-mobile-empty {
+    display: block;
+    max-width: 280px;
+    line-height: 1.6;
+  }
+
+  .workspace-mobile-empty h2 {
+    color: var(--vscode-text-primary);
+    font-size: 17px;
+  }
+
+  .workspace-mobile-empty button {
+    min-height: 44px;
+    margin-top: 12px;
+    padding: 0 18px;
+    border: 1px solid var(--vscode-border);
+    border-radius: 6px;
+    background: var(--vscode-bg-secondary);
+    color: var(--vscode-text-primary);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .repository-workspace-editor {
+    left: 0 !important;
+  }
+
+  .repository-panel-chat,
+  .repository-panel-entities {
+    width: 100% !important;
+    z-index: 4 !important;
+  }
+
+  .repository-guide-sidebar {
+    position: absolute;
+    inset: 53px 0 0;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    z-index: 5;
+  }
+
+  .repository-workspace .workspace-left-pane-resizer,
+  .repository-guide-resizer,
+  .repository-guide-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .repository-workspace > .cursor-statusbar {
+    display: flex;
+    flex-wrap: nowrap;
+    height: auto;
+    min-height: 44px;
+    padding: 0 10px env(safe-area-inset-bottom, 0px);
+  }
+
+  .repository-workspace .cursor-statusbar-left > :not(.cursor-statusbar-brand),
+  .repository-workspace
+    .cursor-statusbar-right
+    > :not(.cursor-statusbar-history):not(.cursor-statusbar-theme) {
+    display: none;
+  }
+
+  .repository-workspace .cursor-statusbar-history,
+  .repository-workspace .cursor-statusbar-theme {
+    min-height: 44px;
+    padding: 0 8px;
+  }
 }

@@ -91,7 +91,7 @@ test('both curated manifests select all required core paths and distribution rem
   }
 });
 
-test('workspace snapshots pin revisions, merge paths, bound index lifetime and preserve publication on failure', async () => {
+test('workspace snapshots pin revisions, merge paths, bound index lifetime and preserve publication on failure', async (t) => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'gitshaman-android-test-'));
   try {
     const config: CuratedRepoConfig = {
@@ -138,6 +138,14 @@ test('workspace snapshots pin revisions, merge paths, bound index lifetime and p
       `https://github.com/example/base/blob/${sha}/main.ts#L2`
     );
     const artifactRoot = path.join(root, 'android', 'snapshots', workspace.snapshot);
+    let manifestFetches = 0;
+    t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      const file = decodeURIComponent(url.pathname.split('/manifest/')[1] ?? '');
+      assert.ok(file, 'search fetches manifest content from the pinned snapshot');
+      manifestFetches++;
+      return new Response(fs.readFileSync(path.join(artifactRoot, 'manifest', file), 'utf8'));
+    });
     assert.ok(
       !fs.existsSync(
         path.join(artifactRoot, 'projects', 'frameworks__base', 'tree', 'frameworks/base/escape')
@@ -207,6 +215,16 @@ test('workspace snapshots pin revisions, merge paths, bound index lifetime and p
     assert.equal(maximum, 1);
     assert.equal(active, 0);
     assert.equal((await source.search('sharedSymbol', 'system/core')).length, 1);
+    assert.deepEqual(
+      (await source.search('default.xml')).map((entry) => entry.path),
+      ['default.xml']
+    );
+    assert.deepEqual(
+      (await source.search('Manifest documentation')).map((entry) => entry.path),
+      ['README.md']
+    );
+    assert.deepEqual(await source.search('Manifest documentation', 'system/core'), []);
+    assert.equal(manifestFetches, 3, 'manifest contents are reused across searches');
     const javaTypes = await source.definitions('AndroidType');
     assert.equal(javaTypes.length, 2);
     assert.equal(javaTypes[0].startLine, 2);

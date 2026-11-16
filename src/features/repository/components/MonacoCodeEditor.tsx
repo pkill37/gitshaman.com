@@ -884,6 +884,8 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return 'typescript';
       case 'json':
         return 'json';
+      case 'xml':
+        return 'xml';
       case 'yaml':
       case 'yml':
         return 'yaml';

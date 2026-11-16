@@ -16,8 +16,10 @@ test.describe('Quality Checks', { tag: '@a11y' }, () => {
 
   test('repository page has no accessibility violations', async ({ page }) => {
     await page.goto('/linux-kernel', { waitUntil: 'domcontentloaded' });
-    const loadedMain = page.getByRole('main').filter({ hasText: 'Open a file from the explorer' });
-    await expect(loadedMain).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('region', { name: 'Repository file tree' })).toContainText(
+      'Makefile'
+    );
+    await expect(page.getByRole('tabpanel', { name: 'The Kernel Is Not a Process' })).toBeVisible();
     // color-contrast is disabled: the dark VS Code-like UI intentionally uses
     // low-contrast muted labels (same design trade-off as VS Code's own dark theme)
     const accessibilityScanResults = await new AxeBuilder({ page })

@@ -1,0 +1,166 @@
+.repository-history {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--vscode-border);
+  background: var(--vscode-bg-secondary);
+  color: var(--vscode-text-primary);
+  font-size: 11px;
+}
+
+.repository-history-previews {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.repository-history-previews[hidden] {
+  display: none;
+}
+
+.repository-history-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 164px;
+  min-width: 0;
+  border: 1px solid
+    color-mix(in srgb, var(--history-accent, var(--vscode-text-accent)) 40%, #17151c);
+  border-left: 3px solid var(--history-accent, var(--vscode-text-accent));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--history-accent, var(--vscode-text-accent)) 24%, #17151c);
+  color: #eee8dc;
+  text-decoration: none;
+}
+
+.repository-history-preview[data-current] {
+  background: color-mix(in srgb, var(--history-accent, var(--vscode-text-accent)) 36%, #17151c);
+}
+
+.repository-history-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.repository-history-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.repository-history-remove:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.repository-history-preview-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: rgb(238 232 220 / 72%);
+  font-size: 10px;
+  padding-right: 24px;
+}
+
+.repository-history-preview strong,
+.repository-history-preview-top span:first-child,
+.repository-history-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-history-file {
+  color: rgb(238 232 220 / 72%);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+}
+
+.repository-history-preview:hover {
+  background: color-mix(in srgb, var(--history-accent, var(--vscode-text-accent)) 44%, #17151c);
+}
+
+.repository-history a:focus-visible,
+.repository-history button:focus-visible {
+  outline: 2px solid var(--vscode-text-accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 600px) {
+  .repository-history {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .repository-history-preview {
+    flex-basis: 140px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .repository-history {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 8%);
+  }
+
+  .repository-history-previews {
+    flex: initial;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .repository-history-preview {
+    flex-basis: 156px;
+  }
+
+  .repository-history-link {
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .repository-history-remove {
+    width: 44px;
+    height: 44px;
+  }
+
+  .repository-history-preview-top {
+    padding-right: 36px;
+  }
+
+  .repository-history-preview[data-current] {
+    border-color: var(--history-accent, var(--vscode-text-accent));
+  }
+
+  .repository-history-preview strong {
+    font-size: 13px;
+  }
+}
+
+.repository-history[hidden] {
+  display: none;
+}

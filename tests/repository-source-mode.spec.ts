@@ -186,6 +186,10 @@ test.describe('repository source mode browser behavior', () => {
     await expect(storageSourceSelector(page)).toHaveValue('local-filesystem');
 
     await page.getByRole('button', { name: 'Entities', exact: true }).click();
+    await page
+      .getByRole('button', { name: /^Expand .* entities$/ })
+      .first()
+      .click();
     await expect(page.getByText('local_entity_marker')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('r2_entity_marker')).not.toBeVisible();
 
@@ -194,6 +198,10 @@ test.describe('repository source mode browser behavior', () => {
     await expect(storageSourceStatus(page, 'Storage source: R2')).toBeVisible();
     await page.getByRole('button', { name: 'Entities', exact: true }).click();
 
+    await page
+      .getByRole('button', { name: /^Expand .* entities$/ })
+      .first()
+      .click();
     await expect(page.getByText('r2_entity_marker')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText('local_entity_marker')).not.toBeVisible();
   });

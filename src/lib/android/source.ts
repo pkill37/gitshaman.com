@@ -98,6 +98,7 @@ export type AndroidIndexLoader = (
 export class AndroidWorkspaceSource {
   private queue: Promise<unknown> = Promise.resolve();
   private trees = new Map<boolean, FileNode[]>();
+  private manifestContents = new Map<string, string>();
 
   tree(includeManifest = false): FileNode[] {
     if (!this.trees.has(includeManifest)) {
@@ -158,6 +159,10 @@ export class AndroidWorkspaceSource {
     safeAndroidPath(file);
     const target = resolveAndroidAlias(this.metadata, file);
     const project = androidProjectForPath(this.metadata, target);
+    signal?.throwIfAborted();
+    if (!project && this.manifestContents.has(file)) {
+      return { content: this.manifestContents.get(file)! };
+    }
     const suffix = project ? `projects/${project.id}/tree/${target}` : `manifest/${file}`;
     const response = await fetch(
       `${this.baseUrl}/snapshots/${this.metadata.snapshot}/${suffix.split('/').map(encodeURIComponent).join('/')}`,
@@ -168,7 +173,55 @@ export class AndroidWorkspaceSource {
       throw new Error('Android file is too large');
     const content = await response.text();
     if (new Blob([content]).size > 2 * 1024 * 1024) throw new Error('Android file is too large');
+    if (!project) this.manifestContents.set(file, content);
     return { content };
+  }
+
+  private async searchManifest(query: string, signal?: AbortSignal): Promise<CodeIndexFileEntry[]> {
+    const terms = query.toLowerCase().match(/[a-z0-9_]+/g) ?? [];
+    if (!terms.length) return [];
+    const files: string[] = [];
+    const collect = (nodes: FileNode[]) => {
+      for (const node of nodes) {
+        if (node.type === 'directory') collect(node.children ?? []);
+        else if (
+          resolveAndroidAlias(this.metadata, node.path) === node.path &&
+          !androidProjectForPath(this.metadata, node.path)
+        )
+          files.push(node.path);
+      }
+    };
+    collect(this.metadata.manifestTree);
+    const results: CodeIndexFileEntry[] = [];
+    for (let offset = 0; offset < files.length; offset += 8) {
+      signal?.throwIfAborted();
+      const matches = await Promise.all(
+        files.slice(offset, offset + 8).map(async (path) => {
+          let content = '';
+          try {
+            content = (await this.file(path, signal)).content;
+          } catch {
+            signal?.throwIfAborted();
+            // A missing preview must not hide a filename match.
+          }
+          const lowerPath = path.toLowerCase();
+          const lowerContent = content.toLowerCase();
+          if (!terms.every((term) => lowerPath.includes(term) || lowerContent.includes(term)))
+            return null;
+          const matchType = terms.some((term) => lowerPath.includes(term)) ? 'filename' : 'content';
+          return {
+            path,
+            size: new TextEncoder().encode(content).length,
+            isDocumentation: /(?:\.(?:md|txt|rst)$|(?:^|\/)readme(?:\.|$))/i.test(path),
+            matchType,
+            relevanceScore: matchType === 'filename' ? 70 : 30,
+          } satisfies CodeIndexFileEntry;
+        })
+      );
+      for (const match of matches) if (match) results.push(match);
+    }
+    signal?.throwIfAborted();
+    return results;
   }
 
   private scan<T>(
@@ -209,6 +262,7 @@ export class AndroidWorkspaceSource {
       projectPath,
       signal
     );
+    if (!projectPath) results.push(...(await this.searchManifest(query, signal)));
     return results
       .sort((a, b) => b.relevanceScore - a.relevanceScore || a.path.localeCompare(b.path))
       .slice(0, 200);

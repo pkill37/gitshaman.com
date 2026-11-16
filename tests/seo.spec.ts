@@ -167,10 +167,9 @@ test.describe('SEO Checks', () => {
 
   test('curated repositories are crawlable links', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('link', { name: 'Linux', exact: true })).toHaveAttribute(
-      'href',
-      '/linux-kernel/'
-    );
+    await expect(
+      page.getByRole('link').filter({ has: page.getByText('Linux', { exact: true }) })
+    ).toHaveAttribute('href', '/linux-kernel/');
   });
 
   test('unrelated one-segment routes remain 404s', async ({ request }) => {

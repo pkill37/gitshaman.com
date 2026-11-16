@@ -493,15 +493,37 @@ export function EntityView({
 
   const [scored, setScored] = useState<ScoredEntity[]>([]);
   const [loading, setLoading] = useState(false);
+  const [folderExpansion, setFolderExpansion] = useState<{
+    key: string;
+    folders: ReadonlySet<string>;
+  }>({ key: '', folders: new Set() });
   const deferredEntityFilter = useDeferredValue(searchQuery.trim().toLowerCase());
   const filteredScored = useMemo(
     () => scored.filter((item) => matchesEntityQuery(item, deferredEntityFilter)),
     [scored, deferredEntityFilter]
   );
   const folderGroups = useMemo(() => buildFolderGroups(filteredScored), [filteredScored]);
+  // Expand matching folders immediately when the user starts searching. The
+  // deferred value still controls filtering, but the results should not stay
+  // hidden behind a collapsed folder during that transition.
+  const hasEntityFilter = searchQuery.trim().length > 0;
 
   // Stable key for the current view
   const currentKey = `${sourceMode}:${activeChapterId ?? '__all__'}`;
+  const expandedFolders =
+    folderExpansion.key === currentKey ? folderExpansion.folders : new Set<string>();
+
+  const toggleFolder = (folder: string) => {
+    setFolderExpansion((previous) => {
+      const next = new Set(previous.key === currentKey ? previous.folders : []);
+      if (next.has(folder)) {
+        next.delete(folder);
+      } else {
+        next.add(folder);
+      }
+      return { key: currentKey, folders: next };
+    });
+  };
 
   // Guide-selected paths for the current key. These may be files or directories.
   const selectedPaths = useMemo(() => {
@@ -752,66 +774,87 @@ export function EntityView({
           No entities match the current filter.
         </div>
       ) : (
-        folderGroups.map((group) => (
-          <section
-            key={group.folder}
-            style={{
-              border: `1px solid ${group.color}26`,
-              borderRadius: 10,
-              overflow: 'hidden',
-              background: 'var(--vscode-bg-primary)',
-              boxShadow: `0 0 0 1px ${group.color}10 inset`,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 14px',
-                background: `${group.color}14`,
-                borderBottom: `1px solid ${group.color}26`,
-                fontFamily: 'monospace',
-              }}
-            >
-              <span
+        folderGroups.map((group) =>
+          (() => {
+            const isFolderExpanded = hasEntityFilter || expandedFolders.has(group.folder);
+            return (
+              <section
+                key={group.folder}
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  background: group.color,
-                  boxShadow: `0 0 12px ${group.color}88`,
-                  flexShrink: 0,
+                  border: `1px solid ${group.color}26`,
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                  background: 'var(--vscode-bg-primary)',
+                  boxShadow: `0 0 0 1px ${group.color}10 inset`,
                 }}
-              />
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--vscode-text-primary)' }}>
-                {group.folder}
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--vscode-text-secondary)' }}>
-                {group.items.length} entities
-              </span>
-            </div>
-            <div
-              style={{
-                padding: 12,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 10,
-                alignItems: 'start',
-              }}
-            >
-              {group.items.map((item, index) => (
-                <EntityCard
-                  key={`${item.entity.filePath}::${item.entity.name}::${index}`}
-                  scored={item}
-                  onOpenFile={onOpenFile}
-                  color={group.color}
-                  folderLabel={group.folder}
-                />
-              ))}
-            </div>
-          </section>
-        ))
+              >
+                <button
+                  type="button"
+                  aria-expanded={isFolderExpanded}
+                  aria-label={`${isFolderExpanded ? 'Collapse' : 'Expand'} ${group.folder} entities`}
+                  onClick={() => toggleFolder(group.folder)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 14px',
+                    background: `${group.color}14`,
+                    borderBottom: `1px solid ${group.color}26`,
+                    border: 0,
+                    color: 'inherit',
+                    fontFamily: 'monospace',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: 10, color: group.color, fontSize: 14 }}>
+                    {isFolderExpanded ? '▾' : '▸'}
+                  </span>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: group.color,
+                      boxShadow: `0 0 12px ${group.color}88`,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{ fontSize: 12, fontWeight: 700, color: 'var(--vscode-text-primary)' }}
+                  >
+                    {group.folder}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--vscode-text-secondary)' }}>
+                    {group.items.length} entities
+                  </span>
+                </button>
+                {isFolderExpanded && (
+                  <div
+                    style={{
+                      padding: 12,
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                      gap: 10,
+                      alignItems: 'start',
+                    }}
+                  >
+                    {group.items.map((item, index) => (
+                      <EntityCard
+                        key={`${item.entity.filePath}::${item.entity.name}::${index}`}
+                        scored={item}
+                        onOpenFile={onOpenFile}
+                        color={group.color}
+                        folderLabel={group.folder}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })()
+        )
       )}
     </div>
   );

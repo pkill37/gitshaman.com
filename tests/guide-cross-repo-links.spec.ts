@@ -65,3 +65,94 @@ test('guide and preview styles render local, remote, mixed and emphasized code l
     await expect(wrapper.locator('.external-repo-reference-icon')).toHaveCount(2);
   }
 });
+
+test('repository history keeps previews across links, reloads and arbitrary returns', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = 'nextjs-portal { display: none !important; }';
+      document.head.append(style);
+    });
+  });
+  // History navigation works independently of source loading and its large indexes.
+  await page.route('**/repos/**', (route) => route.abort());
+  const sourcePageRequests: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/gnu-c-library/file/')) {
+      sourcePageRequests.push(request.url());
+    }
+  });
+  await page.goto('/cpython/');
+  const crossRepoLink = page
+    .locator(
+      '[data-guide-markdown]:visible a[data-repo-owner][data-search-pattern="pthread_create"]'
+    )
+    .first();
+  await expect(crossRepoLink).toBeVisible({ timeout: 60000 });
+  const destination = await crossRepoLink.getAttribute('data-repo-name');
+  await crossRepoLink.click();
+
+  const history = page.getByRole('navigation', { name: 'Repository history' });
+  await expect(history).toBeVisible({ timeout: 60000 });
+  await expect(history.locator('a')).toHaveCount(2);
+  await expect(history.locator('a').first()).toContainText('cpython');
+  await expect(history.locator('a[aria-current="location"]')).not.toContainText('cpython');
+  if (destination) await expect(history.locator('a').last()).toContainText(destination);
+  const destinationUrl = page.url();
+  expect(new URL(destinationUrl).pathname).toBe('/gnu-c-library/');
+  expect(new URL(destinationUrl).searchParams.get('file')).toBe('nptl/pthread_create.c');
+  expect(new URL(destinationUrl).searchParams.get('search')).toBe('pthread_create');
+
+  await page.reload();
+  await expect(history.locator('a')).toHaveCount(2, { timeout: 60000 });
+  expect(new URL(page.url()).pathname).toBe('/gnu-c-library/');
+  await history.locator('a').first().click();
+  await expect(page).toHaveURL(/\/cpython\//, { timeout: 60000 });
+  await expect(history.locator('a')).toHaveCount(3, { timeout: 60000 });
+  await expect(history.locator('a').nth(1)).not.toContainText('cpython');
+  await history.locator('a').nth(1).click();
+  await expect(history.locator('a')).toHaveCount(4, { timeout: 60000 });
+  expect(new URL(page.url()).pathname.split('/')[1]).toBe(
+    new URL(destinationUrl).pathname.split('/')[1]
+  );
+  expect(new URL(page.url()).searchParams.get('file')).toBe('nptl/pthread_create.c');
+  expect(sourcePageRequests).toEqual([]);
+  const removedId = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('gitshaman:repository-history:v1')!)[0].id as string
+  );
+  const currentUrl = page.url();
+  await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
+  await expect(history.locator('a')).toHaveCount(3);
+  expect(page.url()).toBe(currentUrl);
+  await expect(page.getByRole('button', { name: 'History 3', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(history.locator('a')).toHaveCount(3);
+  expect(
+    await page.evaluate(
+      (id) =>
+        JSON.parse(localStorage.getItem('gitshaman:repository-history:v1')!).some(
+          (visit: { id: string }) => visit.id === id
+        ),
+      removedId
+    )
+  ).toBe(false);
+  await history.locator('[data-current] button').click();
+  await expect(history.locator('a')).toHaveCount(2);
+  await expect(history.locator('[aria-current]')).toHaveCount(0);
+  await page.evaluate(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('search', 'updated');
+    window.history.pushState(null, '', url);
+  });
+  await expect(history.locator('a')).toHaveCount(2);
+  await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
+  await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
+  await expect(history).toBeHidden();
+  await expect(page.getByRole('button', { name: 'History 0', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('gitshaman:repository-history:v1'))).toBe(
+    '[]'
+  );
+});

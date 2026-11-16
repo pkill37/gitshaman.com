@@ -21,6 +21,9 @@ interface StatusBarProps {
   onSourceModeChange?: (sourceMode: CuratedRepoSourceMode) => void;
   workspaceTheme?: WorkspaceTheme;
   onWorkspaceThemeChange?: (theme: WorkspaceTheme) => void;
+  historyCount?: number;
+  historyExpanded?: boolean;
+  onHistoryToggle?: () => void;
 }
 
 function formatDisplayBranch(branch: string): string {
@@ -46,6 +49,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
   onSourceModeChange,
   workspaceTheme,
   onWorkspaceThemeChange,
+  historyCount = 0,
+  historyExpanded = true,
+  onHistoryToggle,
 }) => {
   const isHydrated = useSyncExternalStore(
     subscribeToHydration,
@@ -142,6 +148,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
   return (
     <div
       className="cursor-statusbar"
+      role="region"
+      aria-label="Workspace status bar"
       style={repoAccent ? ({ '--repo-accent': repoAccent } as React.CSSProperties) : undefined}
     >
       <div className="cursor-statusbar-left">
@@ -193,6 +201,19 @@ const StatusBar: React.FC<StatusBarProps> = ({
         )}
       </div>
       <div className="cursor-statusbar-right">
+        {onHistoryToggle && (
+          <button
+            type="button"
+            className="cursor-statusbar-item cursor-statusbar-button cursor-statusbar-history"
+            aria-expanded={historyExpanded}
+            aria-controls="repository-history-panel"
+            title={historyExpanded ? 'Collapse repository history' : 'Show repository history'}
+            onClick={onHistoryToggle}
+          >
+            <span aria-hidden="true">↶</span>
+            <span>History {historyCount}</span>
+          </button>
+        )}
         {!localSource && (
           <div className="shaman-share-menu-wrap shaman-share-menu-wrap--statusbar">
             <button
@@ -261,7 +282,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         {workspaceTheme && onWorkspaceThemeChange && (
           <button
             type="button"
-            className="cursor-statusbar-item cursor-statusbar-button"
+            className="cursor-statusbar-item cursor-statusbar-button cursor-statusbar-theme"
             onClick={() => onWorkspaceThemeChange(workspaceTheme === 'light' ? 'dark' : 'light')}
             title={workspaceTheme === 'light' ? 'Use dark theme' : 'Use light theme'}
             aria-label={workspaceTheme === 'light' ? 'Use dark theme' : 'Use light theme'}

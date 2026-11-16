@@ -11,7 +11,6 @@ import {
 import { directoryFromTree } from '@/lib/repository-data-source';
 import { getCuratedRepo } from '@/lib/curated-repos';
 import { getRepositoryDataSource } from '@/lib/repository-data-source';
-import ExplorerIcon from './ExplorerIcon';
 import TabBar from './TabBar';
 import CodeEditorContainer from './CodeEditorContainer';
 import GuidePanel from './GuidePanel';
@@ -180,6 +179,7 @@ interface RepositoryWorkspaceExplorerProps {
   workspaceSearchQuery?: string;
   onWorkspaceSearchQueryChange?: (query: string) => void;
   onActivateFileSearch?: () => void;
+  mobileExplorerRequest?: number;
 }
 
 export default function RepositoryWorkspaceExplorer({
@@ -196,6 +196,7 @@ export default function RepositoryWorkspaceExplorer({
   workspaceSearchQuery: controlledWorkspaceSearchQuery,
   onWorkspaceSearchQueryChange,
   onActivateFileSearch,
+  mobileExplorerRequest = 0,
 }: RepositoryWorkspaceExplorerProps) {
   const router = useRouter();
   const {
@@ -253,7 +254,6 @@ export default function RepositoryWorkspaceExplorer({
   const fileSourceMode = normalizeCuratedRepoSourceMode(sourceMode ?? localFileSourceMode);
   const editorTheme = workspaceTheme === 'light' ? 'vs' : 'vs-dark';
   const [androidSource, setAndroidSource] = useState<AndroidWorkspaceSource | null>(null);
-  const [androidView, setAndroidView] = useState<'source' | 'manifest'>('source');
   const [androidProject, setAndroidProject] = useState('');
   const androidConfigured = !!getCuratedRepo(owner ?? '', repo ?? '')?.androidWorkspace;
   const workspaceId = `${fileSourceMode}:${repoLabel}@${selectedVersion}:${androidSource?.metadata.snapshot ?? ''}`;
@@ -266,6 +266,12 @@ export default function RepositoryWorkspaceExplorer({
   const [isMobile, setIsMobile] = useState<boolean>(false);
   // Mobile view state: 'explorer' | 'editor' | 'guide'
   const [mobileView, setMobileView] = useState<'explorer' | 'editor' | 'guide'>('editor');
+
+  useEffect(() => {
+    if (!mobileExplorerRequest || window.innerWidth >= 1024) return;
+    const timeout = window.setTimeout(() => setMobileView('explorer'), 0);
+    return () => window.clearTimeout(timeout);
+  }, [mobileExplorerRequest]);
 
   // Tree structure readiness state
   const [isTreeStructureReady, setIsTreeStructureReady] = useState<boolean>(false);
@@ -433,7 +439,6 @@ export default function RepositoryWorkspaceExplorer({
         if (cancelled) return;
         setAndroidSource(android);
         if (android) setWorkspaceSearchIndexError(null);
-        setAndroidView('source');
         setAndroidProject('');
         setReferenceSearch(null);
         setRepoLabel(`${owner}/${repo}`);
@@ -840,11 +845,7 @@ export default function RepositoryWorkspaceExplorer({
 
   const listDirectoryFromSelectedSource = useCallback(
     async (path: string) => {
-      if (androidSource)
-        return directoryFromTree(
-          androidView === 'manifest' ? androidSource.metadata.manifestTree : androidSource.tree(),
-          path
-        );
+      if (androidSource) return directoryFromTree(androidSource.tree(), path);
       if (owner && repo && (Boolean(branch) || !isCuratedRepo(owner, repo))) {
         const entries = await downloadDirectoryContents(owner, repo, selectedVersion, path);
         return entries.map((entry) => ({
@@ -862,7 +863,7 @@ export default function RepositoryWorkspaceExplorer({
         repository: { owner: owner || '', repo: repo || '', branch: selectedVersion },
       });
     },
-    [branch, fileSourceMode, owner, repo, selectedVersion, androidSource, androidView]
+    [branch, fileSourceMode, owner, repo, selectedVersion, androidSource]
   );
 
   const fetchFileFromSelectedSource = useCallback(
@@ -1570,6 +1571,7 @@ export default function RepositoryWorkspaceExplorer({
     // Defer to avoid synchronous setState-in-effect warning.
     // Open header first so the primary (.c) ends up as the active tab.
     setTimeout(() => {
+      setMobileView('editor');
       void (async () => {
         for (let i = 0; i < paths.length - 1; i++) {
           await openFileInTab(paths[i]);
@@ -1590,6 +1592,64 @@ export default function RepositoryWorkspaceExplorer({
       })();
     }, 0);
   }, [initialFile, tabsRestored, isTreeStructureReady, openFileInTab, owner, repo]);
+
+  const handleExplorerFileSelect = useCallback(
+    (filePath: string) => {
+      handleOpenFileFromExplorer(filePath);
+      if (isMobile) setMobileView('editor');
+    },
+    [handleOpenFileFromExplorer, isMobile]
+  );
+
+  const listDirectoryFromAndroidSource = useCallback(
+    async (path: string) => (androidSource ? directoryFromTree(androidSource.tree(), path) : []),
+    [androidSource]
+  );
+  const listDirectoryFromAndroidManifest = useCallback(
+    async (path: string) =>
+      androidSource ? directoryFromTree(androidSource.metadata.manifestTree, path) : [],
+    [androidSource]
+  );
+
+  const sharedFileTreeProps = {
+    onFileSelect: handleExplorerFileSelect,
+    selectedFile,
+    titleLabel: repoLabel,
+    expandDirectoryRequest: directoryExpandRequest,
+    searchQuery: workspaceSearchQuery,
+    onSearchQueryChange: changeSearchQuery,
+    searchResults: activeReferenceSearch?.results ?? workspaceSearchResults,
+    referenceSymbol: activeReferenceSearch?.symbolName,
+    symbolSearchKind: activeReferenceSearch?.kind,
+    selectedSearchResultKey: activeReferenceSearch?.selectedResultKey,
+    onExitReferenceSearch: clearReferenceSearch,
+    isSearchLoading: activeReferenceSearch?.isLoading ?? workspaceSearchLoading,
+    isSearchIndexLoading: !activeReferenceSearch && workspaceSearchIndexLoading,
+    isSearchIndexReady:
+      (!!workspaceSearchIndex || !!androidSource) &&
+      !workspaceSearchIndexLoading &&
+      !workspaceSearchIndexError,
+    searchIndexProgress: workspaceSearchIndexProgress,
+    searchIndexCached: workspaceSearchIndexCached,
+    searchError: activeReferenceSearch ? activeReferenceSearch.error : workspaceSearchError,
+    searchHasMore: !activeReferenceSearch && workspaceSearchHasMore,
+    searchScopeLabel: repoLabel ? `${repoLabel}@${selectedVersion}` : selectedVersion,
+    searchScopeFileCount: workspaceSearchIndex?.fileCount ?? workspaceFilePaths.length,
+    onSearchResultSelect: (result: WorkspaceSearchResult) => {
+      if (activeReferenceSearch) {
+        setReferenceSearch((current) =>
+          current ? { ...current, selectedResultKey: result.key } : null
+        );
+      }
+      handleOpenFileFromExplorer(
+        result.file,
+        activeReferenceSearch ? undefined : workspaceSearchQuery,
+        result.line
+      );
+      if (isMobile) setMobileView('editor');
+    },
+    onDirectoryExpand: (path: string) => setSelectedFile(path),
+  };
 
   // Repository error
   if (setupError || repoError) {
@@ -1658,63 +1718,77 @@ export default function RepositoryWorkspaceExplorer({
                 <div className="vscode-loading" role="status" aria-label="Loading repository">
                   <div className="vscode-spinner" aria-hidden="true" />
                 </div>
+              ) : androidSource ? (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: '1 1 0',
+                      minHeight: 0,
+                      borderBottom: '1px solid var(--vscode-border)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        padding: '6px 10px',
+                        borderBottom: '1px solid var(--vscode-border)',
+                        color: 'var(--vscode-text-secondary)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Source explorer
+                    </div>
+                    <FileTree
+                      {...sharedFileTreeProps}
+                      key={`source-tree-${repoLabel}-${selectedVersion}-${fileSourceMode}-${androidSource.metadata.snapshot}`}
+                      listDirectory={listDirectoryFromAndroidSource}
+                      showSearch={layoutMode === 'search'}
+                    />
+                  </div>
+                  {layoutMode !== 'search' && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: '1 1 0',
+                        minHeight: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 10px',
+                          borderBottom: '1px solid var(--vscode-border)',
+                          color: 'var(--vscode-text-secondary)',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        Manifest explorer
+                      </div>
+                      <FileTree
+                        {...sharedFileTreeProps}
+                        key={`manifest-tree-${repoLabel}-${selectedVersion}-${fileSourceMode}-${androidSource.metadata.snapshot}`}
+                        listDirectory={listDirectoryFromAndroidManifest}
+                        showSearch={false}
+                        expandDirectoryRequest={null}
+                      />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <FileTree
-                  key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}-${androidView}-${androidSource?.metadata.snapshot ?? ''}`}
-                  onFileSelect={(filePath: string) => {
-                    handleOpenFileFromExplorer(filePath);
-                    // On mobile, switch to editor view when file is selected
-                    if (isMobile) {
-                      setMobileView('editor');
-                    }
-                  }}
-                  selectedFile={selectedFile}
+                  {...sharedFileTreeProps}
+                  key={`tree-${repoLabel}-${selectedVersion}-${fileSourceMode}`}
                   listDirectory={listDirectoryFromSelectedSource}
-                  titleLabel={repoLabel}
-                  expandDirectoryRequest={directoryExpandRequest}
-                  searchQuery={workspaceSearchQuery}
-                  onSearchQueryChange={changeSearchQuery}
-                  searchResults={activeReferenceSearch?.results ?? workspaceSearchResults}
-                  referenceSymbol={activeReferenceSearch?.symbolName}
-                  symbolSearchKind={activeReferenceSearch?.kind}
-                  selectedSearchResultKey={activeReferenceSearch?.selectedResultKey}
-                  onExitReferenceSearch={clearReferenceSearch}
-                  isSearchLoading={activeReferenceSearch?.isLoading ?? workspaceSearchLoading}
-                  isSearchIndexLoading={!activeReferenceSearch && workspaceSearchIndexLoading}
-                  isSearchIndexReady={
-                    (!!workspaceSearchIndex || !!androidSource) &&
-                    !workspaceSearchIndexLoading &&
-                    !workspaceSearchIndexError
-                  }
-                  searchIndexProgress={workspaceSearchIndexProgress}
-                  searchIndexCached={workspaceSearchIndexCached}
-                  searchError={
-                    activeReferenceSearch ? activeReferenceSearch.error : workspaceSearchError
-                  }
-                  searchHasMore={!activeReferenceSearch && workspaceSearchHasMore}
-                  searchScopeLabel={repoLabel ? `${repoLabel}@${selectedVersion}` : selectedVersion}
-                  searchScopeFileCount={
-                    workspaceSearchIndex?.fileCount ?? workspaceFilePaths.length
-                  }
-                  onSearchResultSelect={(result) => {
-                    if (activeReferenceSearch) {
-                      setReferenceSearch((current) =>
-                        current ? { ...current, selectedResultKey: result.key } : null
-                      );
-                    }
-                    handleOpenFileFromExplorer(
-                      result.file,
-                      activeReferenceSearch ? undefined : workspaceSearchQuery,
-                      result.line
-                    );
-                    if (isMobile) {
-                      setMobileView('editor');
-                    }
-                  }}
                   showSearch={layoutMode === 'search'}
-                  onDirectoryExpand={(path: string) => {
-                    setSelectedFile(path);
-                  }}
                 />
               )}
               {androidConfigured && (
@@ -1750,22 +1824,6 @@ export default function RepositoryWorkspaceExplorer({
                             </div>
                           );
                         })()}
-                      <div role="group" aria-label="Android browser view">
-                        <button
-                          type="button"
-                          aria-pressed={androidView === 'source'}
-                          onClick={() => setAndroidView('source')}
-                        >
-                          Source
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={androidView === 'manifest'}
-                          onClick={() => setAndroidView('manifest')}
-                        >
-                          Manifest
-                        </button>
-                      </div>
                       {layoutMode === 'search' && (
                         <label>
                           Project
@@ -1777,7 +1835,7 @@ export default function RepositoryWorkspaceExplorer({
                               setReferenceSearch(null);
                             }}
                           >
-                            <option value="">All core projects</option>
+                            <option value="">All files</option>
                             {androidSource.metadata.projects.map((project) => (
                               <option key={project.path} value={project.path}>
                                 {project.path}
@@ -1875,7 +1933,13 @@ export default function RepositoryWorkspaceExplorer({
               </div>
             ) : (
               <div className="vscode-empty-state">
-                <div>Open a file from the explorer to begin</div>
+                <div className="workspace-mobile-empty">
+                  <h2>Choose where to explore</h2>
+                  <p>Browse this repository, open the guide, or revisit a stop in your history.</p>
+                  <button type="button" onClick={() => setMobileView('explorer')}>
+                    Browse files
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1962,103 +2026,6 @@ export default function RepositoryWorkspaceExplorer({
           </div>
         )}
       </div>
-
-      {/* Mobile Navigation Bar */}
-      {isMobile && (
-        <div
-          className="mobile-nav-bar"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: '56px',
-            background: 'var(--vscode-bg-secondary)',
-            borderTop: '1px solid var(--vscode-border)',
-            display: 'flex',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            zIndex: 1000,
-            paddingBottom: 'env(safe-area-inset-bottom)',
-          }}
-        >
-          <button
-            onClick={() => setMobileView('explorer')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color:
-                mobileView === 'explorer'
-                  ? 'var(--repo-accent, var(--vscode-text-accent))'
-                  : 'var(--vscode-text-secondary)',
-              cursor: 'pointer',
-              padding: '8px',
-              fontSize: '12px',
-              transition: 'color 0.2s',
-            }}
-            aria-label="Explorer"
-          >
-            <ExplorerIcon kind="folder" size={20} />
-            <span>Explorer</span>
-          </button>
-          <button
-            onClick={() => setMobileView('editor')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color:
-                mobileView === 'editor'
-                  ? 'var(--repo-accent, var(--vscode-text-accent))'
-                  : 'var(--vscode-text-secondary)',
-              cursor: 'pointer',
-              padding: '8px',
-              fontSize: '12px',
-              transition: 'color 0.2s',
-            }}
-            aria-label="Editor"
-          >
-            <span style={{ fontSize: '20px' }}>📝</span>
-            <span>Editor</span>
-          </button>
-          <button
-            onClick={() => setMobileView('guide')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color:
-                mobileView === 'guide'
-                  ? 'var(--repo-accent, var(--vscode-text-accent))'
-                  : 'var(--vscode-text-secondary)',
-              cursor: 'pointer',
-              padding: '8px',
-              fontSize: '12px',
-              transition: 'color 0.2s',
-            }}
-            aria-label="Guide"
-          >
-            <span style={{ fontSize: '20px' }}>📚</span>
-            <span>Guide</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 'use client';
-import { getCuratedRepo } from '@/lib/curated-repos';
 
 import {
   useState,
@@ -11,6 +10,7 @@ import {
   type CSSProperties,
 } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import RepositoryWorkspaceExplorer, {
   type InitialFileTarget,
@@ -20,6 +20,7 @@ import IconSidebarToggleButton from './components/IconSidebarToggleButton';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
 import RepositoryChatPanel from './components/RepositoryChatPanel';
 import StatusBar from './components/StatusBar';
+import RepositoryHistory, { useRepositoryHistory } from './components/RepositoryHistory';
 import { useRepositoryGuide } from './useRepositoryGuide';
 import { getProjectConfig, createGenericGuide } from '@/lib/project-guides';
 import { parseGuideMarkdown } from '@/features/guides/parser';
@@ -48,7 +49,9 @@ const LEFT_PANE_MIN_WIDTH = 200;
 const LEFT_PANE_MAX_WIDTH = 520;
 const LEFT_PANE_WIDTH_STORAGE_KEY = 'repository-workspace-explorer-sidebar-width';
 const GUIDE_SIDEBAR_OPEN_STORAGE_KEY = 'repository-explorer-guide-sidebar-open';
+const ACTIVE_CHAPTER_STORAGE_KEY_PREFIX = 'repository-explorer-active-chapter';
 const WORKSPACE_THEME_STORAGE_KEY = 'repository-workspace-explorer-theme';
+const HISTORY_OPEN_STORAGE_KEY = 'repository-explorer-history-open';
 let navigationNonceCounter = 0;
 
 const subscribeToHydration = () => () => {};
@@ -126,14 +129,20 @@ export default function RepositoryExplorerClient({
   loadingDescription: _loadingDescription,
 }: RepositoryExplorerClientProps) {
   const projectConfig = getProjectConfig(owner, repo);
-  const sourceFirst = !!getCuratedRepo(owner, repo)?.androidWorkspace;
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
-  const browserTarget = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return resolveRepositoryNavigation(window.location.pathname, queryString, window.location.hash);
+  const [browserTarget, setBrowserTarget] = useState<GitHubUrlTarget | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = resolveRepositoryNavigation(
+      window.location.pathname,
+      queryString,
+      window.location.hash
+    );
+    const timeoutId = window.setTimeout(() => setBrowserTarget(target), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [queryString]);
   const effectiveDirectTarget = directTarget ?? browserTarget ?? undefined;
   // Curated routes always use their seeded revision. Arbitrary routes keep
@@ -147,6 +156,17 @@ export default function RepositoryExplorerClient({
     'editor'
   );
   const [chatMounted, setChatMounted] = useState(false);
+  const [mobileExplorerRequest, setMobileExplorerRequest] = useState(0);
+  const history = useRepositoryHistory();
+  const [savedHistoryOpen, setHistoryOpen] = useState(() => {
+    try {
+      return (
+        typeof window === 'undefined' || localStorage.getItem(HISTORY_OPEN_STORAGE_KEY) !== 'false'
+      );
+    } catch {
+      return true;
+    }
+  });
   // This value is calculated by the Server Component and serialized into the
   // RSC payload, so the server render and hydration render use the same source.
   const [fileSourceMode, setFileSourceMode] = useState<CuratedRepoSourceMode>(initialSourceMode);
@@ -202,8 +222,16 @@ export default function RepositoryExplorerClient({
     () => false
   );
   const workspaceTheme = hasHydrated ? savedWorkspaceTheme : 'dark';
+  const historyOpen = hasHydrated ? savedHistoryOpen : true;
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try {
+      localStorage.setItem(HISTORY_OPEN_STORAGE_KEY, String(savedHistoryOpen));
+    } catch {
+      // The control still works when browser storage is unavailable.
+    }
+  }, [hasHydrated, savedHistoryOpen]);
   const [savedGuideSidebarOpen, setIsGuideSidebarOpen] = useState(() => {
-    if (sourceFirst) return false;
     try {
       if (typeof window === 'undefined') return true;
       const savedGuideSidebarOpen = localStorage.getItem(GUIDE_SIDEBAR_OPEN_STORAGE_KEY);
@@ -216,7 +244,7 @@ export default function RepositoryExplorerClient({
     return true;
   });
   // The server and hydration pass must render the same sidebar structure.
-  const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : !sourceFirst;
+  const isGuideSidebarOpen = hasHydrated ? savedGuideSidebarOpen : true;
   const [savedLeftPaneWidth, setLeftPaneWidth] = useState(() => {
     try {
       const saved = Number(localStorage.getItem(LEFT_PANE_WIDTH_STORAGE_KEY));
@@ -304,6 +332,7 @@ export default function RepositoryExplorerClient({
         searchScope,
         repoTarget,
       });
+      if (window.innerWidth < 1024) setIsGuideSidebarOpen(false);
       if (navigateToRepoTarget(fileId, searchPattern, scrollToLine, repoTarget)) {
         return;
       }
@@ -430,6 +459,48 @@ export default function RepositoryExplorerClient({
   const [activeChapterId, setActiveChapterId] = useState<string | null>(
     () => defaultOpenIds[0] ?? guideSections[0]?.id ?? null
   );
+  const activeChapterStorageKey = useMemo(() => {
+    const sectionIds = guideSections.map((section) => section.id).join('|');
+    return `${ACTIVE_CHAPTER_STORAGE_KEY_PREFIX}:${owner}/${repo}:${sectionIds}`;
+  }, [guideSections, owner, repo]);
+  const activeChapterStateInitKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hasHydrated || !guideSections.length) return;
+    if (activeChapterStateInitKeyRef.current === activeChapterStorageKey) return;
+
+    let nextActiveChapterId = defaultOpenIds[0] ?? guideSections[0]?.id ?? null;
+    try {
+      const savedActiveChapterId = localStorage.getItem(activeChapterStorageKey);
+      if (
+        savedActiveChapterId &&
+        guideSections.some((section) => section.id === savedActiveChapterId)
+      ) {
+        nextActiveChapterId = savedActiveChapterId;
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+
+    setActiveChapterId(nextActiveChapterId);
+    activeChapterStateInitKeyRef.current = activeChapterStorageKey;
+  }, [activeChapterStorageKey, defaultOpenIds, guideSections, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated || activeChapterStateInitKeyRef.current !== activeChapterStorageKey) {
+      return;
+    }
+    try {
+      if (activeChapterId) {
+        localStorage.setItem(activeChapterStorageKey, activeChapterId);
+      } else {
+        localStorage.removeItem(activeChapterStorageKey);
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [activeChapterId, activeChapterStorageKey, hasHydrated]);
+
   const chapterMapEntries = useMemo(
     () =>
       guideSections.map((section) => ({
@@ -530,12 +601,12 @@ export default function RepositoryExplorerClient({
 
   return (
     <main
-      className={`vscode-theme-${workspaceTheme} shaman-workspace-enter`}
+      className={`vscode-theme-${workspaceTheme} shaman-workspace-enter repository-workspace`}
       suppressHydrationWarning
       style={
         {
           width: '100vw',
-          height: '100vh',
+          height: '100dvh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -580,6 +651,7 @@ export default function RepositoryExplorerClient({
         </p>
       )}
       <div
+        className="repository-workspace-body"
         style={{
           flex: 1,
           minHeight: 0,
@@ -602,6 +674,9 @@ export default function RepositoryExplorerClient({
             background: 'var(--vscode-bg-secondary)',
           }}
         >
+          <Link className="workspace-mobile-repo" href="/" title="Go to GitShaman home">
+            {repo}
+          </Link>
           {[
             {
               id: 'editor',
@@ -653,6 +728,14 @@ export default function RepositoryExplorerClient({
                     setEntitiesMounted(true);
                   }
                   if (tab.id === 'chat') setChatMounted(true);
+                  if (window.innerWidth < 1024) {
+                    setIsGuideSidebarOpen(false);
+                    setMode(tab.id as typeof mode);
+                    if (tab.id === 'editor' || tab.id === 'search') {
+                      setMobileExplorerRequest((request) => request + 1);
+                    }
+                    return;
+                  }
                   setMode((current) => (current === tab.id ? null : (tab.id as typeof mode)));
                 }}
                 title={tab.title}
@@ -686,10 +769,22 @@ export default function RepositoryExplorerClient({
               </button>
             );
           })}
+          <button
+            type="button"
+            className="workspace-mobile-guide"
+            aria-label="Toggle guide"
+            aria-pressed={isGuideSidebarOpen}
+            onClick={() => setIsGuideSidebarOpen((open) => !open)}
+          >
+            Guide
+          </button>
         </div>
 
         {/* ── Main content area ── */}
-        <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+        <div
+          className="repository-workspace-content"
+          style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}
+        >
           {mode !== null && mode !== 'semantic' && (
             <div
               role="separator"
@@ -736,6 +831,7 @@ export default function RepositoryExplorerClient({
           )}
           {/* Explorer surface — used by both editor and search tabs */}
           <div
+            className="repository-workspace-editor"
             style={{
               position: 'absolute',
               top: 0,
@@ -771,6 +867,7 @@ export default function RepositoryExplorerClient({
               workspaceSearchQuery={sidebarSearchQuery}
               onWorkspaceSearchQueryChange={setSidebarSearchQuery}
               onActivateFileSearch={activateFileSearch}
+              mobileExplorerRequest={mobileExplorerRequest}
             />
           </div>
 
@@ -799,6 +896,7 @@ export default function RepositoryExplorerClient({
           {/* Entities context — kept mounted to preserve per-chapter cache */}
           <div
             hidden={mode !== 'entities'}
+            className="repository-panel-entities"
             style={{
               position: 'absolute',
               top: 0,
@@ -832,6 +930,7 @@ export default function RepositoryExplorerClient({
         {/* ── Guide resize handle ── */}
         {isGuideSidebarOpen && (
           <div
+            className="repository-guide-resizer"
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize guide sidebar"
@@ -866,6 +965,7 @@ export default function RepositoryExplorerClient({
 
         {/* ── Persistent guide sidebar ── */}
         <div
+          className="repository-guide-sidebar"
           style={{
             width: guideWidth,
             minWidth: GUIDE_MIN_WIDTH,
@@ -899,7 +999,10 @@ export default function RepositoryExplorerClient({
           </div>
         </div>
         {!isGuideSidebarOpen && (
-          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}>
+          <div
+            className="repository-guide-toggle"
+            style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
+          >
             <IconSidebarToggleButton
               onClick={() => setIsGuideSidebarOpen(true)}
               label="Show guide sidebar"
@@ -911,7 +1014,18 @@ export default function RepositoryExplorerClient({
           </div>
         )}
       </div>
+      <RepositoryHistory
+        expanded={historyOpen}
+        owner={owner}
+        repo={repo}
+        file={guideLocation}
+        targetFile={effectiveDirectTarget?.filePath}
+        branch={identifier === `${owner}~${repo}` ? statusBranch : requestedBranch || ''}
+      />
       <StatusBar
+        historyCount={history.length}
+        historyExpanded={historyOpen}
+        onHistoryToggle={() => setHistoryOpen((open) => !open)}
         repoLabel={repoLabel}
         branch={statusBranch}
         sourceMode={showDevSourceMode ? fileSourceMode : undefined}

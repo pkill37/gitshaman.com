@@ -171,18 +171,9 @@ export async function fetchRepositoryFile(
   }
 
   // Curated repositories are intentionally served only from their selected
-  // corpus source. Runtime raw GitHub loading is for arbitrary repositories.
-  // CI and fresh development checkouts do not necessarily have the ignored
-  // local corpus. Keep production curated routes corpus-only, but let the
-  // development app fall back to the pinned raw file so direct file URLs
-  // remain usable without a local repository download.
-  const allowDevelopmentCuratedFallback =
-    process.env.NODE_ENV === 'development' && sourceMode === 'local-filesystem';
-  if (
-    !isCuratedRepo(owner, repo) ||
-    options?.allowGitHubFallback ||
-    allowDevelopmentCuratedFallback
-  ) {
+  // corpus source. Runtime raw GitHub loading is for arbitrary repositories,
+  // unless a caller explicitly opts into the fallback.
+  if (!isCuratedRepo(owner, repo) || options?.allowGitHubFallback) {
     const rawPath = path.split('/').map(encodeURIComponent).join('/');
     const rawBranch = branch.split('/').map(encodeURIComponent).join('/');
     const rawUrl = new URL(

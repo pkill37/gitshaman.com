@@ -782,29 +782,6 @@ body {
   text-overflow: ellipsis;
 }
 
-.shaman-landing .shaman-compact-portal {
-  min-height: 44px;
-}
-
-.shaman-site-map-columns {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-}
-
-.shaman-site-map a {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.shaman-site-map a:focus-visible,
-.shaman-landing .shaman-compact-portal:focus-visible {
-  outline: 2px solid var(--shaman-teal, #63d8c9);
-  outline-offset: 2px;
-}
-
 @media (min-width: 640px) {
   .shaman-landing .shaman-landing-main {
     padding-top: 2.5rem;
@@ -813,10 +790,6 @@ body {
   .shaman-landing .shaman-url-panel {
     padding: 2rem;
     margin-bottom: 3.5rem;
-  }
-
-  .shaman-site-map-columns {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1092,10 +1065,6 @@ body {
   }
 }
 
-.shaman-panel-label {
-  color: var(--shaman-teal);
-}
-
 .shaman-url-panel code {
   color: var(--shaman-gold);
 }
@@ -1105,34 +1074,9 @@ body {
   padding-top: 1rem;
 }
 
-.shaman-hero-portal-group {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(10, 9, 15, 0.34);
-  box-shadow: 0 12px 30px rgba(17, 16, 23, 0.18) inset;
-}
-
-.shaman-hero-portal-title {
-  margin: 0 0 0.65rem;
-  color: var(--shaman-gold);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.shaman-compact-portal {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  gap: 0.45rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  background: rgba(17, 16, 23, 0.62);
-  color: #f8f3e7;
-  padding: 0.3rem 0.62rem 0.3rem 0.34rem;
-  font-size: 0.75rem;
-  font-weight: 650;
-  line-height: 1;
+.shaman-repository-card {
+  display: block;
+  min-width: 0;
   text-decoration: none;
   transition:
     border-color 180ms ease,
@@ -1141,86 +1085,36 @@ body {
     transform 180ms ease;
 }
 
-.shaman-compact-portal:active {
-  transform: translateY(0) scale(0.98);
+.shaman-curated-repo-grid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.shaman-compact-portal:hover {
+@media (min-width: 640px) {
+  .shaman-curated-repo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.shaman-repository-card:hover {
   border-color: rgba(99, 216, 201, 0.46);
   background: rgba(37, 32, 46, 0.8);
   box-shadow: 0 0 20px rgba(99, 216, 201, 0.14);
   transform: translateY(-1px);
 }
 
-.shaman-repo-marquee {
-  overflow-x: auto;
-  scrollbar-width: none;
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    black 2.5rem,
-    black calc(100% - 2.5rem),
-    transparent
-  );
-}
-
-.shaman-repo-marquee::-webkit-scrollbar {
-  display: none;
-}
-
-.shaman-repo-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: shaman-repo-scroll 60s linear infinite;
-}
-
-.shaman-repo-marquee-group {
+.shaman-repository-card-avatar {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: max-content;
-  gap: 0.5rem;
-  padding: 0.25rem 0.5rem 0.25rem 0;
-}
-
-.shaman-repo-marquee:hover .shaman-repo-marquee-track,
-.shaman-repo-marquee:focus-within .shaman-repo-marquee-track,
-.shaman-repo-marquee[data-paused] .shaman-repo-marquee-track {
-  animation-play-state: paused;
-}
-
-.shaman-repo-marquee .shaman-compact-portal:hover,
-.shaman-repo-marquee .shaman-compact-portal:active {
-  transform: none;
-}
-
-@keyframes shaman-repo-scroll {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .shaman-repo-marquee-track {
-    animation: none;
-  }
-
-  .shaman-repo-marquee-group[aria-hidden='true'] {
-    display: none;
-  }
-}
-
-.shaman-compact-portal-avatar {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 3rem;
+  height: 3rem;
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
-  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.shaman-compact-portal-avatar img {
+.shaman-repository-card-avatar img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -2719,17 +2613,6 @@ body {
   color: inherit;
   background: var(--vscode-bg-secondary);
 }
-.android-workspace-controls button {
-  color: inherit;
-  background: transparent;
-  border: 1px solid var(--vscode-border);
-  padding: 4px 10px;
-  cursor: pointer;
-}
-.android-workspace-controls button[aria-pressed='true'] {
-  border-color: var(--repo-accent);
-}
-
 .android-file-provenance {
   margin-bottom: 8px;
 }

@@ -66,16 +66,41 @@ async function routeFixture(page: Page, config: CuratedRepoConfig, delayIndexes 
 }
 
 for (const config of CURATED_REPOS.filter((entry) => entry.androidWorkspace)) {
+  test(`${config.displayName} search hides the manifest explorer and includes manifest files`, async ({
+    page,
+  }) => {
+    await routeFixture(page, config);
+    await page.goto(`/${config.slug}/`);
+    await expect(page.getByText('Manifest explorer', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'File search', exact: true }).click();
+    await expect(page.getByText('Manifest explorer', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Repository file search results' })).toHaveCount(
+      1
+    );
+    const search = page.getByRole('searchbox', { name: 'Search all files' });
+    const results = page.getByRole('region', { name: 'Repository file search results' });
+    await search.fill('default.xml');
+    await expect(results).toContainText('default.xml');
+    await search.fill('example/base');
+    await expect(results).toContainText('default.xml');
+    await page.getByLabel('Search Android project').selectOption('system/core');
+    await expect(results).not.toContainText('default.xml');
+    await search.fill('androidSharedSymbol');
+    await expect(results).toContainText('system/core');
+    await page.getByLabel('Search Android project').selectOption('');
+    await expect(results).toContainText('frameworks/base');
+    await page.getByRole('button', { name: 'File editor', exact: true }).click();
+    await expect(page.getByText('Manifest explorer', { exact: true })).toBeVisible();
+  });
+
   test(`${config.displayName} opens platform source, searches projects and preserves manifest links`, async ({
     page,
   }) => {
     await routeFixture(page, config);
     await page.goto(`/${config.slug}?file=frameworks/base/main.ts&line=2`);
     const controls = page.getByRole('region', { name: 'Android workspace' });
-    await expect(controls.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
+    await expect(page.getByText('Source explorer', { exact: true })).toBeVisible();
+    await expect(page.getByText('Manifest explorer', { exact: true })).toBeVisible();
     await expect(page.locator('.android-file-provenance')).toContainText('frameworks/base');
     await expect(page.getByRole('link', { name: 'Upstream source' })).toHaveAttribute(
       'href',
@@ -111,7 +136,6 @@ for (const config of CURATED_REPOS.filter((entry) => entry.androidWorkspace)) {
     await controls.getByLabel('Search Android project').selectOption('system/core');
     await expect(results).not.toContainText('frameworks/base');
     await expect(results).toContainText('system/core');
-    await controls.getByRole('button', { name: 'Manifest', exact: true }).click();
     await page.getByRole('button', { name: 'File editor', exact: true }).click();
     await page.getByText('default.xml', { exact: true }).first().click();
     await expect(page.locator('.android-file-provenance')).toContainText('Manifest');
@@ -124,11 +148,7 @@ test('switching Android distributions discards an in-flight search', async ({ pa
   await routeFixture(page, lineage, true);
   await routeFixture(page, graphene);
   await page.goto(`/${lineage.slug}`);
-  await expect(
-    page
-      .getByRole('region', { name: 'Android workspace' })
-      .getByRole('button', { name: 'Source', exact: true })
-  ).toBeVisible();
+  await expect(page.getByText('Source explorer', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'File search', exact: true }).click();
   const requested = page.waitForRequest(
     (request) => request.url().includes('/LineageOS/') && request.url().endsWith('.sqlite')
@@ -138,11 +158,7 @@ test('switching Android distributions discards an in-flight search', async ({ pa
   await expect(page.getByRole('navigation', { name: 'AOSP repository family' })).toHaveCount(0);
   await page.goto(`/${graphene.slug}`);
   await expect(page).toHaveURL(new RegExp(graphene.slug));
-  await expect(
-    page
-      .getByRole('region', { name: 'Android workspace' })
-      .getByRole('button', { name: 'Source', exact: true })
-  ).toBeVisible();
+  await expect(page.getByText('Source explorer', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'File search', exact: true }).click();
   await expect(page.getByRole('searchbox', { name: 'Search all files' })).toHaveValue('');
   await expect(
@@ -162,11 +178,7 @@ for (const config of CURATED_REPOS.filter((entry) => entry.androidWorkspace)) {
     const project = workspace.projects.find((entry) => entry.path === 'frameworks/base')!;
     const file = 'frameworks/base/core/java/android/app/Activity.java';
     await page.goto(`/${config.slug}?file=${file}&line=26`);
-    await expect(
-      page
-        .getByRole('region', { name: 'Android workspace' })
-        .getByRole('button', { name: 'Source', exact: true })
-    ).toBeVisible();
+    await expect(page.getByText('Source explorer', { exact: true })).toBeVisible();
     await expect(page.locator('.monaco-editor').first()).toBeVisible();
     await expect(page.locator('.android-file-provenance')).toContainText(
       project.commit.slice(0, 12)
