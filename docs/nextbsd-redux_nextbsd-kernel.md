@@ -38,11 +38,11 @@ fileRecommendations:
       type: source
 ---
 
-The most important design choice is that NextBSD records kernel changes as patches and overlays rather than carrying a full rewritten source import. `patches/series` is the table of contents for kernel behavior changes.
+The most important design choice is that NextBSD records kernel changes as patches and overlays rather than carrying a full rewritten source import. [`patches/series`](patches/series) is the table of contents for kernel behavior changes.
 
-This style makes the delta legible. Each patch can explain the upstream context, the local policy, and the risk of divergence. `config/NEXTBSD` then shows how the resulting kernel is built into a named configuration.
+This style makes the delta legible. Each patch can explain the upstream context, the local policy, and the risk of divergence. [`config/NEXTBSD`](config/NEXTBSD) then shows how the resulting kernel is built into a named configuration.
 
-Start with `patches/series` before opening individual patches. The order is part of the design: the first patches reserve kernel interface surface, middle patches adjust compatibility and filesystem behavior, and later patches encode desktop policy. Then read `patches/README.md` to understand why the repository carries format-patch files instead of a vendored FreeBSD tree.
+Start with [`patches/series`](patches/series) before opening individual patches. The order is part of the design: the first patches reserve kernel interface surface, middle patches adjust compatibility and filesystem behavior, and later patches encode desktop policy. Then read [`patches/README.md`](patches/README.md) to understand why the repository carries format-patch files instead of a vendored FreeBSD tree.
 
 When you open a patch, read it in three layers. The subject and commit message explain intent; the file list shows the affected subsystem; the hunk shows the actual kernel contract being changed. Small patches such as the vfs.usermount default are ideal teaching material because the behavioral consequence is much larger than the code diff.
 
@@ -66,9 +66,9 @@ Kernel identity is partly source code and partly configuration. The `NEXTBSD` co
 
 The CI files matter because this repository builds against a prepared FreeBSD source base. That turns kernel maintenance into a repeatable overlay operation: update the base, apply the patch series, build the configured kernel, then publish artifacts for downstream image assembly.
 
-Read `config/NEXTBSD` as an argument, not merely as a list of options. It begins with `include GENERIC` and `ident NEXTBSD`, which means the default posture is inherited until a line explicitly changes it. Comments explain why some features are compiled in: NextBSD does not rely on a stock `/boot/kernel` module tree for some paths, so module-only FreeBSD features may need to become built-in kernel features.
+Read [`config/NEXTBSD`](config/NEXTBSD) as an argument, not merely as a list of options. It begins with `include GENERIC` and `ident NEXTBSD`, which means the default posture is inherited until a line explicitly changes it. Comments explain why some features are compiled in: NextBSD does not rely on a stock `/boot/kernel` module tree for some paths, so module-only FreeBSD features may need to become built-in kernel features.
 
-Use the `ci` directory and `.github/workflows/build.yml` through the lens of reproducibility. The workflow applies `patches/series`, copies `config/NEXTBSD`, wires selected overlays, builds with `NO_MODULES=yes`, and uploads kernel objects for later module work. That is the operational version of the repository's architecture.
+Use the `ci` directory and [`.github/workflows/build.yml`](.github/workflows/build.yml) through the lens of reproducibility. The workflow applies [`patches/series`](patches/series), copies [`config/NEXTBSD`](config/NEXTBSD), wires selected overlays, builds with `NO_MODULES=yes`, and uploads kernel objects for later module work. That is the operational version of the repository's architecture.
 
 ---
 id: ch3
@@ -90,9 +90,9 @@ Some NextBSD kernel changes are not new subsystems; they are policy decisions ma
 
 The unprivileged mount and ELF branding patches show this. Both are small in code size but large in operating-system behavior. They encode defaults that would otherwise live in FreeBSD rc scripts, sysctl configuration, or local administrator setup.
 
-Patch `patches/0008-NextBSD-enable-unprivileged-mounts-vfs-usermount-1.patch` is a compact policy lesson. It changes the vfs.usermount default and makes the sysctl tunable at boot. The commit message also explains the security boundary: unprivileged mounts remain constrained, but the default favors desktop workflows such as mounting application images.
+Patch [`patches/0008-NextBSD-enable-unprivileged-mounts-vfs-usermount-1.patch`](patches/0008-NextBSD-enable-unprivileged-mounts-vfs-usermount-1.patch) is a compact policy lesson. It changes the vfs.usermount default and makes the sysctl tunable at boot. The commit message also explains the security boundary: unprivileged mounts remain constrained, but the default favors desktop workflows such as mounting application images.
 
-Patch `patches/0009-NextBSD-default-elf64-fallback_brand-to-ELFOSABI_LINU.patch` teaches compatibility policy. The change makes unbranded 64-bit ELF binaries fall back to Linux branding, which helps static Linux application runtimes. The same message also names the risk: an unbranded non-Linux ELF64 that used to fail cleanly may now be interpreted as Linux. That tradeoff is what kernel-policy patches should make visible.
+Patch [`patches/0009-NextBSD-default-elf64-fallback_brand-to-ELFOSABI_LINU.patch`](patches/0009-NextBSD-default-elf64-fallback_brand-to-ELFOSABI_LINU.patch) teaches compatibility policy. The change makes unbranded 64-bit ELF binaries fall back to Linux branding, which helps static Linux application runtimes. The same message also names the risk: an unbranded non-Linux ELF64 that used to fail cleanly may now be interpreted as Linux. That tradeoff is what kernel-policy patches should make visible.
 
 After reading both patches, compare them to GhostBSD-style sysctl defaults. GhostBSD can use runtime sysctl configuration; NextBSD often moves the default into kernel source because its launch and boot model does not consume the same rc/sysctl path.
 
@@ -118,6 +118,6 @@ For exploration, keep three layers separate in your head: the upstream FreeBSD s
 
 The overlay layer is where this repository becomes more than a patch queue. `src-overlay` carries source and configuration fragments that are copied into the build tree by CI. Patches are best for modifying existing upstream files; overlays are better for adding new files or build fragments that should remain under NextBSD ownership.
 
-Use `README.md` as the summary, then verify it against the workflow: patch application, identity rebranding, syscall table regeneration, config copy, overlay wiring, and artifact upload should all line up. If those steps ever diverge from the guide text, trust the workflow first and update the guide second.
+Use [`README.md`](README.md) as the summary, then verify it against the workflow: patch application, identity rebranding, syscall table regeneration, config copy, overlay wiring, and artifact upload should all line up. If those steps ever diverge from the guide text, trust the workflow first and update the guide second.
 
-The final reading exercise is to choose one feature from `config/NEXTBSD`, find the comment explaining why the feature is built in, then locate the overlay fragment or patch that makes it build. That exercise captures the whole NextBSD kernel model: base FreeBSD plus explicit deltas plus repeatable assembly.
+The final reading exercise is to choose one feature from [`config/NEXTBSD`](config/NEXTBSD), find the comment explaining why the feature is built in, then locate the overlay fragment or patch that makes it build. That exercise captures the whole NextBSD kernel model: base FreeBSD plus explicit deltas plus repeatable assembly.

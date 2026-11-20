@@ -44,7 +44,7 @@ fileRecommendations:
       type: source
 ---
 
-ReactOS uses the build system as part of the architecture. `README.md` explains the project goals and how the tree is meant to be built. `INSTALL` adds the practical setup constraints. `CMakeLists.txt` and the `configure` entry points show that the repository is composed around generated build files rather than a single hand-written makefile.
+ReactOS uses the build system as part of the architecture. [`README.md`](README.md) explains the project goals and how the tree is meant to be built. `INSTALL` adds the practical setup constraints. [`CMakeLists.txt`](CMakeLists.txt) and the `configure` entry points show that the repository is composed around generated build files rather than a single hand-written makefile.
 
 That matters because compatibility work includes code, module selection, platform configuration, and build-time composition. If you understand how the tree is configured, you already understand a large part of how ReactOS behaves.
 

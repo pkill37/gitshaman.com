@@ -62,13 +62,13 @@ fileRecommendations:
 
 ### The Repository Is The Native Compiler
 
-The center of the tree is `internal/`. It contains compiler phases, compiler services, module
+The center of the tree is [`internal/`](internal/). It contains compiler phases, compiler services, module
 resolution, diagnostics, virtual file-system abstractions, project graph support, the language server,
-formatting, and testing helpers. The command in `cmd/tsgo` is thin by design: it selects a mode and
+formatting, and testing helpers. The command in [`cmd/tsgo`](cmd/tsgo) is thin by design: it selects a mode and
 hands work to internal packages.
 
-The `README.md` states the TypeScript 7 context and feature status. Treat it as release context, then
-move into `internal/compiler`, `internal/parser`, `internal/binder`, and `internal/checker`.
+The [`README.md`](README.md) states the TypeScript 7 context and feature status. Treat it as release context, then
+move into [`internal/compiler`](internal/compiler), [`internal/parser`](internal/parser), [`internal/binder`](internal/binder), and [`internal/checker`](internal/checker).
 
 ```chapter-graph
 cmd/tsgo/main.go -> internal/execute/tsc.go : dispatches command-line execution

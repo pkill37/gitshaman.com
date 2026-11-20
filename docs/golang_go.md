@@ -27,7 +27,7 @@ compiler, assembler, linker, runtime, standard library, command-line tools, test
 that bootstrap the release.
 
 The important mental model is that Go is not only a syntax and a compiler. The `go` command decides
-what package graph to build, `cmd/compile` turns source into object files, `cmd/link` assembles the
+what package graph to build, [`cmd/compile`](src/cmd/compile/) turns source into object files, [`cmd/link`](src/cmd/link/) assembles the
 program image, and `runtime` supplies goroutines, stacks, allocation, garbage collection, maps,
 channels, panic, defer, and low-level OS integration.
 
@@ -61,9 +61,9 @@ fileRecommendations:
 
 ### The Repository Is The Distribution
 
-The root of the tree carries project metadata, but the center of gravity is `src/`. Most directories
-under `src/` are standard library packages. The exceptions worth learning first are `src/cmd/`, which
-contains toolchain commands, and `src/runtime/`, which is linked into every ordinary Go program.
+The root of the tree carries project metadata, but the center of gravity is [`src/`](src/). Most directories
+under [`src/`](src/) are standard library packages. The exceptions worth learning first are [`src/cmd/`](src/cmd/), which
+contains toolchain commands, and [`src/runtime/`](src/runtime/), which is linked into every ordinary Go program.
 
 The compiler and runtime are co-designed. The compiler rewrites some language constructs into runtime
 calls, emits stack maps for garbage collection, lays out arguments and frames according to the ABI, and
@@ -118,8 +118,8 @@ type checked, type-checked packages are converted into compiler IR, IR is simpli
 SSA is generated, and architecture-specific lowering produces object code.
 
 The official compiler README is the best high-level map. It identifies parsing in
-`src/cmd/compile/internal/syntax`, type checking in `src/cmd/compile/internal/types2`, IR construction
-in `src/cmd/compile/internal/noder`, middle-end passes such as inlining and escape analysis, walk,
+[`src/cmd/compile/internal/syntax`](src/cmd/compile/internal/syntax), type checking in [`src/cmd/compile/internal/types2`](src/cmd/compile/internal/types2), IR construction
+in [`src/cmd/compile/internal/noder`](src/cmd/compile/internal/noder), middle-end passes such as inlining and escape analysis, walk,
 SSA, and final machine-code generation.
 
 ```chapter-graph
@@ -282,7 +282,7 @@ src/cmd/go/internal/work/build.go -> src/cmd/go/internal/cache/cache.go : action
 
 Compiler internals explain how a package becomes object code. They do not explain why a package was
 selected, whether a module download happened, which files matched build tags, or why the build cache
-was reused. Start tracing those questions under `src/cmd/go/internal/`.
+was reused. Start tracing those questions under [`src/cmd/go/internal/`](src/cmd/go/internal/).
 
 ---
 id: ch6
@@ -314,12 +314,12 @@ fileRecommendations:
 
 ### The Standard Library Is Both API And Implementation
 
-The library directories under `src/` are ordinary packages from the user's point of view. Internally, they
+The library directories under [`src/`](src/) are ordinary packages from the user's point of view. Internally, they
 are also examples of how the Go project organizes portable APIs, platform-specific files, internal
 helpers, tests, and runtime hooks.
 
-The `src/go/` packages matter because they are public tooling APIs, not the compiler
-front end used by `cmd/compile`. The compiler has its own syntax and type-checking packages, while
+The [`src/go/`](src/go/) packages matter because they are public tooling APIs, not the compiler
+front end used by [`cmd/compile`](src/cmd/compile/). The compiler has its own syntax and type-checking packages, while
 tools such as formatters, linters, documentation generators, and editors often use
 [src/go/parser](src/go/parser/), [src/go/ast](src/go/ast/), and [src/go/types](src/go/types/).
 

@@ -56,7 +56,7 @@ This guide is for understanding how **Little Kernel** is shaped: its role as a s
 
 LK occupies a specific position in the boot stack: a **second-stage bootloader**. On ARM SoCs (MediaTek, Qualcomm, and others), a ROM bootloader or preloader transfers control to LK, and LK in turn loads and boots Linux. That role shapes every design decision.
 
-The kernel still needs the essentials: threads, preemption, interrupt handling, synchronization primitives, timers, memory allocation, and platform initialization. What it does not need is a heavyweight process model, virtual memory for separate user processes, or a large driver universe. The result is a tree that is structurally lean: `kernel/` is small and central, and most variability is pushed outward into architecture, platform, and target configuration.
+The kernel still needs the essentials: threads, preemption, interrupt handling, synchronization primitives, timers, memory allocation, and platform initialization. What it does not need is a heavyweight process model, virtual memory for separate user processes, or a large driver universe. The result is a tree that is structurally lean: [`kernel/`](kernel/) is small and central, and most variability is pushed outward into architecture, platform, and target configuration.
 
 LK's concrete job on a production device is to:
 - Initialize hardware (display, storage, DRAM, power management)
@@ -65,7 +65,7 @@ LK's concrete job on a production device is to:
 - Prepare a handoff data structure for the kernel
 - Jump to Linux
 
-Reading LK purely as a study in kernel design is valid. But the full picture requires keeping that bootloader context in mind. The `app/` directory is where the product-facing behavior lives — the Android boot app, fastboot protocol handler, and shell. These are not optional extras. They are the visible surface of what LK actually does in production.
+Reading LK purely as a study in kernel design is valid. But the full picture requires keeping that bootloader context in mind. The [`app/`](app/) directory is where the product-facing behavior lives — the Android boot app, fastboot protocol handler, and shell. These are not optional extras. They are the visible surface of what LK actually does in production.
 
 ---
 id: ch2
@@ -99,7 +99,7 @@ LK's boot flow follows a layered initialization sequence. Understanding this ord
 
 **1. Initial thread setup.** Before any hardware is touched, LK sets up the threading subsystem. The executing context is wrapped into the first kernel thread. This makes the rest of boot code run inside a real kernel thread, which means synchronization primitives and scheduling are available from that point.
 
-**2. Architecture and platform init.** `arch/` code enables the MMU, configures caches, and installs exception vectors. `platform/` code then brings up board-specific hardware: interrupt controller, UART for debug output, clocks, storage controllers, power management, GPIO, and display. This is where the logo is loaded from the `LOGO` partition and rendered.
+**2. Architecture and platform init.** [`arch/`](arch/) code enables the MMU, configures caches, and installs exception vectors. [`platform/`](platform/) code then brings up board-specific hardware: interrupt controller, UART for debug output, clocks, storage controllers, power management, GPIO, and display. This is where the logo is loaded from the `LOGO` partition and rendered.
 
 **3. Boot mode selection.** LK reads the boot reason register and checks hardware key state to select a boot mode. The enumeration covers the full production matrix: `NORMAL_BOOT`, `SW_REBOOT`, `ALARM_BOOT`, `RECOVERY_BOOT`, `META_BOOT` (engineering testing), `FACTORY_BOOT`, `FASTBOOT`, `KERNEL_POWER_OFF_CHARGING_BOOT`, and others. Hardware key combinations (volume buttons) can override the boot reason and trigger a boot menu.
 
@@ -174,11 +174,11 @@ fileRecommendations:
 
 In LK, the build system defines which kernel you ship as well as how to compile it.
 
-The distinction between `project/`, `target/`, `platform/`, and `arch/` becomes concrete in the build. A target chooses a hardware context. A project chooses a product shape. The build engine resolves those inputs into a module graph and a final image.
+The distinction between [`project/`](project/), [`target/`](target/), [`platform/`](platform/), and [`arch/`](arch/) becomes concrete in the build. A target chooses a hardware context. A project chooses a product shape. The build engine resolves those inputs into a module graph and a final image.
 
 This matters because so much policy is static in a bootloader. Feature selection, debug support, shell inclusion, memory layout decisions, and board-specific capabilities happen at build time instead of runtime. Whether the `shell` app is included — and thus whether a developer can get a UART prompt — is a build-time decision. Whether fastboot is present is a build-time decision. The image that ships encodes those choices permanently.
 
-If you want to understand how an LK image differs between two devices, start from `project/` and `target/` before diving into C files. That tells you which subsystems are even present. `engine.mk`, `makefile`, and the `make/` directory are part of the kernel's architecture, not infrastructure. **Composition is the control plane.**
+If you want to understand how an LK image differs between two devices, start from [`project/`](project/) and [`target/`](target/) before diving into C files. That tells you which subsystems are even present. [`engine.mk`](engine.mk), `makefile`, and the [`make/`](make/) directory are part of the kernel's architecture, not infrastructure. **Composition is the control plane.**
 
 ---
 id: ch5
@@ -224,7 +224,7 @@ What changes compared to a general-purpose kernel is the surrounding complexity.
 
 SMP support is present. Even in a bootloader context, some SoCs bring up secondary cores during LK's runtime. The scheduler handles this without modification to the core threading model — architecture code and platform init handle core bring-up; the scheduler sees more CPUs become available.
 
-Read `kernel/` expecting small, reusable, boot-safe abstractions. In this context, a wait queue is not a performance tool. A wait queue lets the fastboot thread sleep on USB input while the display thread continues running.
+Read [`kernel/`](kernel/) expecting small, reusable, boot-safe abstractions. In this context, a wait queue is not a performance tool. A wait queue lets the fastboot thread sleep on USB input while the display thread continues running.
 
 ---
 id: ch6
@@ -262,14 +262,14 @@ fileRecommendations:
 
 A good LK reading order:
 
-1. `README.md` for the system's stated purpose.
-2. `makefile`, `engine.mk`, `project/`, and `target/` to understand build composition and what features are present.
-3. `kernel/` to understand the core runtime model: threads, scheduler, wait queues, timers.
-4. `arch/` to see how the kernel hits the CPU: exception entry, context switch, MMU.
-5. `platform/` and `target/` to see how the abstractions hit real hardware: interrupt controller, UART, display, storage.
-6. `app/` to see what the bootloader actually does: Android boot, fastboot, shell.
-7. `dev/` and `lib/` for shared infrastructure that crosses the above layers.
+1. [`README.md`](README.md) for the system's stated purpose.
+2. `makefile`, [`engine.mk`](engine.mk), [`project/`](project/), and [`target/`](target/) to understand build composition and what features are present.
+3. [`kernel/`](kernel/) to understand the core runtime model: threads, scheduler, wait queues, timers.
+4. [`arch/`](arch/) to see how the kernel hits the CPU: exception entry, context switch, MMU.
+5. [`platform/`](platform/) and [`target/`](target/) to see how the abstractions hit real hardware: interrupt controller, UART, display, storage.
+6. [`app/`](app/) to see what the bootloader actually does: Android boot, fastboot, shell.
+7. [`dev/`](dev/) and [`lib/`](lib/) for shared infrastructure that crosses the above layers.
 
 That order works because LK is easiest to understand as a complete bootloader system, not as isolated subsystems. Pull the boot-flow thread from Chapter 2 through these layers — each directory corresponds to a phase or a layer of that flow.
 
-The final mental model: LK is a **kernel kit for constrained boot environments**. The core stays compact. Hardware variance is isolated in `arch/` and `platform/`. Product assembly happens in `project/` and `app/`. The image that ships is defined by the build, not discovered at runtime. And the tree layout encodes the architectural contract before you ever open a C file.
+The final mental model: LK is a **kernel kit for constrained boot environments**. The core stays compact. Hardware variance is isolated in [`arch/`](arch/) and [`platform/`](platform/). Product assembly happens in [`project/`](project/) and [`app/`](app/). The image that ships is defined by the build, not discovered at runtime. And the tree layout encodes the architectural contract before you ever open a C file.

@@ -69,7 +69,7 @@ The first question this chapter answers is: how does this system actually begin 
 
 The loader handoff is a better opening move than any top-level directory because it sits between boot-time scaffolding and the kernel image. Read outward from there into memory setup, image loading, configuration parsing, registry state, and visible startup behavior.
 
-Only after those files make sense should you glance at `base/boot/makefil0`. At that point the build file stops being abstract and starts reading like a recipe for a code path you already understand.
+Only after those files make sense should you glance at [`base/boot/makefil0`](base/boot/makefil0). At that point the build file stops being abstract and starts reading like a recipe for a code path you already understand.
 
 ---
 id: ch2
@@ -116,9 +116,9 @@ base/ntos/init/ntoskrnl.c -> base/ntos/init/ntkrnlpa.c : kernel image fans into 
 
 This chapter is about the point where boot code stops and the kernel begins to build itself.
 
-`base/ntos/init/init.c` is the file to stare at when you want to understand the system’s first durable kernel decisions. `base/ntos/ke/kiinit.c` and `base/ntos/ke/kernldat.c` show how the dispatcher, timing, and global kernel state become real. The architecture files matter because NT is explicit about where generic logic stops: `base/ntos/ke/i386/i386init.c` and `base/ntos/ke/amd64/initkr.c` show that split cleanly.
+[`base/ntos/init/init.c`](base/ntos/init/init.c) is the file to stare at when you want to understand the system’s first durable kernel decisions. [`base/ntos/ke/kiinit.c`](base/ntos/ke/kiinit.c) and [`base/ntos/ke/kernldat.c`](base/ntos/ke/kernldat.c) show how the dispatcher, timing, and global kernel state become real. The architecture files matter because NT is explicit about where generic logic stops: [`base/ntos/ke/i386/i386init.c`](base/ntos/ke/i386/i386init.c) and [`base/ntos/ke/amd64/initkr.c`](base/ntos/ke/amd64/initkr.c) show that split cleanly.
 
-The variant files `base/ntos/init/ntkrnlmp.c` and `base/ntos/init/ntkrnlpa.c` are worth reading first because they stop you from imagining “the kernel” as a single binary with one configuration. This tree ships distinct boot-time and memory-model personalities, and the source admits that directly.
+The variant files [`base/ntos/init/ntkrnlmp.c`](base/ntos/init/ntkrnlmp.c) and [`base/ntos/init/ntkrnlpa.c`](base/ntos/init/ntkrnlpa.c) are worth reading first because they stop you from imagining “the kernel” as a single binary with one configuration. This tree ships distinct boot-time and memory-model personalities, and the source admits that directly.
 
 ---
 id: ch3
@@ -167,7 +167,7 @@ The memory manager is where the tree stops looking like ordinary systems code an
 
 Start with memory initialization, because initialization tells you what structures the subsystem considers fundamental. Then go to fault handling, physical page tracking, and process address-space maintenance.
 
-Use `base/ntos/mm/sysload.c` and `base/ntos/mm/wsmanage.c` to connect memory policy to live system behavior. `base/ntos/mm/mi.h` is dense, but by the time you reach it you will already know why the internal types exist. The architecture files `base/ntos/mm/i386/init386.c` and `base/ntos/mm/amd64/initamd.c` are the right place to study what is genuinely machine-specific.
+Use [`base/ntos/mm/sysload.c`](base/ntos/mm/sysload.c) and [`base/ntos/mm/wsmanage.c`](base/ntos/mm/wsmanage.c) to connect memory policy to live system behavior. [`base/ntos/mm/mi.h`](base/ntos/mm/mi.h) is dense, but by the time you reach it you will already know why the internal types exist. The architecture files [`base/ntos/mm/i386/init386.c`](base/ntos/mm/i386/init386.c) and [`base/ntos/mm/amd64/initamd.c`](base/ntos/mm/amd64/initamd.c) are the right place to study what is genuinely machine-specific.
 
 ---
 id: ch4
@@ -217,7 +217,7 @@ fileRecommendations:
 
 This chapter is where “Windows internals” becomes concrete instead of mythical.
 
-`base/ntos/ob/obinit.c` shows how the kernel’s object namespace comes alive. From there, `base/ntos/ob/obcreate.c`, `base/ntos/ob/obinsert.c`, and `base/ntos/ob/obhandle.c` explain object publication, handle management, and lifetime rules. `base/ntos/ob/obdir.c` matters because the namespace is itself data structure and policy.
+[`base/ntos/ob/obinit.c`](base/ntos/ob/obinit.c) shows how the kernel’s object namespace comes alive. From there, [`base/ntos/ob/obcreate.c`](base/ntos/ob/obcreate.c), [`base/ntos/ob/obinsert.c`](base/ntos/ob/obinsert.c), and [`base/ntos/ob/obhandle.c`](base/ntos/ob/obhandle.c) explain object publication, handle management, and lifetime rules. [`base/ntos/ob/obdir.c`](base/ntos/ob/obdir.c) matters because the namespace is itself data structure and policy.
 
 Then switch to processes. Follow the process manager from initialization to creation, teardown, and job control. The supporting kernel dispatcher code is where those executive abstractions meet wait, thread, and scheduling mechanics.
 
@@ -274,7 +274,7 @@ base/ntos/mm/iosup.c -> base/ntos/io/iop.h : memory and I/O share subsystem boun
 
 This chapter explains why the kernel cannot be understood as scheduler plus memory manager alone.
 
-`base/ntos/config/cminit.c` and `base/ntos/config/cmboot.c` show how configuration survives reboot and becomes executable policy again. `base/ntos/config/hiveinit.c` and `base/ntos/config/hiveload.c` are the right place to learn that the registry is both a storage engine and an API surface.
+[`base/ntos/config/cminit.c`](base/ntos/config/cminit.c) and [`base/ntos/config/cmboot.c`](base/ntos/config/cmboot.c) show how configuration survives reboot and becomes executable policy again. [`base/ntos/config/hiveinit.c`](base/ntos/config/hiveinit.c) and [`base/ntos/config/hiveload.c`](base/ntos/config/hiveload.c) are the right place to learn that the registry is both a storage engine and an API surface.
 
 Then read the cache manager as the bridge between memory-backed file state, deferred writeback, startup optimization, and I/O paths. Finish by studying the glue between cache, I/O, and memory.
 
@@ -363,9 +363,9 @@ fileRecommendations:
 
 This chapter ties together device-facing code and the trust material around it.
 
-The driver tree also records build and release contracts. `drivers/archive.txt` records curated payloads, `drivers/project.mk` defines the family boundary, and the signing material in `tools/` makes the release path tangible. `multimedia/project.mk`, `multimedia/directx/project.mk`, and `printscan/project.mk` show the same pattern in other product surfaces: a feature is a build contract plus a directory family, beyond a set of .c files.
+The driver tree also records build and release contracts. [`drivers/archive.txt`](drivers/archive.txt) records curated payloads, [`drivers/project.mk`](drivers/project.mk) defines the family boundary, and the signing material in [`tools/`](tools/) makes the release path tangible. [`multimedia/project.mk`](multimedia/project.mk), [`multimedia/directx/project.mk`](multimedia/directx/project.mk), and [`printscan/project.mk`](printscan/project.mk) show the same pattern in other product surfaces: a feature is a build contract plus a directory family, beyond a set of .c files.
 
-`certutil/generate.sh` is important here because it turns build trust into a reproducible step. In a tree like this, signing and packaging are part of the subsystem story, not an afterthought.
+[`certutil/generate.sh`](certutil/generate.sh) is important here because it turns build trust into a reproducible step. In a tree like this, signing and packaging are part of the subsystem story, not an afterthought.
 
 ---
 id: ch8

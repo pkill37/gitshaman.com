@@ -32,7 +32,7 @@ CPython is the reference implementation of Python, written in C. It compiles Pyt
 
 This guide targets CPython 3.14.0. Its cross-project traces use glibc 2.39 and Linux 6.1 as source-reading baselines, with AArch64 examples for architecture-specific boundaries. These independent pins are not a tested distribution or ABI configuration. Verify the actual interpreter build, linked C library, architecture, and running kernel before comparing a live trace. Linux CPython builds can use another libc, and embedding or static linking can change startup and loading paths.
 
-Version-specific details matter: bytecode cases are generated from `Python/bytecodes.c`, selected instructions specialize at runtime, and the source includes both default-GIL and free-threaded build paths.
+Version-specific details matter: bytecode cases are generated from [`Python/bytecodes.c`](Python/bytecodes.c), selected instructions specialize at runtime, and the source includes both default-GIL and free-threaded build paths.
 
 This guide is for anyone who wants to build a mental model of how CPython works—before diving deep into the source code. Whether you're exploring Python internals for the first time or returning with new questions, the focus here is on **behavior, not syntax**.
 
@@ -148,7 +148,7 @@ Python/frame.c -> Python/ceval.c : execution context
 
 ### The Compilation Pipeline: From Source to Bytecode
 
-CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from `Grammar/python.gram`, and the interpreter instruction cases are generated from `Python/bytecodes.c`. [The compiler entry](Python/compile.c:_PyAST_Compile) orchestrates [symbol analysis](Python/symtable.c:_PySymtable_Build), [instruction generation](Python/codegen.c), [control-flow optimization](Python/flowgraph.c), and [code-object assembly](Python/assemble.c:_PyAssemble_MakeCodeObject). These are separate implementation stages rather than one monolithic bytecode generator.
+CPython's compilation process transforms Python source code into bytecode through tokenization, PEG parsing, AST construction, and bytecode generation. In 3.14, the parser is generated from [`Grammar/python.gram`](Grammar/python.gram), and the interpreter instruction cases are generated from [`Python/bytecodes.c`](Python/bytecodes.c). [The compiler entry](Python/compile.c:_PyAST_Compile) orchestrates [symbol analysis](Python/symtable.c:_PySymtable_Build), [instruction generation](Python/codegen.c), [control-flow optimization](Python/flowgraph.c), and [code-object assembly](Python/assemble.c:_PyAssemble_MakeCodeObject). These are separate implementation stages rather than one monolithic bytecode generator.
 
 ### The Execution Model: Bytecode to Results
 
@@ -542,7 +542,7 @@ This distinction matters when reading source. A lock, refcount operation, object
 
 In the default build, the GIL protects Python object internals and serializes bytecode execution across native threads sharing that GIL. Threads still overlap during I/O or C code that releases the GIL. Subinterpreters configured with `PyInterpreterConfig_OWN_GIL` have separate locks and can execute bytecode in parallel; the restriction is not necessarily process-wide.
 
-`Python/ceval_gil.c` is the center of this model. It stores the GIL state, implements the switch interval, handles drop requests, and attaches or detaches thread states around blocking regions.
+[`Python/ceval_gil.c`](Python/ceval_gil.c) is the center of this model. It stores the GIL state, implements the switch interval, handles drop requests, and attaches or detaches thread states around blocking regions.
 
 ```c
 // Conceptual default-build shape.
@@ -582,7 +582,7 @@ PyGILState_Release(state);
 
 `PyGILState_*` assumes the main interpreter and is not suitable for attaching a native thread to a subinterpreter. Use the `PyThreadState_*` APIs with the intended interpreter for that case. An attached thread state permits C API access, but does not replace locks around extension-owned shared state in a free-threaded build.
 
-Read `Python/pystate.c` beside `Python/ceval_gil.c`: the first file explains which thread state is current, while the second explains whether that attached thread must also own the GIL.
+Read [`Python/pystate.c`](Python/pystate.c) beside [`Python/ceval_gil.c`](Python/ceval_gil.c): the first file explains which thread state is current, while the second explains whether that attached thread must also own the GIL.
 
 ### C Extensions: Declare Safety or Re-Enable the GIL
 
@@ -611,10 +611,10 @@ Audit extension code for direct object-field reads, borrowed references from mut
 
 Follow this order:
 
-1. Read `Doc/howto/free-threading-python.rst` for user-visible behavior.
-2. Read `Python/ceval_gil.c` and `Include/internal/pycore_gil.h` for the lock state and transition logic.
-3. Read `Python/pystate.c` for thread attachment and detachment.
-4. Read `Doc/howto/free-threading-extensions.rst` to understand extension compatibility pressure.
+1. Read [`Doc/howto/free-threading-python.rst`](Doc/howto/free-threading-python.rst) for user-visible behavior.
+2. Read [`Python/ceval_gil.c`](Python/ceval_gil.c) and [`Include/internal/pycore_gil.h`](Include/internal/pycore_gil.h) for the lock state and transition logic.
+3. Read [`Python/pystate.c`](Python/pystate.c) for thread attachment and detachment.
+4. Read [`Doc/howto/free-threading-extensions.rst`](Doc/howto/free-threading-extensions.rst) to understand extension compatibility pressure.
 5. Return to object and memory files to see how reference counting changes under `Py_GIL_DISABLED`.
 
 The core rule is simple: in default CPython, the GIL is the broad runtime guard; in free-threaded CPython, CPython moves that guard into object, thread-state, allocator, and extension-specific mechanisms.
