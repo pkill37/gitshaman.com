@@ -151,11 +151,9 @@ function looksLikeRepoPath(path: string): boolean {
   }
 
   const normalized = path.replace(/^\/+/, '');
-  if (/^[A-Za-z0-9._+-]+\/$/.test(normalized)) {
-    return true;
-  }
-
-  if (/^[A-Za-z0-9._+-]+\.[A-Za-z0-9._+-]+$/.test(normalized)) {
+  // All callers supply authored links or recommendation paths. Extensionless
+  // files and commas in devicetree binding names are valid repository paths.
+  if (/^[A-Za-z0-9._+,~-]+\/?$/.test(normalized)) {
     return true;
   }
 
@@ -166,7 +164,7 @@ function looksLikeRepoPath(path: string): boolean {
   return normalized
     .split('/')
     .filter(Boolean)
-    .every((segment) => /^[A-Za-z0-9._+-]+$/.test(segment));
+    .every((segment) => /^[A-Za-z0-9._+,~-]+$/.test(segment));
 }
 
 export function parseRepoNavigationTarget(
@@ -189,6 +187,10 @@ export function parseRepoNavigationTarget(
 
     const target = parseRepoNavigationTarget(scopedPath, undefined, options);
     return target ? { ...target, owner, repo } : null;
+  }
+
+  if (hasUnsafeScheme(trimmed) || /^(?:https?|ftp|mailto|tel|file):/i.test(trimmed)) {
+    return null;
   }
 
   const hashIndex = trimmed.indexOf('#');
@@ -226,8 +228,11 @@ export function parseRepoNavigationTarget(
     return applyNavigationSuffix(target, hashSuffix);
   }
 
+  const label = decodeHtmlEntities(stripHtml(options.linkText ?? '')).trim();
+  const isPathLabel = label === pathPart || label === resolvedPath;
   const inferredSearchPattern =
-    inferSearchPatternFromText(options.title) ?? inferSearchPatternFromText(options.linkText);
+    inferSearchPatternFromText(options.title) ??
+    (isPathLabel ? undefined : inferSearchPatternFromText(options.linkText));
   if (inferredSearchPattern) {
     target.searchPattern = inferredSearchPattern;
   }

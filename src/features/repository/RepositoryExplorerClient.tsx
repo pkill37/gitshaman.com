@@ -16,9 +16,9 @@ import RepositoryWorkspaceExplorer, {
   type InitialFileTarget,
 } from './components/RepositoryWorkspaceExplorer';
 import GuidePanel from './components/GuidePanel';
-import IconSidebarToggleButton from './components/IconSidebarToggleButton';
+import RightPanelRail from './components/RightPanelRail';
+import ExplorerIcon from './components/ExplorerIcon';
 import RepositoryRightPanel from './components/RepositoryRightPanel';
-import RepositoryChatPanel from './components/RepositoryChatPanel';
 import StatusBar from './components/StatusBar';
 import RepositoryHistory, { useRepositoryHistory } from './components/RepositoryHistory';
 import { useRepositoryGuide } from './useRepositoryGuide';
@@ -152,10 +152,7 @@ export default function RepositoryExplorerClient({
     : searchParams.get('ref') || effectiveDirectTarget?.branch;
   const { currentBranch, identifier } = useRepository();
   const [guideLocation, setGuideLocation] = useState('');
-  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic' | 'chat' | null>(
-    'editor'
-  );
-  const [chatMounted, setChatMounted] = useState(false);
+  const [mode, setMode] = useState<'editor' | 'search' | 'entities' | 'semantic' | null>('editor');
   const [mobileExplorerRequest, setMobileExplorerRequest] = useState(0);
   const history = useRepositoryHistory();
   const [savedHistoryOpen, setHistoryOpen] = useState(() => {
@@ -710,13 +707,6 @@ export default function RepositoryExplorerClient({
                 </>
               ),
             },
-            {
-              id: 'chat',
-              title: 'Chat',
-              icon: (
-                <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 3V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5ZM7 10h8m-8 4h5" />
-              ),
-            },
           ].map((tab) => {
             const isActive = mode === tab.id;
             return (
@@ -727,7 +717,6 @@ export default function RepositoryExplorerClient({
                   if (tab.id === 'entities') {
                     setEntitiesMounted(true);
                   }
-                  if (tab.id === 'chat') setChatMounted(true);
                   if (window.innerWidth < 1024) {
                     setIsGuideSidebarOpen(false);
                     setMode(tab.id as typeof mode);
@@ -769,15 +758,6 @@ export default function RepositoryExplorerClient({
               </button>
             );
           })}
-          <button
-            type="button"
-            className="workspace-mobile-guide"
-            aria-label="Toggle guide"
-            aria-pressed={isGuideSidebarOpen}
-            onClick={() => setIsGuideSidebarOpen((open) => !open)}
-          >
-            Guide
-          </button>
         </div>
 
         {/* ── Main content area ── */}
@@ -837,7 +817,7 @@ export default function RepositoryExplorerClient({
               top: 0,
               right: 0,
               bottom: 0,
-              left: mode === 'entities' || mode === 'chat' ? leftPaneWidth + 4 : 0,
+              left: mode === 'entities' ? leftPaneWidth + 4 : 0,
               opacity: 1,
               pointerEvents: 'auto',
               transition: 'opacity 0.35s ease',
@@ -856,7 +836,7 @@ export default function RepositoryExplorerClient({
               layoutMode={
                 mode === 'search'
                   ? 'search'
-                  : mode === 'entities' || mode === 'chat' || mode === null
+                  : mode === 'entities' || mode === null
                     ? 'viewer'
                     : mode === 'semantic'
                       ? 'semantic'
@@ -869,28 +849,6 @@ export default function RepositoryExplorerClient({
               onActivateFileSearch={activateFileSearch}
               mobileExplorerRequest={mobileExplorerRequest}
             />
-          </div>
-
-          <div
-            hidden={mode !== 'chat'}
-            className="repository-panel-chat"
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: leftPaneWidth,
-              background: 'var(--vscode-bg-secondary)',
-            }}
-          >
-            {chatMounted && (
-              <RepositoryChatPanel
-                key={`${owner}/${repo}`}
-                owner={owner}
-                repo={repo}
-                theme={workspaceTheme}
-              />
-            )}
           </div>
 
           {/* Entities context — kept mounted to preserve per-chapter cache */}
@@ -965,6 +923,7 @@ export default function RepositoryExplorerClient({
 
         {/* ── Persistent guide sidebar ── */}
         <div
+          id="repository-guide-panel"
           className="repository-guide-sidebar"
           style={{
             width: guideWidth,
@@ -998,21 +957,18 @@ export default function RepositoryExplorerClient({
             </RepositoryRightPanel>
           </div>
         </div>
-        {!isGuideSidebarOpen && (
-          <div
-            className="repository-guide-toggle"
-            style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
-          >
-            <IconSidebarToggleButton
-              onClick={() => setIsGuideSidebarOpen(true)}
-              label="Show guide sidebar"
-              size={28}
-              borderRadius={4}
-            >
-              ‹
-            </IconSidebarToggleButton>
-          </div>
-        )}
+        <RightPanelRail
+          tabs={[
+            {
+              id: 'guide',
+              label: 'Guide',
+              controls: 'repository-guide-panel',
+              icon: <ExplorerIcon kind="book" size={20} />,
+            },
+          ]}
+          activePanel={isGuideSidebarOpen ? 'guide' : null}
+          onSelect={() => setIsGuideSidebarOpen((open) => !open)}
+        />
       </div>
       <RepositoryHistory
         expanded={historyOpen}

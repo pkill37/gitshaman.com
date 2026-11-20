@@ -1,6 +1,7 @@
 .repository-history {
   display: flex;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   flex-shrink: 0;
   gap: 10px;
@@ -14,9 +15,27 @@
 .repository-history-previews {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
+  align-items: stretch;
   gap: 6px;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.repository-history-step {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.repository-history-arrow {
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--vscode-text-secondary);
+  font-size: 20px;
 }
 
 .repository-history-previews[hidden] {
@@ -28,7 +47,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  flex: 1 1 164px;
+  flex: 0 0 164px;
+  width: 164px;
   min-width: 0;
   border: 1px solid
     color-mix(in srgb, var(--history-accent, var(--vscode-text-accent)) 40%, #17151c);
@@ -116,6 +136,7 @@
 
   .repository-history-preview {
     flex-basis: 140px;
+    width: 140px;
   }
 }
 
@@ -136,6 +157,7 @@
 
   .repository-history-preview {
     flex-basis: 156px;
+    width: 156px;
   }
 
   .repository-history-link {

@@ -16,6 +16,7 @@ import {
 import { isCuratedRepo as isConfiguredCuratedRepo } from './curated-repos';
 import {
   logFileFetchDebugInfo,
+  readRepositoryFileResponse,
   type FileFetchResult,
   type FileFetchSource,
 } from './file-fetch-debug';
@@ -541,7 +542,8 @@ export async function readFileFromStatic(
         throw new Error(`Failed to read file: ${response.statusText}`);
       }
 
-      const content = await response.text();
+      const fileResult = await readRepositoryFileResponse(response, filePath);
+      const { content } = fileResult;
       debugLog('[explorar:file-fetch-static] success', {
         owner,
         repo,
@@ -554,7 +556,7 @@ export async function readFileFromStatic(
       });
 
       const result: FileFetchResult = {
-        content,
+        ...fileResult,
         debugInfo: {
           enabled: true,
           source: getDebugSource(sourceMode),

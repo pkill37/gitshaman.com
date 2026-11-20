@@ -766,8 +766,7 @@ body {
 }
 
 .shaman-landing .shaman-url-form {
-  flex-direction: row;
-  gap: 0.5rem;
+  display: block;
 }
 
 .shaman-landing .shaman-url-button--icon {
@@ -1074,6 +1073,36 @@ body {
   padding-top: 1rem;
 }
 
+.shaman-hero-windows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.shaman-hero-windows > * {
+  min-width: 0;
+}
+
+.shaman-hero-window-separator {
+  align-self: center;
+  justify-self: center;
+  color: #8e8997;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+@media (min-width: 768px) {
+  .shaman-hero-windows {
+    grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr);
+  }
+}
+
+.shaman-hero-windows > [role='alert'] {
+  grid-column: 1 / -1;
+}
+
 .shaman-repository-card {
   display: block;
   min-width: 0;
@@ -1130,6 +1159,83 @@ body {
     transform 220ms ease;
 }
 
+.shaman-browser-window {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.75rem;
+  background: rgba(10, 9, 15, 0.84);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.shaman-browser-window-bar {
+  position: relative;
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.shaman-browser-window-controls {
+  display: flex;
+  gap: 0.75rem;
+  padding-inline: 1rem;
+}
+
+.shaman-browser-window-title {
+  position: absolute;
+  left: 50%;
+  color: #8e8997;
+  font-size: 0.7rem;
+  transform: translateX(-50%);
+}
+
+.shaman-browser-window .shaman-url-input-shell {
+  --shaman-url-text-inset: 3.25rem;
+  border-radius: 0;
+}
+
+.shaman-browser-window .shaman-url-input {
+  min-height: 3.5rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-left: var(--shaman-url-text-inset);
+  padding-right: 3.25rem;
+}
+
+.shaman-url-lock {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 0.9rem;
+  display: grid;
+  width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  color: #45d483;
+  transform: translateY(-50%);
+}
+
+.shaman-url-lock svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.shaman-browser-window .shaman-url-input:focus {
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(99, 216, 201, 0.28);
+}
+
+.shaman-browser-window .shaman-url-button {
+  display: none;
+}
+
 .shaman-url-input-shell::before {
   pointer-events: none;
   position: absolute;
@@ -1161,7 +1267,7 @@ body {
   pointer-events: none;
   position: absolute;
   top: 50%;
-  left: calc(1rem + 1px);
+  left: var(--shaman-url-text-inset, calc(1rem + 1px));
   z-index: 20;
   right: 1rem;
   max-width: none;
@@ -1208,6 +1314,66 @@ body {
     box-shadow 220ms ease,
     background 220ms ease,
     color 160ms ease;
+}
+
+.shaman-cli-window {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 9, 15, 0.82);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  text-align: left;
+}
+
+.shaman-cli-window-bar {
+  min-height: 2.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.shaman-cli-window-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.shaman-cli-window-dot--red {
+  background: #ff5f57;
+}
+
+.shaman-cli-window-dot--yellow {
+  background: #febc2e;
+}
+
+.shaman-cli-window-dot--green {
+  background: #28c840;
+}
+
+.shaman-cli-window-title {
+  margin-left: auto;
+  margin-right: auto;
+  color: #8e8997;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.shaman-cli-window-content {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  color: #f8f3e7;
+  font-size: 0.875rem;
+}
+
+.shaman-cli-window-content code {
+  color: #f8f3e7;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+.shaman-cli-prompt {
+  color: #8ecbff;
+  user-select: none;
 }
 
 .shaman-url-morph {
@@ -1275,7 +1441,7 @@ body {
 .shaman-url-loading-text {
   pointer-events: none;
   position: absolute;
-  inset: 0 calc(1rem + 1px);
+  inset: 0 calc(1rem + 1px) 0 var(--shaman-url-text-inset, calc(1rem + 1px));
   z-index: 30;
   display: grid;
   align-items: center;
@@ -2092,27 +2258,16 @@ body {
 }
 
 .guide-recommendation-group {
-  --guide-rec-accent: var(--repo-accent, var(--vscode-text-accent, #63d8c9));
+  --guide-rec-accent: #a1a1aa;
   --guide-rec-badge-accent: var(--guide-rec-accent);
+  --guide-rec-hover-background: #303136;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--guide-rec-accent) 35%, var(--vscode-border) 65%);
+  border: 1px solid #3f4046;
   border-radius: 0.65rem;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--vscode-bg-secondary, #211c2b) 84%, var(--guide-rec-accent) 16%),
-    color-mix(in srgb, var(--vscode-bg-primary, #17151c) 92%, black 8%)
-  );
+  background: #232428;
   box-shadow:
     0 10px 26px rgba(0, 0, 0, 0.16),
     0 0 0 1px color-mix(in srgb, white 5%, transparent) inset;
-}
-
-.guide-recommendation-group--docs {
-  --guide-rec-accent: var(--shaman-violet, #a78bfa);
-}
-
-.guide-recommendation-group--directory {
-  --guide-rec-accent: var(--shaman-gold, #efc66f);
 }
 
 .guide-recommendation-header {
@@ -2120,14 +2275,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--guide-rec-accent) 28%, var(--vscode-border) 72%);
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--guide-rec-accent) 16%, transparent),
-      transparent
-    ),
-    color-mix(in srgb, var(--vscode-bg-tertiary, #2b2436) 72%, transparent);
+  border-bottom: 1px solid #3f4046;
+  background: #2b2c31;
   padding: 0.45rem 0.6rem;
 }
 
@@ -2188,7 +2337,7 @@ body {
 
 .guide-recommendation-item:hover {
   border-color: color-mix(in srgb, var(--guide-rec-accent) 36%, transparent);
-  background: color-mix(in srgb, var(--guide-rec-accent) 10%, var(--vscode-bg-hover, #342b40) 90%);
+  background: var(--guide-rec-hover-background);
   transform: translateY(-1px);
 }
 
@@ -2245,24 +2394,18 @@ body {
 }
 
 .vscode-theme-light .guide-recommendation-group {
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--vscode-bg-secondary, #f1eadb) 86%, var(--guide-rec-accent) 14%),
-    color-mix(in srgb, var(--vscode-bg-primary, #fbf7ed) 92%, white 8%)
-  );
+  --guide-rec-accent: #62636b;
+  --guide-rec-hover-background: #e2e4e7;
+  border-color: #c9ccd1;
+  background: #f1f2f3;
   box-shadow:
-    0 10px 24px rgba(83, 67, 34, 0.08),
+    0 10px 24px rgba(0, 0, 0, 0.06),
     0 0 0 1px color-mix(in srgb, white 38%, transparent) inset;
 }
 
 .vscode-theme-light .guide-recommendation-header {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--guide-rec-accent) 13%, transparent),
-      transparent
-    ),
-    color-mix(in srgb, var(--vscode-bg-tertiary, #e8deca) 74%, white 26%);
+  border-bottom-color: #c9ccd1;
+  background: #e5e7e9;
 }
 
 :where([data-markdown-preview], [data-guide-markdown]) h1,

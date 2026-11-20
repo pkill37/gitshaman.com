@@ -207,11 +207,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
             className="cursor-statusbar-item cursor-statusbar-button cursor-statusbar-history"
             aria-expanded={historyExpanded}
             aria-controls="repository-history-panel"
-            title={historyExpanded ? 'Collapse repository history' : 'Show repository history'}
+            title={historyExpanded ? 'Collapse Navigation History' : 'Show Navigation History'}
             onClick={onHistoryToggle}
           >
             <span aria-hidden="true">↶</span>
-            <span>History {historyCount}</span>
+            <span>Navigation History {historyCount}</span>
           </button>
         )}
         {!localSource && (

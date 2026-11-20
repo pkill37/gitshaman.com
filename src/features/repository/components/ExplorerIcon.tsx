@@ -1,5 +1,5 @@
 interface ExplorerIconProps {
-  kind?: 'file' | 'folder' | 'folder-open' | 'warning';
+  kind?: 'file' | 'folder' | 'folder-open' | 'warning' | 'book' | 'book-closed';
   size?: number;
 }
 
@@ -17,7 +17,17 @@ export default function ExplorerIcon({ kind = 'file', size = 16 }: ExplorerIconP
       aria-hidden="true"
       style={{ flexShrink: 0, verticalAlign: 'middle' }}
     >
-      {kind === 'folder' ? (
+      {kind === 'book-closed' ? (
+        <>
+          <path d="M5 21a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h15v18H5Z" />
+          <path d="M3 17h17M7 3v14" />
+        </>
+      ) : kind === 'book' ? (
+        <>
+          <path d="M12 5.5C9 3.5 5.5 3.5 2 4.5v15c3.5-1 7-1 10 1 3-2 6.5-2 10-1v-15c-3.5-1-7-1-10 1Z" />
+          <path d="M12 5.5v15" />
+        </>
+      ) : kind === 'folder' ? (
         <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
       ) : kind === 'folder-open' ? (
         <>

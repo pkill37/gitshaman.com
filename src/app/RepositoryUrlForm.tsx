@@ -187,78 +187,107 @@ export default function RepositoryUrlForm({
   };
 
   return (
-    <>
+    <div className="shaman-hero-windows">
       <div className={`shaman-url-morph ${isPortalLoading ? 'shaman-url-morph--portal' : ''}`}>
-        <form onSubmit={handleSubmit} className="shaman-url-form flex flex-col gap-3 sm:flex-row">
-          <div
-            className={`shaman-url-input-shell relative min-w-0 flex-1 ${
-              isPortalOpening ? 'shaman-url-input-shell--opening' : ''
-            } ${isPortalLoading ? 'shaman-url-input-shell--loading' : ''} ${
-              isDomainVisible ? 'shaman-url-input-shell--domain' : ''
-            }`}
-            style={
-              {
-                '--shaman-url-load-progress': `${loadingProgress}%`,
-              } as CSSProperties
-            }
-          >
-            <label htmlFor="github-url" className="sr-only">
-              GitHub repository URL
-            </label>
-            {!githubUrl && (
-              <div className="shaman-url-placeholder" aria-hidden="true">
-                https://github.com/owner/repo
+        <form onSubmit={handleSubmit} className="shaman-url-form">
+          <div className="shaman-browser-window">
+            <div className="shaman-browser-window-bar">
+              <div className="shaman-browser-window-controls" aria-hidden="true">
+                <span className="shaman-cli-window-dot shaman-cli-window-dot--red" />
+                <span className="shaman-cli-window-dot shaman-cli-window-dot--yellow" />
+                <span className="shaman-cli-window-dot shaman-cli-window-dot--green" />
               </div>
-            )}
-            <input
-              id="github-url"
-              value={loadingUrl ?? githubUrl}
-              onChange={(event) => setGithubUrl(event.target.value)}
-              placeholder=""
-              className="shaman-url-input relative z-10 w-full rounded-md px-4 py-4 text-base outline-none"
-              type="url"
-              inputMode="url"
-              autoComplete="url"
-              readOnly={isPortalOpening}
-              aria-busy={isPortalOpening}
-              aria-describedby={isPortalLoading ? 'github-url-loading-status' : undefined}
-              suppressHydrationWarning
-            />
-            {loadingUrl && (
-              <div className="shaman-url-loading-text" aria-hidden="true">
-                <span>
-                  https://git<strong>{animatedDomainChange}</strong>
-                  {loadingUrl.slice('https://gitshaman'.length)}
+              <span className="shaman-browser-window-title">Web Browser</span>
+            </div>
+            <div
+              className={`shaman-url-input-shell relative min-w-0 ${
+                isPortalOpening ? 'shaman-url-input-shell--opening' : ''
+              } ${isPortalLoading ? 'shaman-url-input-shell--loading' : ''} ${
+                isDomainVisible ? 'shaman-url-input-shell--domain' : ''
+              }`}
+              style={{ '--shaman-url-load-progress': `${loadingProgress}%` } as CSSProperties}
+            >
+              <span className="shaman-url-lock" aria-hidden="true">
+                <svg viewBox="0 0 16 16" fill="none">
+                  <rect x="3" y="7" width="10" height="7" rx="2" />
+                  <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+                  <path d="m6.5 10.5 1 1 2-2" />
+                </svg>
+              </span>
+              <label htmlFor="github-url" className="sr-only">
+                GitHub repository URL
+              </label>
+              {!githubUrl && (
+                <div className="shaman-url-placeholder" aria-hidden="true">
+                  https://github.com/owner/repo
+                </div>
+              )}
+              <input
+                id="github-url"
+                value={loadingUrl ?? githubUrl}
+                onChange={(event) => setGithubUrl(event.target.value)}
+                placeholder=""
+                className="shaman-url-input relative z-10 w-full rounded-md px-4 py-4 text-base outline-none"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                readOnly={isPortalOpening}
+                aria-busy={isPortalOpening}
+                aria-describedby={isPortalLoading ? 'github-url-loading-status' : undefined}
+                suppressHydrationWarning
+              />
+              {loadingUrl && (
+                <div className="shaman-url-loading-text" aria-hidden="true">
+                  <span>
+                    https://git<strong>{animatedDomainChange}</strong>
+                    {loadingUrl.slice('https://gitshaman'.length)}
+                  </span>
+                </div>
+              )}
+              {isPortalLoading && (
+                <span id="github-url-loading-status" className="sr-only">
+                  Loading repository {loadingProgress}%
                 </span>
-              </div>
-            )}
-            {isPortalLoading && (
-              <span id="github-url-loading-status" className="sr-only">
-                Loading repository {loadingProgress}%
-              </span>
-            )}
+              )}
+            </div>
+            <button
+              type="submit"
+              className="shaman-url-button shaman-url-button--icon rounded-md px-6 py-4 text-base font-semibold transition-colors"
+              disabled={isPortalOpening}
+              aria-label={isPortalLoading ? 'Loading repository' : 'Open in GitShaman'}
+            >
+              {isPortalLoading ? (
+                <span className="shaman-url-button-spinner" aria-hidden="true" />
+              ) : (
+                <span className="shaman-url-button-arrow" aria-hidden="true">
+                  ↑
+                </span>
+              )}
+            </button>
           </div>
-          <button
-            type="submit"
-            className="shaman-url-button shaman-url-button--icon rounded-md px-6 py-4 text-base font-semibold transition-colors"
-            disabled={isPortalOpening}
-            aria-label={isPortalLoading ? 'Loading repository' : 'Open in GitShaman'}
-          >
-            {isPortalLoading ? (
-              <span className="shaman-url-button-spinner" aria-hidden="true" />
-            ) : (
-              <span className="shaman-url-button-arrow" aria-hidden="true">
-                ↑
-              </span>
-            )}
-          </button>
         </form>
+      </div>
+      <span className="shaman-hero-window-separator">OR</span>
+      <div className="shaman-cli-window overflow-hidden rounded-lg">
+        <div className="shaman-cli-window-bar flex items-center gap-3 px-3 py-2">
+          <span className="shaman-cli-window-dot shaman-cli-window-dot--red" />
+          <span className="shaman-cli-window-dot shaman-cli-window-dot--yellow" />
+          <span className="shaman-cli-window-dot shaman-cli-window-dot--green" />
+          <span className="shaman-cli-window-title">Terminal</span>
+        </div>
+        <div className="shaman-cli-window-content px-4 py-3">
+          <code>
+            <span className="shaman-cli-prompt">$</span> cd foobar
+            <br />
+            <span className="shaman-cli-prompt">$</span> gitshaman init
+          </code>
+        </div>
       </div>
       {urlError && (
         <p role="alert" className="mt-2 text-xs text-rose-300">
           {urlError}
         </p>
       )}
-    </>
+    </div>
   );
 }

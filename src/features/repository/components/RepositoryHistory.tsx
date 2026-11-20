@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useSyncExternalStore, type CSSProperties } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import {
@@ -54,6 +54,13 @@ export default function RepositoryHistory({
 }) {
   const history = useRepositoryHistory();
   const search = useSearchParams().toString();
+  const timelineRef = useRef<HTMLOListElement>(null);
+
+  useEffect(() => {
+    if (expanded && timelineRef.current) {
+      timelineRef.current.scrollLeft = timelineRef.current.scrollWidth;
+    }
+  }, [history, expanded]);
 
   useEffect(() => {
     const repository = `${owner}/${repo}`;
@@ -84,57 +91,69 @@ export default function RepositoryHistory({
     publishHistory(next);
   }, [owner, repo, file, branch, search, targetFile]);
 
-  if (!history.length) return null;
+  if (history.length < 2) return null;
 
   return (
     <nav
       id="repository-history-panel"
       className="repository-history"
-      aria-label="Repository history"
+      aria-label="Navigation History"
       hidden={!expanded}
     >
-      <div
+      <ol
+        ref={timelineRef}
+        role="list"
         id="repository-history-previews"
         className="repository-history-previews"
         hidden={!expanded}
       >
         {history.map((visit, index) => (
-          <div
-            key={visit.id}
-            className="repository-history-preview"
-            data-current={visit.id === activeVisit?.id || undefined}
-            style={
-              { '--history-accent': getCuratedRepoAccent(visit.owner, visit.repo) } as CSSProperties
-            }
-          >
-            <a
-              href={visit.href}
-              className="repository-history-link"
-              aria-current={visit.id === activeVisit?.id ? 'location' : undefined}
-              aria-label={`Visit ${index + 1}: ${visit.owner}/${visit.repo}${visit.file ? ` · ${visit.file}` : ''}`}
-              title={`${visit.owner}/${visit.repo}\n${visit.file || 'Repository overview'}${visit.branch ? `\n${visit.branch}` : ''}`}
+          <li key={visit.id} className="repository-history-step">
+            <div
+              className="repository-history-preview"
+              data-current={visit.id === activeVisit?.id || undefined}
+              style={
+                {
+                  '--history-accent': getCuratedRepoAccent(visit.owner, visit.repo),
+                } as CSSProperties
+              }
             >
-              <span className="repository-history-preview-top">
-                <span>{visit.owner}</span>
-                <span>
-                  {visit.id === activeVisit?.id ? 'Current' : String(index + 1).padStart(2, '0')}
+              <a
+                href={visit.href}
+                className="repository-history-link"
+                aria-current={visit.id === activeVisit?.id ? 'location' : undefined}
+                aria-label={`Visit ${index + 1}: ${visit.owner}/${visit.repo}${visit.file ? ` · ${visit.file}` : ''}`}
+                title={`${visit.owner}/${visit.repo}\n${visit.file || 'Repository overview'}${visit.branch ? `\n${visit.branch}` : ''}`}
+              >
+                <span className="repository-history-preview-top">
+                  <span>{visit.owner}</span>
+                  <span>
+                    {visit.id === activeVisit?.id ? 'Current' : String(index + 1).padStart(2, '0')}
+                  </span>
                 </span>
+                <strong>{visit.repo}</strong>
+                <span className="repository-history-file">
+                  {visit.file || 'Repository overview'}
+                </span>
+              </a>
+              <button
+                type="button"
+                className="repository-history-remove"
+                aria-label={`Remove visit ${index + 1}: ${visit.owner}/${visit.repo} from history`}
+                title="Remove from history"
+                onClick={() => publishHistory(visits.filter((entry) => entry.id !== visit.id))}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+            {index < history.length - 1 && (
+              <span className="repository-history-arrow" aria-hidden="true">
+                →
               </span>
-              <strong>{visit.repo}</strong>
-              <span className="repository-history-file">{visit.file || 'Repository overview'}</span>
-            </a>
-            <button
-              type="button"
-              className="repository-history-remove"
-              aria-label={`Remove visit ${index + 1}: ${visit.owner}/${visit.repo} from history`}
-              title="Remove from history"
-              onClick={() => publishHistory(visits.filter((entry) => entry.id !== visit.id))}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
+            )}
+          </li>
         ))}
-      </div>
+      </ol>
     </nav>
   );
 }

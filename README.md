@@ -5,7 +5,7 @@
 [![Featured on Hacker News](https://hackerbadge.now.sh/api?id=46066280)](https://news.ycombinator.com/item?id=46066280)
 
 GitShaman is a static-first Next.js source browser. It combines curated guides, a VS Code-like
-workspace, indexed search, Monaco navigation, semantic graphs, and repository-scoped discussions.
+workspace, indexed search, Monaco navigation, and semantic graphs.
 The GitShaman CLI brings source analysis and a local browser workspace to your own Git repositories.
 
 ## CLI
@@ -72,7 +72,7 @@ to rebuild. Run `analyze` again after source changes. `viz` binds to `127.0.0.1`
 port; use `--port 3001` to select a port or `--no-open` to print the URL without opening a browser.
 The local viz uses the same repository interface as gitshaman.com: editor, indexed file search,
 entities, guides, themes, and status bar. Files and indexes load from the authenticated local
-server. Public discussions and source-file link sharing are unavailable for local repositories.
+server. Source-file link sharing is unavailable for local repositories.
 Stop the server with Ctrl+C. MCP support is deferred.
 
 ### Embeddings
@@ -135,7 +135,7 @@ Development prepares the SQL.js runtime and exposes the local corpus under `publ
 Run `npm run corpus:sync` to populate or refresh local curated snapshots. This corpus is separate
 from the `.gitshaman/` analysis created by the CLI in a target repository.
 
-See [.env.example](.env.example) for public content-origin and Giscus settings; put local overrides
+See [.env.example](.env.example) for public content-origin settings; put local overrides
 in `.env.local`. Guides live in `docs/`; start a new guide with
 [docs/_template.md](docs/_template.md). Run `npm run guides` to validate the guide registry, prose,
 and repository references. See [CONTRIBUTING.md](CONTRIBUTING.md) for the guide format.
@@ -184,10 +184,6 @@ Playwright loads `.env.local` with Next.js environment loading, prepares local a
 development server automatically. Browser test reports and failure artifacts are written under `out/`.
 
 Run `npm run lint` separately for type, ESLint, formatting, guide prose, and Markdown checks.
-
-The optional Giscus integration test runs when `NEXT_PUBLIC_GISCUS_REPO_ID` is set. Set the related
-public Giscus variables in `.env.local`; see
-[docs/giscus-chat-integration.md](docs/giscus-chat-integration.md).
 
 ## Build and deployment
 
@@ -292,13 +288,11 @@ flowchart TB
     Search["File and symbol search"]
     Graph["Semantic graph: loaded on selection"]
     Guide["Guide panel"]
-    Chat["Chat: loaded on selection"]
   end
   Workspace --> Editor
   Workspace --> Search
   Workspace --> Graph
   Workspace --> Guide
-  Workspace --> Chat
   Editor -->|read source| Files
   Editor --> Service["SemanticQueryService"]
   Service --> Indexed["IndexedLanguageBackend"]
@@ -306,16 +300,11 @@ flowchart TB
   Indexed --> SQLJS
   Search --> SQLJS
   Graph --> SQLJS
-  Chat -->|when configured| Giscus["Giscus discussion iframe"]
 ```
 
 The workspace can switch curated content between local staged files and a configured R2 origin while
 developing. In production, it uses the public R2 origin. The code-index cache is keyed by repository,
 revision, and source mode so local and remote artifacts do not overlap.
-
-The Guide/Chat sidebar mounts the Giscus widget only after Chat is selected. Each repository uses a
-specific discussion term (`gitshaman:repo:<owner>/<repo>`). When Giscus is not configured, the UI
-shows setup guidance instead of loading an iframe.
 
 ### Semantic query flow
 
@@ -378,4 +367,4 @@ workspace path.
 - Data-flow relationships are intraprocedural and best effort, not alias, interprocedural, or taint
   analysis.
 - Repositories without a usable index continue with source browsing and heuristic editor behavior.
-- The semantic graph and Giscus chat are lazy features, so neither blocks initial workspace loading.
+- The semantic graph loads on selection and does not block initial workspace loading.

@@ -36,7 +36,7 @@ test('guide and preview styles render local, remote, mixed and emphasized code l
     '`malloc`',
   ].join('\n\n');
   const html = marked.parse(markdown, {
-    renderer: createRepoMarkdownRenderer({ symbolScopePaths: ['malloc/malloc.c'] }),
+    renderer: createRepoMarkdownRenderer(),
   }) as string;
   await page.goto('/');
   await page.evaluate((html) => {
@@ -50,7 +50,8 @@ test('guide and preview styles render local, remote, mixed and emphasized code l
   }, html);
   const wrappers = page.locator('[data-link-audit]');
   for (const wrapper of await wrappers.all()) {
-    await expect(wrapper.locator('a')).toHaveCount(8);
+    await expect(wrapper.locator('a')).toHaveCount(6);
+    await expect(wrapper.locator('a code').filter({ hasText: 'malloc/malloc.c' })).toHaveCount(0);
     for (const link of await wrapper.locator('a').all()) {
       await expect(link).toHaveClass('inline-code-link');
       await expect(link.locator('a')).toHaveCount(0);
@@ -95,9 +96,19 @@ test('repository history keeps previews across links, reloads and arbitrary retu
   const destination = await crossRepoLink.getAttribute('data-repo-name');
   await crossRepoLink.click();
 
-  const history = page.getByRole('navigation', { name: 'Repository history' });
+  const history = page.getByRole('navigation', { name: 'Navigation History' });
   await expect(history).toBeVisible({ timeout: 60000 });
   await expect(history.locator('a')).toHaveCount(2);
+  await expect(history.getByRole('listitem')).toHaveCount(2);
+  await expect(history.locator('.repository-history-arrow')).toHaveCount(1);
+  const chronologicalSteps = await history.getByRole('listitem').evaluateAll((steps) =>
+    steps.map((step) => {
+      const rect = step.getBoundingClientRect();
+      return { x: rect.x, y: rect.y };
+    })
+  );
+  expect(chronologicalSteps[1].x).toBeGreaterThan(chronologicalSteps[0].x);
+  expect(chronologicalSteps[1].y).toBe(chronologicalSteps[0].y);
   await expect(history.locator('a').first()).toContainText('cpython');
   await expect(history.locator('a[aria-current="location"]')).not.toContainText('cpython');
   if (destination) await expect(history.locator('a').last()).toContainText(destination);
@@ -126,8 +137,11 @@ test('repository history keeps previews across links, reloads and arbitrary retu
   const currentUrl = page.url();
   await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
   await expect(history.locator('a')).toHaveCount(3);
+  await expect(history.locator('.repository-history-arrow')).toHaveCount(2);
   expect(page.url()).toBe(currentUrl);
-  await expect(page.getByRole('button', { name: 'History 3', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Navigation History 3', exact: true })
+  ).toBeVisible();
   await page.reload();
   await expect(history.locator('a')).toHaveCount(3);
   expect(
@@ -149,10 +163,11 @@ test('repository history keeps previews across links, reloads and arbitrary retu
   });
   await expect(history.locator('a')).toHaveCount(2);
   await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
-  await history.getByRole('button', { name: /^Remove visit 1:/ }).click();
   await expect(history).toBeHidden();
-  await expect(page.getByRole('button', { name: 'History 0', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('gitshaman:repository-history:v1'))).toBe(
-    '[]'
-  );
+  await expect(
+    page.getByRole('button', { name: 'Navigation History 1', exact: true })
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('gitshaman:repository-history:v1')!))
+  ).toHaveLength(1);
 });

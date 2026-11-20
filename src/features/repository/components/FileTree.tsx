@@ -150,13 +150,14 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
   const currentPath = normalizePath(node.path);
   const isSelected =
     !!selectedPath && (currentPath === selectedPath || currentPath.startsWith(`${selectedPath}/`));
+  const isReadme = node.type === 'file' && node.name.toLowerCase() === 'readme.md';
 
   return (
     <div>
       <div
         ref={itemRef}
         data-file-path={node.path}
-        className={`vscode-file-item ${isSelected ? 'selected' : ''}`}
+        className={`vscode-file-item ${node.type === 'directory' ? 'vscode-file-item--directory' : ''} ${isReadme ? 'vscode-file-item--readme' : ''} ${isSelected ? 'selected' : ''}`}
         style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={handleToggle}
       >

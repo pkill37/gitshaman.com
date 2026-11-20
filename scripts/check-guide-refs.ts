@@ -14,7 +14,6 @@
  *   4. fileRecommendations.directories[].path — directory exists in repo
  *   4. chapter-graph edge paths            — both nodes exist in repo
  *   5. Markdown links  [text](path)        — path exists (when it looks like a repo path)
- *   6. Inline-code paths  `path/file.ext`  — path exists (relative paths only)
  *   7. Symbol names  `sym()` in descriptions — sym found in associated source file
  *
  * Checks (warnings only — do NOT exit 1):
@@ -30,6 +29,7 @@ import path from 'path';
 import matter from 'gray-matter';
 import { getCuratedRepo } from '../src/lib/curated-repos';
 import { parseRepoNavigationTarget } from '../src/lib/markdown-navigation';
+import { collectMarkdownRepoLinks } from '../src/lib/markdown-repo-links';
 import { CORPUS_REPOS_DIR } from './static-asset-paths';
 import { DOCS_DIR, listGuideMarkdownFiles } from './guide-docs';
 import {
@@ -271,15 +271,6 @@ function hasKnownExt(p: string): boolean {
   return KNOWN_EXTS.has(path.extname(p).toLowerCase());
 }
 
-/** True when the string looks like a relative repo path or a bare file reference. */
-function looksLikeRepoPath(s: string): boolean {
-  if (!s || s.includes('://') || s.startsWith('#')) return false;
-  if (/^repo:/i.test(s)) {
-    return looksLikeRepoPath(s.slice(s.indexOf(':') + 1));
-  }
-  return s.includes('/') || hasKnownExt(s) || s.endsWith('/');
-}
-
 export function parseClaimed(raw: string): number {
   return parseInt(raw.replace(/,/g, ''), 10);
 }
@@ -344,8 +335,6 @@ export function parseSections(content: string): Section[] {
 
 const EDGE_RE = /^(\S+)\s*->\s*(\S+)\s*:\s*(.+)$/;
 const LINE_COUNT_RE = /\(~([\d,]+)\s+lines[^)]*\)/g;
-const MD_LINK_RE = /\[(?:[^\]]*)\]\(([\w./\-@:]+)\)/g;
-const BACKTICK_RE = /`([^`\n]+)`/g;
 
 function checkRecommendedPath(
   repoRoot: string,
@@ -466,43 +455,20 @@ export function checkGuide(
     const checkedPaths = new Set<string>(); // deduplicate within section
     const proseOutsideFences = stripFencedBlocks(section.prose);
 
+    for (const { href: refPath } of collectMarkdownRepoLinks(proseOutsideFences)) {
+      if (checkedPaths.has(refPath)) continue;
+      checkedPaths.add(refPath);
+      const exists = refExistsForGuide(repoRoot, refPath);
+      if (exists === 'missing-corpus') {
+        warnings.push(`${section.id}: SKIP CROSS-REPO: ${refPath} (target corpus not downloaded)`);
+        continue;
+      }
+      if (!exists) {
+        errors.push(`${section.id}: MISSING FILE: ${refPath} (markdown link)`);
+      }
+    }
+
     for (const proseLine of proseOutsideFences.split('\n')) {
-      // 4. Markdown links
-      for (const m of proseLine.matchAll(MD_LINK_RE)) {
-        const refPath = m[1];
-        if (!refPath || refPath.includes('://') || refPath.includes('#')) continue;
-        if (!looksLikeRepoPath(refPath)) continue;
-        if (checkedPaths.has(refPath)) continue;
-        checkedPaths.add(refPath);
-        const exists = refExistsForGuide(repoRoot, refPath);
-        if (exists === 'missing-corpus') {
-          warnings.push(
-            `${section.id}: SKIP CROSS-REPO: ${refPath} (target corpus not downloaded)`
-          );
-          continue;
-        }
-        if (!exists) {
-          errors.push(`${section.id}: MISSING FILE: ${refPath} (markdown link)`);
-        }
-      }
-
-      // 5. Inline-code file paths
-      for (const m of proseLine.matchAll(BACKTICK_RE)) {
-        const span = m[1].trim();
-        if (span.startsWith('/')) continue; // absolute path — example, not a repo path
-        if (!looksLikeRepoPath(span)) continue;
-        if (checkedPaths.has(span)) continue;
-        checkedPaths.add(span);
-        const exists = refExistsForGuide(repoRoot, span);
-        if (exists === 'missing-corpus') {
-          warnings.push(`${section.id}: SKIP CROSS-REPO: ${span} (target corpus not downloaded)`);
-          continue;
-        }
-        if (!exists) {
-          errors.push(`${section.id}: MISSING FILE: ${span} (inline code)`);
-        }
-      }
-
       // 7. Line-count claims in prose: [text](path) ... (~N lines)
       for (const m of proseLine.matchAll(
         /\[(?:[^\]]*)\]\(([\w./\-@:]+)\)[^\n~]*\(~([\d,]+)\s+lines[^)]*\)/g

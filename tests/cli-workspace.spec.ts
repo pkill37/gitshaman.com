@@ -53,7 +53,7 @@ test('shared repository interface, local search, entities, theme, and stale stat
     'true'
   );
   await expect(page.getByRole('button', { name: 'Entities', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Chat', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Chat', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Share', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'File search', exact: true }).click();
   await expect
@@ -74,8 +74,6 @@ test('shared repository interface, local search, entities, theme, and stale stat
   await expect(page.locator('.monaco-editor').first()).toContainText('token.length');
   await page.getByRole('button', { name: 'Use light theme' }).click();
   await expect(page.locator('main.vscode-theme-light')).toBeVisible();
-  await page.getByRole('button', { name: 'Chat', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Repository discussion' })).toBeVisible();
   fs.appendFileSync(path.join(root, 'src/auth.ts'), '\nexport const changed = true;');
   await expect(page.getByRole('status')).toContainText('Source changed since analysis', {
     timeout: 20000,

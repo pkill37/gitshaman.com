@@ -8,30 +8,18 @@ import {
   hasUnsafeScheme,
   isExternalHref,
   parseMarkdownNavigationTarget,
-  parseRepoNavigationTarget,
 } from '@/lib/markdown-navigation';
 
 interface RepoMarkdownRendererOptions {
   baseFilePath?: string;
   linkRepoReferences?: boolean;
-  symbolScopePaths?: string[];
   allowMermaid?: boolean;
   escapeHtmlBlocks?: boolean;
-}
-
-function isLikelySymbolCode(code: string): boolean {
-  const trimmed = code.trim();
-  if (!trimmed || trimmed.length > 120) return false;
-  if (/[\s/\\]/.test(trimmed)) return false;
-  if (/^(true|false|null|undefined|\d+)$/i.test(trimmed)) return false;
-  return /^(?:[A-Za-z_]\w*|[A-Za-z_]\w*::[A-Za-z_]\w*)(?:\(\))?$/.test(trimmed);
 }
 
 export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions = {}) {
   const renderer = new marked.Renderer();
   const linkRepoReferences = options.linkRepoReferences ?? true;
-  const symbolScopePaths = options.symbolScopePaths ?? [];
-  let linkLabelDepth = 0;
 
   if (options.escapeHtmlBlocks) {
     renderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
@@ -48,14 +36,7 @@ export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions 
 
   renderer.link = function ({ href, title, tokens }: Tokens.Link) {
     const safeHref = href?.trim() || '#';
-    // Explicit link labels must not generate their own file/symbol links or icons.
-    let renderedText: string;
-    linkLabelDepth++;
-    try {
-      renderedText = this.parser.parseInline(tokens);
-    } finally {
-      linkLabelDepth--;
-    }
+    const renderedText = this.parser.parseInline(tokens);
     const linkText = renderedText.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, '$1');
     const codeClass = linkText.includes('<code>') ? ' class="inline-code-link"' : '';
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
@@ -83,23 +64,8 @@ export function createRepoMarkdownRenderer(options: RepoMarkdownRendererOptions 
   };
 
   renderer.codespan = ({ text: code }: Tokens.Codespan) => {
-    const decodedCode = decodeHtmlEntities(code);
-    const repoTarget = parseRepoNavigationTarget(decodedCode, options.baseFilePath);
-    const codeHtml = `<code>${escapeHtml(decodedCode)}</code>`;
-
-    if (linkLabelDepth > 0) return codeHtml;
-
-    if (!repoTarget) {
-      if (symbolScopePaths.length > 0 && isLikelySymbolCode(decodedCode)) {
-        return `<a href="#" class="inline-code-link" data-search-pattern="${escapeHtml(
-          decodedCode.trim()
-        )}" data-symbol-scope="${escapeHtml(symbolScopePaths.join('|||'))}">${codeHtml}</a>`;
-      }
-      return codeHtml;
-    }
-
-    if (!linkRepoReferences) return codeHtml;
-    return `<a href="#" class="inline-code-link" ${getRepoLinkAttributes(repoTarget)}>${getExternalRepoIconHtml(repoTarget)}${codeHtml}</a>`;
+    // Code formatting never implies navigation; authors opt in with Markdown links.
+    return `<code>${escapeHtml(decodeHtmlEntities(code))}</code>`;
   };
 
   return renderer;

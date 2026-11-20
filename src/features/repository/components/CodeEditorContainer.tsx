@@ -4,8 +4,9 @@ import type { AndroidWorkspaceSource } from '@/lib/android/source';
 import React, { useState, useEffect, useRef } from 'react';
 import MonacoCodeEditor from './MonacoCodeEditor';
 import MarkdownPreview from './MarkdownPreview';
+import PdfPreview from './PdfPreview';
 import { fetchFileContent as fetchFromGitHub } from '@/lib/github-api';
-import type { FileFetchResult } from '@/lib/file-fetch-debug';
+import { isPdfFile, type FileFetchResult } from '@/lib/file-fetch-debug';
 import type { ReferenceSearchState } from '@/types';
 import type { LoadedCodeIndex } from '@/lib/code-index';
 import { debugLog } from '@/lib/browser-debug';
@@ -100,7 +101,7 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
     const isStaleRequest = () => activeRequestId.current !== requestId;
 
     const loadFileContent = async () => {
-      if (!filePath) {
+      if (!filePath || isPdfFile(filePath)) {
         setContent('');
         setError(null);
         setCurrentFilePath('');
@@ -193,6 +194,16 @@ const CodeEditorContainer: React.FC<CodeEditorContainerProps> = ({
 
     void loadFileContent();
   }, [filePath]);
+
+  if (isPdfFile(filePath)) {
+    return (
+      <PdfPreview
+        key={`${workspaceId}:${filePath}`}
+        filePath={filePath}
+        fetchFile={fetchFile ?? fetchFromGitHub}
+      />
+    );
+  }
 
   if (error) {
     return (

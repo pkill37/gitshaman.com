@@ -624,6 +624,19 @@
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 400;
+}
+
+.vscode-file-item--directory .name {
+  font-weight: 700;
+}
+
+.vscode-file-item--readme .name {
+  color: color-mix(in srgb, var(--vscode-text-primary) 35%, var(--vscode-text-accent));
+}
+
+.vscode-file-item--readme .icon {
+  color: var(--vscode-text-accent);
 }
 
 .vscode-file-item .size {
@@ -763,6 +776,35 @@
 
 .vscode-tab-strip > .vscode-tab .close:hover {
   background: var(--vscode-bg-hover);
+}
+
+.vscode-pdf-preview iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.vscode-pdf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  color: var(--vscode-text-secondary);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+}
+
+.vscode-pdf-toolbar span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vscode-pdf-toolbar a {
+  color: var(--vscode-text-primary);
+  white-space: nowrap;
 }
 
 /* Code Editor */
@@ -1483,6 +1525,30 @@
     color 120ms ease;
 }
 
+.workspace-right-activity-bar {
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-left: 1px solid var(--vscode-border);
+  background: var(--vscode-bg-secondary);
+}
+
+.workspace-right-activity-bar .workspace-activity-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
 .workspace-left-pane-resizer:hover,
 .workspace-left-pane-resizer:focus-visible {
   background: var(--repo-accent, var(--vscode-text-accent));
@@ -1544,7 +1610,6 @@
 }
 
 .workspace-mobile-repo,
-.workspace-mobile-guide,
 .workspace-mobile-empty {
   display: none;
 }
@@ -1563,7 +1628,7 @@
     flex-direction: row !important;
     align-items: center !important;
     gap: 2px !important;
-    padding: 4px 8px !important;
+    padding: 4px 56px 4px 8px !important;
     border-bottom: 1px solid var(--vscode-border);
   }
 
@@ -1587,21 +1652,16 @@
     flex-shrink: 0;
   }
 
-  .workspace-mobile-guide {
-    display: block;
-    height: 44px;
-    padding: 0 12px;
-    border: 1px solid var(--vscode-border);
-    border-radius: 6px;
-    background: var(--vscode-bg-primary);
-    color: var(--vscode-text-primary);
-    font: inherit;
-    font-size: 12px;
-  }
-
-  .workspace-mobile-guide[aria-pressed='true'] {
-    color: var(--repo-accent);
-    border-color: currentColor;
+  .workspace-right-activity-bar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 6;
+    flex-direction: row;
+    justify-content: center;
+    height: 53px;
+    padding: 4px;
+    border-bottom: 1px solid var(--vscode-border);
   }
 
   .repository-workspace-content {
@@ -1635,7 +1695,6 @@
     left: 0 !important;
   }
 
-  .repository-panel-chat,
   .repository-panel-entities {
     width: 100% !important;
     z-index: 4 !important;
@@ -1652,8 +1711,7 @@
   }
 
   .repository-workspace .workspace-left-pane-resizer,
-  .repository-guide-resizer,
-  .repository-guide-toggle {
+  .repository-guide-resizer {
     display: none;
   }
 }

@@ -41,7 +41,7 @@ Viz: --port <number> --no-open
 Share: --dry-run --source owner/repo --name <name> --description <text>
        --slug <slug> --guide <markdown-file> --no-open
 
-Chat and MCP are deferred. Run analyze again to refresh source changes.
+MCP is deferred. Run analyze again to refresh source changes.
 `;
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 export function openBrowser(url: string): void {

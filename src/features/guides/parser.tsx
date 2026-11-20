@@ -8,6 +8,7 @@ import { getCuratedRepoAccent } from '@/lib/curated-repos';
 import { debugLog } from '@/lib/browser-debug';
 import { createRepoMarkdownRenderer } from '@/lib/markdown-renderer';
 import { parseRepoNavigationTarget } from '@/lib/markdown-navigation';
+import { collectMarkdownRepoLinks } from '@/lib/markdown-repo-links';
 
 /** Extract and strip a ```chapter-graph block from section content. */
 function extractChapterGraph(content: string): { graph: string | undefined; cleanContent: string } {
@@ -27,16 +28,6 @@ type OpenFileInTab = (
   searchScope?: string[],
   repoTarget?: { owner: string; repo: string }
 ) => void;
-
-function createMarkdownRenderer(
-  symbolScopePaths: string[],
-  options?: { linkRepoReferences?: boolean }
-) {
-  return createRepoMarkdownRenderer({
-    symbolScopePaths,
-    linkRepoReferences: options?.linkRepoReferences,
-  });
-}
 
 // Parse section frontmatter
 interface SectionFrontmatter {
@@ -206,17 +197,8 @@ function extractNarrativePaths(sectionContent: string, sectionMeta: SectionFront
     pushUniquePath(paths, seen, target.path);
   }
 
-  const markdownLinkRe = /\[[^\]]+\]\(([^)\s]+)\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = markdownLinkRe.exec(sectionContent)) !== null) {
-    const target = parseRepoNavigationTarget(match[1]);
-    if (!target) continue;
-    pushUniquePath(paths, seen, target.path);
-  }
-
-  const codeSpanRe = /`([^`\n]+)`/g;
-  while ((match = codeSpanRe.exec(sectionContent)) !== null) {
-    const target = parseRepoNavigationTarget(match[1]);
+  for (const link of collectMarkdownRepoLinks(sectionContent)) {
+    const target = parseRepoNavigationTarget(link.href);
     if (!target) continue;
     pushUniquePath(paths, seen, target.path);
   }
@@ -239,15 +221,8 @@ function collectNarrativeFileRecommendations(sectionContent: string): FileRecomm
     });
   };
 
-  const markdownLinkRe = /\[([^\]]+)\]\(([^)\s]+)\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = markdownLinkRe.exec(sectionContent)) !== null) {
-    pushRecommendation(match[2], match[1]);
-  }
-
-  const codeSpanRe = /`([^`\n]+)`/g;
-  while ((match = codeSpanRe.exec(sectionContent)) !== null) {
-    pushRecommendation(match[1]);
+  for (const link of collectMarkdownRepoLinks(sectionContent)) {
+    pushRecommendation(link.href, link.label);
   }
 
   return recommendations;
@@ -445,9 +420,7 @@ export function parseGuideMarkdown(markdown: string, openFileInTab: OpenFileInTa
       // Convert markdown to HTML (only if content exists)
       let reactContent: React.ReactNode = null;
       if (sectionContent && sectionContent.trim().length > 0) {
-        const renderer = createMarkdownRenderer(
-          narrativePaths.filter((path) => !path.endsWith('/'))
-        );
+        const renderer = createRepoMarkdownRenderer();
         marked.setOptions({ renderer });
         // marked can return string or Promise<string>, but with sync renderer it's always string
         const htmlContent = marked(sectionContent) as string;

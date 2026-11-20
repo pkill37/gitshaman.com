@@ -29,13 +29,14 @@ test('mobile exploration uses bottom history and top workspace controls @mobile'
     files: { 'nptl/pthread_create.c': 'int pthread_create(void) { return 0; }\n' },
   });
   await page.goto('/cpython/');
-  const history = page.getByRole('navigation', { name: 'Repository history' });
-  await expect(history).toBeVisible();
-  await expect(history.locator('a')).toHaveCount(1);
+  const history = page.getByRole('navigation', { name: 'Navigation History' });
+  await expect(history).toHaveCount(0);
   await expect(page.locator('.mobile-nav-bar')).toHaveCount(0);
   const statusBar = page.getByRole('region', { name: 'Workspace status bar' });
   await expect(statusBar).toBeVisible();
-  await expect(statusBar.getByRole('button', { name: 'History 1', exact: true })).toBeVisible();
+  await expect(
+    statusBar.getByRole('button', { name: 'Navigation History 1', exact: true })
+  ).toBeVisible();
   const guide = page.locator('.repository-guide-sidebar');
   await expect(guide).toBeVisible();
   await expect
@@ -45,7 +46,10 @@ test('mobile exploration uses bottom history and top workspace controls @mobile'
   await page.getByRole('button', { name: 'File editor', exact: true }).click();
   await expect(guide).toBeHidden();
   await expect(page.getByRole('region', { name: 'Repository file tree' })).toBeVisible();
-  await page.getByRole('button', { name: 'Toggle guide' }).click();
+  await page
+    .getByRole('navigation', { name: 'Right sidebar panels' })
+    .getByRole('button', { name: 'Guide', exact: true })
+    .click();
   await expect(guide).toBeVisible();
   await page
     .locator(
@@ -61,16 +65,18 @@ test('mobile exploration uses bottom history and top workspace controls @mobile'
   await history.locator('a').first().click();
   await expect(page).toHaveURL(/\/cpython\//);
   await expect(history.locator('a')).toHaveCount(3);
+  await expect(history.locator('.repository-history-arrow')).toHaveCount(2);
+  const timeline = history.locator('#repository-history-previews');
+  await expect(timeline).toHaveCSS('overflow-x', 'auto');
   await expect(page.getByRole('button', { name: 'Browse files', exact: true })).toBeVisible();
-  await statusBar.getByRole('button', { name: 'History 3', exact: true }).click();
+  await statusBar.getByRole('button', { name: 'Navigation History 3', exact: true }).click();
   await expect(history).toBeHidden();
   await page.reload();
-  await expect(statusBar.getByRole('button', { name: 'History 3', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false'
-  );
+  await expect(
+    statusBar.getByRole('button', { name: 'Navigation History 3', exact: true })
+  ).toHaveAttribute('aria-expanded', 'false');
   await expect(history).toBeHidden();
-  await statusBar.getByRole('button', { name: 'History 3', exact: true }).click();
+  await statusBar.getByRole('button', { name: 'Navigation History 3', exact: true }).click();
   await expect(history.locator('#repository-history-previews')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true

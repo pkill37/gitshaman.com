@@ -1,12 +1,8 @@
 // Dynamic project guide configuration system using docs/ markdown files
-import React, { type CSSProperties } from 'react';
+import React from 'react';
 import { getCuratedGuideByRepo } from '@/features/guides/docs-loader';
 import { parseRepoNavigationTarget } from '@/lib/markdown-navigation';
-import {
-  getCuratedRepo,
-  getCuratedRepoAccent,
-  getCuratedRepoDisplayName,
-} from '@/lib/curated-repos';
+import { getCuratedRepo, getCuratedRepoDisplayName } from '@/lib/curated-repos';
 import { SOURCE_REPOSITORY_URL } from '@/lib/site';
 
 export interface FileRecommendation {
@@ -32,7 +28,6 @@ interface RecommendationGroup {
   type: RecommendationType;
   title: string;
   items: RecommendationItem[];
-  accent: string;
 }
 
 export interface GuideSection {
@@ -102,19 +97,16 @@ export function createFileRecommendationsComponent(
       type: 'source',
       title: 'Files',
       items: orderedItems.filter((file) => file.type === 'source'),
-      accent: '#0ea5e9',
     },
     {
       type: 'docs',
       title: 'Docs',
       items: orderedItems.filter((file) => file.type === 'docs'),
-      accent: '#8b5cf6',
     },
     {
       type: 'directory',
       title: 'Directories',
       items: orderedItems.filter((file) => file.type === 'directory'),
-      accent: '#f59e0b',
     },
   ].filter((group) => group.items.length > 0) as RecommendationGroup[];
 
@@ -142,13 +134,6 @@ export function createFileRecommendationsComponent(
     }
   };
 
-  const getItemAccent = (file: FileRecommendation) => {
-    const target = getItemTarget(file);
-    return target?.owner && target.repo
-      ? getCuratedRepoAccent(target.owner, target.repo)
-      : undefined;
-  };
-
   return (
     <div className="guide-recommendations">
       {groups.length > 0 && (
@@ -157,7 +142,6 @@ export function createFileRecommendationsComponent(
             <section
               key={group.type}
               className={`guide-recommendation-group guide-recommendation-group--${group.type}`}
-              style={{ '--guide-rec-accent': group.accent } as CSSProperties}
             >
               <div className="guide-recommendation-header">
                 <div className="guide-recommendation-heading">
@@ -167,7 +151,6 @@ export function createFileRecommendationsComponent(
               </div>
               <div className="guide-recommendation-list">
                 {group.items.map((file, index) => {
-                  const itemAccent = getItemAccent(file);
                   return (
                     <button
                       key={`${group.type}-${index + 1}-${file.path}`}
@@ -188,11 +171,6 @@ export function createFileRecommendationsComponent(
                         }
                         onFileClick(getItemPath(file));
                       }}
-                      style={
-                        itemAccent
-                          ? ({ '--guide-rec-badge-accent': itemAccent } as CSSProperties)
-                          : undefined
-                      }
                     >
                       <div className="guide-recommendation-item-inner">
                         <span className="guide-recommendation-index">{index + 1}.</span>

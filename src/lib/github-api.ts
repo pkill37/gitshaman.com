@@ -15,7 +15,7 @@ import {
 import { getDefaultCuratedRepoSourceMode } from './curated-content-url';
 import { getCuratedRepoRevision } from './curated-repos';
 import { debugLog } from './browser-debug';
-import type { FileFetchResult } from './file-fetch-debug';
+import { readRepositoryFileResponse, type FileFetchResult } from './file-fetch-debug';
 import { isSafeRepositoryPath } from './github-url';
 export { sortFileNodes } from './file-tree';
 
@@ -191,12 +191,14 @@ export async function fetchRepositoryFile(
         if (Number.isFinite(contentLength) && contentLength > MAX_EDITOR_FILE_BYTES) {
           throw new GitHubApiError(`File is too large to open: ${path}`, 413);
         }
-        const content = await response.text();
-        if (new Blob([content]).size > MAX_EDITOR_FILE_BYTES) {
+        const fileResult = await readRepositoryFileResponse(response, path);
+        if (
+          (fileResult.blob?.size ?? new Blob([fileResult.content]).size) > MAX_EDITOR_FILE_BYTES
+        ) {
           throw new GitHubApiError(`File is too large to open: ${path}`, 413);
         }
         return {
-          content,
+          ...fileResult,
           debugInfo: {
             enabled: false,
             source: 'github-api',

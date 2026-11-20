@@ -11,7 +11,6 @@ import {
   parseSections,
   resolveRepoPath,
   stripNavigationSuffix,
-  stripFencedBlocks,
 } from '../scripts/check-guide-refs';
 import { DOCS_DIR, isGuideMarkdownFile, listGuideMarkdownFiles } from '../scripts/guide-docs';
 import { generateGuideRegistrySource } from '../scripts/generate-guide-registry';
@@ -22,39 +21,15 @@ import {
   validateGuideMarkdown,
 } from '../scripts/validate-guides';
 import { getExternalRepoIconHtml, parseRepoNavigationTarget } from '../src/lib/markdown-navigation';
+import { collectMarkdownRepoLinks } from '../src/lib/markdown-repo-links';
 import { resolveCorpusPathFromKnownFiles } from '../src/lib/repo-static';
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-function looksLikeRepoPath(ref: string): boolean {
-  if (!ref || ref.includes('://') || ref.startsWith('#') || ref.startsWith('/')) return false;
-  return ref.includes('/') || /\.[A-Za-z0-9]+$/.test(ref) || ref.endsWith('/');
-}
-
 function extractInlineRefs(prose: string): string[] {
-  const refs = new Set<string>();
-  const MD_LINK_RE = /\[(?:[^\]]*)\]\(([\w./\-@:]+)\)/g;
-  const BACKTICK_RE = /`([^`\n]+)`/g;
-
-  for (const line of stripFencedBlocks(prose).split('\n')) {
-    for (const match of line.matchAll(MD_LINK_RE)) {
-      const ref = match[1];
-      if (looksLikeRepoPath(ref)) {
-        refs.add(ref);
-      }
-    }
-
-    for (const match of line.matchAll(BACKTICK_RE)) {
-      const ref = match[1].trim();
-      if (looksLikeRepoPath(ref)) {
-        refs.add(ref);
-      }
-    }
-  }
-
-  return Array.from(refs);
+  return [...new Set(collectMarkdownRepoLinks(prose).map((link) => link.href))];
 }
 
 function normalizeInlineRef(ref: string): string {
@@ -502,7 +477,7 @@ More prose.
     expect(guide).toContain('kthreadd');
   });
 
-  test('flags bare file references in guide prose when the corpus does not contain them', () => {
+  test('validates authored links while ignoring inline code examples', () => {
     const repoRoot = makeTempDir('explorar-guide-lint-');
     try {
       const existingFile = path.join(repoRoot, 'arch/arm64/kernel/entry.S');
@@ -518,7 +493,7 @@ fileRecommendations:
       description: Real corpus path for syscall entry.
 ---
 
-The full path exists, but the bare reference \`missing_entry.S\` should still be linted.
+The inline example \`missing_entry.S\` is code, not a repository link.
 The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
 ---`;
 
@@ -528,10 +503,10 @@ The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringContaining('missing_entry.S'),
-          expect.stringContaining('(inline code)'),
           expect.stringContaining('(markdown link)'),
         ])
       );
+      expect(result.errors).toHaveLength(1);
       expect(
         result.errors.some((error) => error.includes('arch/arm64/kernel/entry.S'))
       ).toBeFalsy();
@@ -558,7 +533,7 @@ The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
     }
   });
 
-  test('all inline prose file references resolve to corpus files', (t) => {
+  test('all authored prose file links resolve to corpus files', (t) => {
     const docFiles = listGuideMarkdownFiles();
     let checkedDocs = 0;
 
@@ -593,6 +568,41 @@ The markdown link [missing_entry.S](./missing_entry.S) should also be checked.
         'No downloaded corpus roots found; run `npm run corpus:sync` to validate inline prose refs.'
       );
     }
+  });
+
+  test('authored symbol and line targets exist in their pinned source files', (t) => {
+    let checkedTargets = 0;
+    for (const fileName of listGuideMarkdownFiles()) {
+      const raw = fs.readFileSync(path.join(DOCS_DIR, fileName), 'utf8');
+      const { data } = matter(raw);
+      for (const { href } of collectMarkdownRepoLinks(raw)) {
+        const target = parseRepoNavigationTarget(href);
+        if (!target || (!target.searchPattern && !target.scrollToLine)) continue;
+        const repository =
+          target.owner && target.repo ? getCuratedRepo(target.owner, target.repo) : data;
+        if (!repository) continue;
+        const root = path.join(
+          CORPUS_REPOS_DIR,
+          repository.owner,
+          repository.repo,
+          repository.revision
+        );
+        if (!fs.existsSync(root)) continue;
+        const resolved = resolveRepoPath(root, target.path);
+        expect(resolved, `${fileName}: ${href}`).not.toBeNull();
+        const content = fs.readFileSync(path.join(root, resolved!), 'utf8');
+        if (target.searchPattern) {
+          expect(content, `${fileName}: missing symbol in ${href}`).toContain(target.searchPattern);
+        }
+        if (target.scrollToLine) {
+          expect(target.scrollToLine, `${fileName}: line outside ${href}`).toBeLessThanOrEqual(
+            content.split('\n').length
+          );
+        }
+        checkedTargets++;
+      }
+    }
+    if (!checkedTargets) t.skip('No downloaded corpus targets found.');
   });
 
   test('guide registry generation includes guides and excludes docs helpers', () => {

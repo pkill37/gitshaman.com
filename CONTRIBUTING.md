@@ -63,6 +63,10 @@ For an existing guide:
 2. Keep source paths relative to the repository root.
 3. Prefer complete paths such as `kernel/fork.c` over ambiguous filenames.
 4. Link source files with standard Markdown links.
+   Use ``[`path/file.c`](path/file.c)`` for a clickable file reference and
+   ``[`function()`](path/file.c:function)`` for a symbol in a known file.
+   Backticks alone are plain code: member expressions, version tags, runtime paths,
+   and example commands must not become file recommendations or navigation links.
 5. Run `npm run guides:validate`.
 
 Create a new guide from `docs/_template.md` and save it as `docs/<owner>_<repo>.md`. If the

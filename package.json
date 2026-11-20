@@ -45,7 +45,6 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
-    "@giscus/react": "^3.1.0",
     "@monaco-editor/react": "^4.7.0",
     "fast-xml-parser": "^5.11.2",
     "gray-matter": "^4.0.3",
@@ -54,7 +53,7 @@
     "marked": "^18.0.13",
     "mermaid": "^12.0.0",
     "new-github-issue-url": "^1.1.0",
-    "next": "^16.4.0",
+    "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sql.js": "^1.14.2"
@@ -75,7 +74,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@next/env": "16.4.0",
+    "@next/env": "16.4.6",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -83,7 +82,7 @@
     "better-sqlite3": "^12.11.1",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.2",
+    "eslint-config-next": "16.4.6",
     "eslint-config-prettier": "^10.1.8",
     "ignore": "^5.3.2",
     "knip": "^6.44.2",

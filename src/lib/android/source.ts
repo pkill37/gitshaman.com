@@ -1,5 +1,6 @@
 import { buildCuratedRepoUrlForSource, type CuratedRepoSourceMode } from '../curated-content-url';
 import { getCuratedRepo } from '../curated-repos';
+import { readRepositoryFileResponse, type FileFetchResult } from '../file-fetch-debug';
 import {
   CODE_INDEX_VERSION,
   MIN_SUPPORTED_CODE_INDEX_VERSION,
@@ -155,7 +156,7 @@ export class AndroidWorkspaceSource {
     }
   ) {}
 
-  async file(file: string, signal?: AbortSignal): Promise<{ content: string }> {
+  async file(file: string, signal?: AbortSignal): Promise<FileFetchResult> {
     safeAndroidPath(file);
     const target = resolveAndroidAlias(this.metadata, file);
     const project = androidProjectForPath(this.metadata, target);
@@ -171,10 +172,11 @@ export class AndroidWorkspaceSource {
     if (!response.ok) throw new Error(`Android file unavailable: ${file} (${response.status})`);
     if (Number(response.headers.get('content-length')) > 2 * 1024 * 1024)
       throw new Error('Android file is too large');
-    const content = await response.text();
-    if (new Blob([content]).size > 2 * 1024 * 1024) throw new Error('Android file is too large');
-    if (!project) this.manifestContents.set(file, content);
-    return { content };
+    const result = await readRepositoryFileResponse(response, file);
+    if ((result.blob?.size ?? new Blob([result.content]).size) > 2 * 1024 * 1024)
+      throw new Error('Android file is too large');
+    if (!project && !result.blob) this.manifestContents.set(file, result.content);
+    return result;
   }
 
   private async searchManifest(query: string, signal?: AbortSignal): Promise<CodeIndexFileEntry[]> {

@@ -23,6 +23,8 @@ import type { BackendDefinition, LanguageBackendContext } from '@/lib/semantic-b
 import { SemanticQueryService } from '@/lib/semantic-query-service';
 import { configureMonacoEnvironment as configureMonacoWorkers } from '@/lib/monaco-config';
 import { debugLog } from '@/lib/browser-debug';
+import { isMakefilePath, registerMakefileLanguage } from '@/lib/monaco-makefile';
+import { registerVhdlLanguage } from '@/lib/monaco-vhdl';
 
 type FileFetchResultLike = {
   content: string;
@@ -493,6 +495,8 @@ const Editor = dynamic(
       import('monaco-editor'),
       import('@monaco-editor/react'),
     ]);
+    registerMakefileLanguage(monaco);
+    registerVhdlLanguage(monaco);
     loader.config({ monaco });
     return MonacoEditor;
   },
@@ -842,9 +846,23 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   );
 
   const getMonacoLanguage = useCallback((filename: string): string => {
+    if (isMakefilePath(filename)) return 'makefile';
+    if (/^CMakeLists\.txt$/i.test(filename.split('/').pop() ?? '')) return 'cmake';
     const extension = filename.split('.').pop()?.toLowerCase();
 
     switch (extension) {
+      case 'tcl':
+        return 'tcl';
+      case 'vhd':
+      case 'vhdl':
+      case 'vho':
+        return 'vhdl';
+      case 'v':
+      case 'vh':
+        return 'verilog';
+      case 'sv':
+      case 'svh':
+        return 'systemverilog';
       case 'java':
         return 'java';
       case 'kt':
@@ -893,9 +911,6 @@ const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
         return 'plaintext';
       case 'txt':
         return 'plaintext';
-      case 'Makefile':
-      case 'makefile':
-        return 'makefile';
       case 'Kconfig':
         return 'ini'; // Closest to Kconfig syntax
       default:

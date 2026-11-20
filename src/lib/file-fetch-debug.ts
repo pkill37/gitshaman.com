@@ -16,7 +16,21 @@ export interface FileFetchDebugInfo {
 
 export interface FileFetchResult {
   content: string;
+  blob?: Blob;
   debugInfo?: FileFetchDebugInfo;
+}
+
+export const isPdfFile = (path: string): boolean => /\.pdf$/i.test(path);
+
+export async function readRepositoryFileResponse(
+  response: Response,
+  path: string
+): Promise<FileFetchResult> {
+  if (isPdfFile(path)) {
+    const bytes = await response.arrayBuffer();
+    return { content: '', blob: new Blob([bytes], { type: 'application/pdf' }) };
+  }
+  return { content: await response.text() };
 }
 
 export function logFileFetchDebugInfo(debugInfo: FileFetchDebugInfo | undefined): void {
